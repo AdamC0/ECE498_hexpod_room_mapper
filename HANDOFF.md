@@ -12,6 +12,14 @@ was localized and AUTO PAUSED with depth ready in upper-only mode, 0.97 m LiDAR
 clearance, and 12.307 V battery telemetry (about 89.5%). RTAB-Map graph updates
 were about 1 Hz. No Hector process was running.
 
+The subsequent `map inactive` fault was traced to `/visual_map` being
+event-driven: its valid 39 x 45 grid stopped republishing while the robot was
+stationary even though `/visual_slam/info` remained near 0.84 Hz and visual
+odometry near 4 Hz. The deployed mapper now treats `/visual_slam/info` as the
+visual path's five-second liveness heartbeat. After waiting beyond the former
+timeout, the mapper remained localized and AUTO PAUSED. All 131 tests pass on
+the robot. The mapper remains drive-disabled; no motion was commanded.
+
 Last-known box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
 left running with `_drive:=false _start_paused:=true`, using the separate
 `/tmp/room_mapper_box_validation.db` database. Latest sampled voltage: 10.069 V.
@@ -34,7 +42,7 @@ repository or documentation.
 
 PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
 manual-control, and speed changes are deployed. The native suite passes all
-129 tests, but no physical walking validation has occurred. After recharge and
+131 tests, but no physical walking validation has occurred. After recharge and
 a full reboot, the visual stack and mapper completed more than five stationary
 minutes in DRY RUN / AUTO PAUSED without a controller fault. A later measured
 box-alignment check left one drive-disabled mapper and RTAB-Map running. The
@@ -85,7 +93,7 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 - Added TF pose/map frame/reset service support so the controller consumes
   RTAB-Map's `map -> base_link` transform and `/visual_map`.
 
-All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
+All 131 tests pass on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
 updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
 Low-obstacle alignment, clicked routing, and supervised physical motion remain
 pending. The measured tall-box result is recorded in the live checkpoint above.
@@ -141,8 +149,10 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Reduced sparse-depth coverage gate from 10% to 2% with a 200-pixel minimum,
   then added a 1.5 s last-valid-result grace for brief post-motion sparsity.
 - Applied, then removed after diagnosis, the `<= 0.50 m` depth exclusion.
+- Replaced visual-grid publication freshness with RTAB graph-heartbeat
+  freshness so an unchanged stationary map remains active.
 
-The deployed suite passed all 129 tests on the robot after visual-SLAM integration.
+The deployed suite passes all 131 tests on the robot.
 
 ## Restart procedure
 

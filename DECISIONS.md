@@ -508,3 +508,26 @@ graph updates near 1 Hz were live. The mapper reported AUTO PAUSED, localized,
 depth ready in upper-only mode, and 0.97 m LiDAR clearance. The external web UI
 and battery endpoint were reachable; the final battery sample was 12.307 V
 (about 89.5%). No movement command or physical motion occurred.
+
+### RTAB-Map stationary-grid liveness correction - 2026-10-19
+
+The restored mapper later entered `FAULT: waiting for fresh SLAM pose and map`.
+The occupancy grid was not empty: `/visual_map` contained a valid 39 by 45 grid
+with 63 free and 35 occupied cells. During a 16-second sample, the grid emitted
+no new messages because the stationary map had not changed, while
+`/visual_slam/info` remained live near 0.84 Hz and visual odometry near 4 Hz.
+The controller's fixed five-second grid-publication timeout therefore produced
+the reported `map inactive` behavior even though RTAB-Map was healthy.
+
+The mapper now defaults to `/visual_slam/info` as the mapping-process heartbeat
+when `_map_topic:=/visual_map`. It still requires an occupancy grid to have been
+received, a fresh pose, a trusted map, and a heartbeat no more than five seconds
+old. If the heartbeat stops, it fails closed. Hector does not configure a
+heartbeat and retains the existing `/map` publication-freshness requirement.
+Object mapping uses the same liveness decision.
+
+Two regression tests cover a live heartbeat with an unchanged grid and a stale
+heartbeat with a recent grid. All 131 tests pass natively on the robot. In the
+live dry run, the mapper remained localized and AUTO PAUSED after waiting more
+than twice the former timeout, with no new grid publication required. It remains
+drive-disabled; no motion command or physical walking occurred.

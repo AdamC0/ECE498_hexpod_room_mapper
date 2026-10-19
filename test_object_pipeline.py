@@ -31,6 +31,8 @@ class ObjectPipelineTests(unittest.TestCase):
         n.use_map = n.map_trusted = True
         n.pose = (1., 2., math.pi / 2)
         n.t_pose = n.t_map = n.t_camera = n.t_registered_depth = 99.9
+        n.t_map_heartbeat = 0.0
+        n.map_heartbeat_topic, n.map_stale = '', 5.0
         n.slam_stale = n.object_max_age = 2.5
         n.object_result_max_age = 12.0
         n.object_sync_slop = .2

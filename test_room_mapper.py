@@ -50,6 +50,8 @@ class MapperTests(unittest.TestCase):
         n.pose, n.lidar = (0, 0, 0), dict(front=2., left=2., right=2., back=2.,
                                                 near_back=2., nearest=2., free=np.ones(36)*2)
         n.t_pose = n.t_scan = n.t_camera = n.t_depth = n.t_map = time.time()
+        n.t_map_heartbeat = 0.
+        n.map_heartbeat_topic, n.map_stale = '', 5.
         n.use_map = n.use_depth = True
         n.explorer = SimpleNamespace(have_map=True, coverage=lambda: 0.1)
         n.state, n.phase, n.phase_start = SEARCH, 'go', time.time()
@@ -423,6 +425,22 @@ class MapperTests(unittest.TestCase):
     def test_stale_map_stops(self):
         n = self.controller()
         n.t_map -= 6
+        n.control_step()
+        n.send.assert_called_with(('stop',))
+        self.assertEqual(n.state, FAULT)
+
+    def test_live_rtab_heartbeat_keeps_unchanged_map_active(self):
+        n = self.controller()
+        n.map_heartbeat_topic = '/visual_slam/info'
+        n.t_map -= 60
+        n.t_map_heartbeat = time.time()
+        n.control_step()
+        self.assertNotEqual(n.state, FAULT)
+
+    def test_stale_rtab_heartbeat_stops_even_with_recent_grid(self):
+        n = self.controller()
+        n.map_heartbeat_topic = '/visual_slam/info'
+        n.t_map_heartbeat = time.time() - 6
         n.control_step()
         n.send.assert_called_with(('stop',))
         self.assertEqual(n.state, FAULT)

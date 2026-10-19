@@ -53,6 +53,17 @@ class RoomMapper:
         # Registered depth remains useful later for placing YOLO detections.
         self.depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image_raw")
         self.map_topic = rospy.get_param("~map_topic", "/map")
+        # Hector republishes /map continuously, while RTAB-Map publishes its
+        # occupancy grid only when the grid changes. Use RTAB-Map's graph info
+        # as the liveness signal so an unchanged stationary map does not become
+        # falsely stale, while a stopped mapping process still fails closed.
+        default_map_heartbeat = ("/visual_slam/info"
+                                 if self.map_topic == "/visual_map" else "")
+        self.map_heartbeat_topic = str(rospy.get_param(
+            "~map_heartbeat_topic", default_map_heartbeat)).strip()
+        self.map_stale = float(rospy.get_param("~map_stale", 5.0))
+        if not math.isfinite(self.map_stale) or not 1.0 <= self.map_stale <= 30.0:
+            raise ValueError("map_stale must be between 1 and 30 seconds")
         self.pose_topic = rospy.get_param("~pose_topic", "/slam_out_pose")
         self.map_frame = str(rospy.get_param("~map_frame", "map")).lstrip("/")
         self.pose_frame = str(rospy.get_param(
@@ -265,6 +276,7 @@ class RoomMapper:
         self.last_valid_depth_time = 0.0
         self.scan_points = None
         self.t_scan = self.t_pose = self.t_camera = self.t_depth = self.t_map = 0.0
+        self.t_map_heartbeat = 0.0
         self.path = []
         self.user_goal = None
         self.nav_goal = None
@@ -347,6 +359,9 @@ class RoomMapper:
             rospy.Subscriber(self.depth_topic, Image, self.depth_callback, queue_size=1, buff_size=2**24)
         if self.use_map:
             rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
+            if self.map_heartbeat_topic:
+                rospy.Subscriber(self.map_heartbeat_topic, rospy.AnyMsg,
+                                 self.map_heartbeat_callback, queue_size=1)
             if self.pose_type == "tf":
                 self.ensure_tf_listener()
             else:
@@ -556,7 +571,7 @@ class RoomMapper:
         return (not self.shutting_down and not self.commanded_moving and
                 now >= self.settle_until and self.map_trusted and self.use_map and
                 self.pose is not None and 0 <= now - self.t_pose <= self.slam_stale and
-                0 <= now - self.t_map <= 5.0 and self.detector is not None)
+                self.map_is_fresh(now) and self.detector is not None)
 
     def process_objects(self):
         """Process one distinct RGB/depth pair; never hold control locks during YOLO."""
@@ -980,6 +995,15 @@ class RoomMapper:
                                            i.origin.position.x, i.origin.position.y)
             self.t_map = time.time()
 
+    def map_heartbeat_callback(self, _msg):
+        """Record mapping-process liveness when occupancy updates are event-driven."""
+        self.t_map_heartbeat = time.time()
+
+    def map_is_fresh(self, now):
+        """Require a recent grid update or the configured mapper heartbeat."""
+        stamp = (self.t_map_heartbeat if self.map_heartbeat_topic else self.t_map)
+        return stamp > 0.0 and 0.0 <= now - stamp <= self.map_stale
+
     def pose_callback(self, msg):
         stamped_pose = msg.pose.pose if hasattr(msg.pose, "pose") else msg.pose
         q = stamped_pose.orientation
@@ -1314,7 +1338,7 @@ class RoomMapper:
             self.set_state(FAULT, "waiting for " + ", ".join(missing))
             return
         mapping_ok = (self.use_map and pose is not None and now - t_pose <= self.slam_stale
-                      and self.explorer.have_map and now - self.t_map <= 5.0
+                      and self.explorer.have_map and self.map_is_fresh(now)
                       and self.map_trusted)
         if self.use_map and not mapping_ok:
             self.send(("stop",))
@@ -1561,6 +1585,7 @@ class RoomMapper:
         with self.map_lock:
             self.explorer.reset()
             self.t_map = 0.0
+            self.t_map_heartbeat = 0.0
         with self.data_lock:
             pose = self.pose
             self.settle_until = now + self.scan_settle

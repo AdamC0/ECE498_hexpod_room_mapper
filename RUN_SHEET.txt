@@ -39,15 +39,15 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 129 tests. Tests do not publish robot movement.
+  Current regression count: 131 tests. Tests do not publish robot movement.
 
 VISUAL/DEPTH SLAM VALIDATION (DEPLOYED 2026-10-19):
-  The candidate is deployed. All 129 tests pass natively on PT. RTAB-Map
+  The candidate is deployed. All 131 tests pass natively on PT. RTAB-Map
   consumes synchronized RGB-D odometry and LiDAR, updates its graph at about
   0.9 Hz, and returned an 80 x 86 occupancy grid at 0.05 m resolution while
   stationary. No physical walking validation has occurred yet.
 
-  [x] Deploy the revision and run all 129 tests on the robot.
+  [x] Deploy the revision and run all 131 tests on the robot.
   [ ] Start either Hector or RTAB-Map, never both.
   [ ] For RTAB-Map, start in dry-run mode:
       roslaunch ~/room_mapper/visual_slam.launch
@@ -126,6 +126,8 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   drive-disabled, AUTO PAUSED mapper are running using
   /tmp/room_mapper_continue.db; Hector is not running. RGB/depth/LiDAR, visual
   odometry, graph updates, TF, /visual_map, and the web UI are live. Depth is
-  ready in upper-only mode; floor-bump detection is unavailable.
-  Native robot suite: 129 passing. Physical walking validation: not started.
+  ready in upper-only mode; floor-bump detection is unavailable. RTAB graph
+  heartbeat keeps the unchanged visual grid active; the prior stale-map fault
+  no longer occurs after five seconds.
+  Native robot suite: 131 passing. Physical walking validation: not started.
   Latest observed battery: 12.307 V (~89.5%). No motion was commanded.

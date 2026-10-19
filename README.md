@@ -10,7 +10,7 @@ offline web dashboard at `http://192.168.137.223:8000`.
 
 ## Visual/depth update deployed for no-drive validation (2026-10-19)
 
-This update is deployed and passed the full 129-test suite on PT. RTAB-Map, TF
+This update is deployed and passed the full 131-test suite on PT. RTAB-Map, TF
 pose, and the depth-aware grid were exercised without commanding motion. A tall
 box aligned with depth and mapped face cells at reported 1.00 m and 0.75 m
 placements; low-obstacle and walking validation remain pending. The web UI was
@@ -151,6 +151,9 @@ in view while checking that they appear occupied in `/visual_map`.
 
 RTAB-Map's `localization_pose` output is inactive while building a map. The
 mapper therefore uses `_pose_type:=tf` to read the live map-to-base transform.
+RTAB-Map also publishes `/visual_map` only when the grid changes, so the mapper
+uses `/visual_slam/info` as its default five-second liveness heartbeat whenever
+`_map_topic:=/visual_map`. Hector retains the original `/map` freshness check.
 
 After reboot, if `/scan` has a publisher but no messages:
 
@@ -192,7 +195,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 129 tests and does not publish physical
+The updated suite contains 131 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -200,7 +203,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-The 129-test suite passed natively on PT. A visual-SLAM dry run was restored
+The 131-test suite passed natively on PT. A visual-SLAM dry run was restored
 `AUTO PAUSED`; RGB, depth, LiDAR, RTAB-Map, TF pose, `/voltage`, the battery JSON
 endpoint, and the web interface were live. The current dry-run stack uses the
 fresh `/tmp/room_mapper_continue.db` database with exactly one drive-disabled

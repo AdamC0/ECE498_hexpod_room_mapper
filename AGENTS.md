@@ -62,13 +62,17 @@ or invalid geometry. Do not describe the system as fully safe.
 
 ## Visual/depth update deployed (2026-10-19)
 
-PT is online and the visual/depth candidate is deployed. All 129 tests pass on
+PT is online and the visual/depth candidate is deployed. All 131 tests pass on
 the robot. RTAB-Map must consume `/visual_slam/odom_rgbd_image`; direct
 RGB/depth/odom/scan synchronization did not advance the graph. Both RTAB nodes
 clear private parameters on launch to prevent stale ROS settings. The installed
 reset service is `/visual_slam/reset`. The mapper uses `_pose_type:=tf` with
 `map` and `jethexa/base_link`, because `localization_pose` is not emitted in
 mapping mode. Never run Hector and RTAB-Map together.
+
+RTAB-Map publishes `/visual_map` only when the grid changes. For the visual
+path, the mapper uses `/visual_slam/info` as its five-second mapping-process
+heartbeat; Hector continues to use `/map` update freshness.
 
 No physical walking validation has occurred. The stationary stack produced
 visual odometry near 3.1 Hz, graph updates near 0.9 Hz, and a depth-aware
@@ -83,7 +87,9 @@ recharged; the latest value is recorded below.
 
 PT was reachable on the latest 2026-10-19 check. LiDAR was restored with
 `/start_scan`; RGB/depth/LiDAR, visual odometry, RTAB graph, TF, `/visual_map`,
-and the web UI were live. The full native suite previously passed 129 tests.
+and the web UI were live. The full native suite passes 131 tests. The visual
+map inactivity fault was corrected by using RTAB-Map's live graph heartbeat
+instead of requiring an unchanged occupancy grid to be republished.
 One mapper is running drive-disabled and AUTO PAUSED with RTAB-Map on
 `/tmp/room_mapper_continue.db`; Hector is not running. Depth is ready in
 upper-only mode. The latest voltage was 12.307 V (about 89.5%).
