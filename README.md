@@ -38,7 +38,7 @@ The dashboard includes a battery badge in the page header. It accepts
 from verified 9.8 V alarm cutoff / 12.6 V full defaults, and visibly marks low,
 medium, charging, stale, and unavailable telemetry.
 
-## Current deployed behavior (2026-10-12)
+## Current deployed behavior (2026-10-19)
 
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
 - Translation and rotation use bounded bursts separated by a 0.65 s settling
@@ -59,7 +59,7 @@ medium, charging, stale, and unavailable telemetry.
 - Manual W/A/S/D, arrow-key, and button controls work while autonomy is paused.
   A 0.55 s browser dead-man stops motion when commands stop arriving.
 - Independent translation and rotation sliders adjust both manual and
-  autonomous gait commands from 50% to 150%. They start at 100% after a mapper
+  autonomous gait commands from 50% to 200%. They start at 100% after a mapper
   restart and do not alter collision distances, footprint, or dead-man timing.
 - Detected objects are listed in the Objects tab and may be navigated to,
   renamed, or removed. Two distinct observations confirm a landmark.
@@ -79,13 +79,13 @@ depth is reserved for projecting YOLO detections into the map.
   band` only when there is no recent valid decision. Brief post-motion sparse
   frames reuse the last valid depth decision for at most 1.5 seconds while
   LiDAR remains active; sustained sparsity still fails closed.
-- Per the current operator calibration, depth results at or below 0.50 m are
-  ignored, including upper returns, floor bumps, and the synthetic 0.30 m
-  dropout/too-close alarm. Values above 0.50 m still use the 0.60 m depth stop.
-- This creates a deliberate depth blind region at close range. LiDAR remains
-  the independent fallback and stops at 0.45 m with the 0.30 m body radius.
-  Elevated objects inside 0.50 m that do not intersect the LiDAR plane may not
-  be detected. Change `_depth_ignore_at_or_below` only with physical testing.
+- Close-depth exclusion is disabled (`_depth_ignore_at_or_below:=0.0`). Upper
+  returns, floor bumps, and the synthetic dropout/too-close result remain stop
+  inputs, and valid depth still uses the 0.60 m stop threshold.
+- LiDAR remains an independent fallback and stops at 0.45 m with the 0.30 m
+  body radius. Depth still cannot guarantee detection of reflective,
+  transparent, out-of-view, or invalid geometry. Change
+  `_depth_ignore_at_or_below` only with physical testing.
 - If floor calibration fails three times, the controller continues in clearly
   reported `upper-only` mode; floor-bump detection is then unavailable.
 
