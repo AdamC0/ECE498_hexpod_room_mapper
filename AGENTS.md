@@ -1,8 +1,9 @@
-# Base Prompt for the Next Agent
+# JetHexa Room Mapper Repository Instructions
 
-You are taking over the JetHexa room-mapping project. Read `HANDOFF.md`,
-`README.md`, `RUN_SHEET.txt`, and the newest `DECISIONS.md` entry before making
-changes. Keep documentation synchronized with deployed behavior.
+Use `README.md` for project setup and usage. Read `HANDOFF.md` before robot or
+deployment work, `RUN_SHEET.txt` before live validation, and the newest relevant
+`DECISIONS.md` entries before changing architecture, calibration, or safety
+behavior. Keep documentation synchronized with deployed behavior.
 
 ## Version control
 
