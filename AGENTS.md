@@ -7,6 +7,13 @@ behavior. Keep documentation synchronized with deployed behavior.
 
 ## Version control
 
+At the start of every agent session, before inspecting or changing project
+files, run `git status --short --branch`, then update from GitHub with
+`git pull --ff-only origin main`. If uncommitted work or branch divergence
+prevents the fast-forward pull, do not stash, reset, overwrite, or discard the
+local work. Report the conflict, fetch `origin/main`, and reconcile it safely
+before continuing.
+
 All completed project changes must be committed and pushed to the GitHub
 repository at `https://github.com/AdamC0/ECE498_hexpod_room_mapper`. Before
 committing, review the diff and repository status. Use a clear, accurate commit
