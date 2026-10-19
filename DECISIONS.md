@@ -438,3 +438,12 @@ roughly 0.02-0.06 seconds and intermittent scan-time TF extrapolation warnings
 remain live-test observations. Measured obstacle placement, map alignment,
 five-minute resource observation, click-route behavior, and physical walking
 are still required before calling the visual stack motion-validated.
+
+The no-drive stack subsequently ran for more than seven minutes. Visual
+odometry consumed about one CPU core/189 MB RSS, RTAB-Map about 16%/221 MB,
+and the dry-run mapper about 63%/193 MB. During the mapper's three-minute
+stationary sample, TF pose changed about 0.02 m and 0.1 degrees. `/visual_map`
+contained 67 free and 79 occupied cells, the map endpoint returned HTTP 200,
+and the speed endpoint exposed the requested 50-200% limits. The mapper stayed
+AUTO PAUSED and no motion was commanded. Voltage fell to 10.016 V, so all
+visual processes were stopped and charging became a prerequisite for motion.

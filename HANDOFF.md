@@ -15,9 +15,10 @@ repository or documentation.
 
 PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
 manual-control, and speed changes are deployed. The native suite passes all
-129 tests. Visual SLAM and one mapper are live in DRY RUN / AUTO PAUSED; no
-physical walking validation has occurred. The latest observed battery was
-10.078 V (about 9.9%), so recharge before motion testing.
+129 tests. Visual SLAM and one mapper completed a DRY RUN / AUTO PAUSED check;
+they were then stopped to preserve the low battery. No physical walking
+validation has occurred. The latest observed battery was 10.016 V (about
+7.7%), so recharge before motion testing.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -68,6 +69,13 @@ All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
 updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
 Measured obstacle alignment, five-minute load, clicked routing, and supervised
 physical motion remain pending.
+
+The stack ran stationary for more than seven minutes. `rgbd_odometry` used
+about 100% of one CPU core and 189 MB RSS; RTAB-Map used about 16% and 221 MB;
+the dry-run mapper used about 63% and 193 MB. Over the mapper's three-minute
+sample, reported pose changed about 0.02 m and 0.1 degrees. The map contained
+67 free and 79 occupied cells, the web map returned HTTP 200, and the speed
+endpoint reported a 50-200% range. Exactly one mapper process was present.
 
 ## Important current calibration
 
