@@ -32,9 +32,10 @@ one mapper process exists.
 
 ## Current architecture
 
-- YDLIDAR G4 raw `/scan` feeds either Hector or RTAB-Map; never run both.
-- `hex_map.launch` is the Hector path; `visual_slam.launch` is the RGB-D/LiDAR
-  RTAB-Map path and owns its required TF bridges.
+- YDLIDAR G4 raw `/scan` feeds Hector, which owns pose and the persistent map.
+- Registered depth adds short-lived low-obstacle cells to the planner copy; it
+  never feeds Hector. `visual_slam.launch` is non-production and must remain
+  drive-disabled if used for research comparison. Never run both SLAM stacks.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
   0.03 m margin.
 - `room_mapper.py` handles bounded gait bursts, recovery, sensor safety,
@@ -51,6 +52,7 @@ one mapper process exists.
 - Depth stop: 0.60 m.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
+- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 2.5 s TTL.
 - Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
   or no previous valid result still faults.
 - Map pose jump: 0.25 m / 20 degrees.
@@ -60,7 +62,20 @@ one mapper process exists.
 Depth still cannot guarantee detection of reflective, transparent, out-of-view,
 or invalid geometry. Do not describe the system as fully safe.
 
-## Visual/depth update deployed (2026-10-19)
+## Hector/depth hybrid deployed (2026-10-19)
+
+The first RTAB-Map motion pulse moved forward physically, but the operator
+reported broken map/robot-position behavior relative to the original LiDAR
+mapper. Hector is restored as the production localization and mapping path.
+Registered depth is projected through timestamped TF into temporary planner
+cells for low geometry, without modifying Hector's map or pose.
+
+All 136 robot-native tests pass. A supervised 50% speed, 0.55 s forward pulse
+on the hybrid stack dead-man stopped normally; Hector reported about 0.027 m
+translation and 0.9 degrees rotation while `/map` remained live. Await the
+operator's physical confirmation before more motion.
+
+## Historical visual/depth experiment
 
 PT is online and the visual/depth candidate is deployed. All 131 tests pass on
 the robot. RTAB-Map must consume `/visual_slam/odom_rgbd_image`; direct
@@ -74,7 +89,7 @@ RTAB-Map publishes `/visual_map` only when the grid changes. For the visual
 path, the mapper uses `/visual_slam/info` as its five-second mapping-process
 heartbeat; Hector continues to use `/map` update freshness.
 
-No physical walking validation has occurred. The stationary stack produced
+Before the motion regression was found, the stationary stack produced
 visual odometry near 3.1 Hz, graph updates near 0.9 Hz, and a depth-aware
 occupancy grid. A seven-minute load check completed; reported pose moved about
 0.02 m and 0.1 degrees during the mapper's three-minute sample. A later tall-box
@@ -85,14 +100,12 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
-PT was reachable on the latest 2026-10-19 check. LiDAR was restored with
-`/start_scan`; RGB/depth/LiDAR, visual odometry, RTAB graph, TF, `/visual_map`,
-and the web UI were live. The full native suite passes 131 tests. The visual
-map inactivity fault was corrected by using RTAB-Map's live graph heartbeat
-instead of requiring an unchanged occupancy grid to be republished.
-One mapper is running drive-disabled and AUTO PAUSED with RTAB-Map on
-`/tmp/room_mapper_continue.db`; Hector is not running. Depth is ready in
-upper-only mode. The latest voltage was 12.307 V (about 89.5%).
+PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
+RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
+layer, and the web UI are live. The full native suite passes 136 tests. Exactly
+one drive-disabled mapper is `AUTO PAUSED`. Native depth is upper-only, while
+the independent registered-depth planner overlay is active. Do not command
+more motion until the operator confirms the latest supervised pulse.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

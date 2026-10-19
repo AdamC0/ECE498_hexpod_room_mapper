@@ -22,6 +22,7 @@ from sensor_msgs.msg import BatteryState, CameraInfo, Image, LaserScan
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, Trigger
 
+from depth_mapping import project_obstacle_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TransformCache, YoloOnnxDetector, backproject,
@@ -191,6 +192,27 @@ class RoomMapper:
             "~registered_depth_topic", "/camera/depth_registered/image_raw")
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info")
+        # Hector remains authoritative for pose and the persistent LiDAR map.
+        # Registered depth contributes only a short-lived planner obstacle
+        # layer for objects below the laser plane.
+        self.use_depth_map = bool(rospy.get_param("~use_depth_map", True))
+        self.depth_map_camera_info_topic = rospy.get_param(
+            "~depth_map_camera_info_topic", "/camera/depth_registered/camera_info")
+        self.depth_map_hz = float(rospy.get_param("~depth_map_hz", 2.0))
+        self.depth_map_decimation = int(rospy.get_param("~depth_map_decimation", 4))
+        self.depth_map_range_min = float(rospy.get_param("~depth_map_range_min", 0.15))
+        self.depth_map_range_max = float(rospy.get_param("~depth_map_range_max", 2.0))
+        self.depth_map_height_min = float(rospy.get_param("~depth_map_height_min", 0.025))
+        self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
+        self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
+        self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 2.5))
+        if (not math.isfinite(self.depth_map_hz) or self.depth_map_hz <= 0 or
+                not 1 <= self.depth_map_decimation <= 32 or
+                not 0 < self.depth_map_range_min < self.depth_map_range_max or
+                not 0 <= self.depth_map_height_min < self.depth_map_height_max or
+                self.depth_map_min_points < 1 or
+                not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0):
+            raise ValueError("depth map parameters are outside safe bounds")
         self.object_hz = float(rospy.get_param("~object_hz", 2.0))
         self.rgb_processing_hz = float(rospy.get_param("~rgb_processing_hz", 10.0))
         self.depth_processing_hz = float(rospy.get_param("~depth_processing_hz", 15.0))
@@ -327,6 +349,11 @@ class RoomMapper:
         self.registered_depth = None
         self.registered_depth_stamp = 0.0
         self.t_registered_depth = 0.0
+        self.t_depth_map = 0.0
+        self.depth_map_status = "waiting for registered depth"
+        self.depth_map_frame = ""
+        self.depth_map_k = None
+        self.depth_map_info_size = None
         self.camera_stamp = 0.0
         self.camera_frame = ""
         self.camera_k = None
@@ -357,6 +384,12 @@ class RoomMapper:
         rospy.Subscriber(self.scan_topic, LaserScan, self.scan_callback, queue_size=1)
         if self.use_depth:
             rospy.Subscriber(self.depth_topic, Image, self.depth_callback, queue_size=1, buff_size=2**24)
+        if self.use_depth_map:
+            self.ensure_tf_listener()
+            rospy.Subscriber(self.registered_depth_topic, Image,
+                             self.registered_depth_callback, queue_size=1, buff_size=2**24)
+            rospy.Subscriber(self.depth_map_camera_info_topic, CameraInfo,
+                             self.depth_map_camera_info_callback, queue_size=1)
         if self.use_map:
             rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
             if self.map_heartbeat_topic:
@@ -474,8 +507,9 @@ class RoomMapper:
             self.object_status = "startup failed: %s" % exc
             rospy.logerr("Object detection disabled; %s", self.object_status)
             return
-        rospy.Subscriber(self.registered_depth_topic, Image,
-                         self.registered_depth_callback, queue_size=1, buff_size=2**24)
+        if not self.use_depth_map:
+            rospy.Subscriber(self.registered_depth_topic, Image,
+                             self.registered_depth_callback, queue_size=1, buff_size=2**24)
         rospy.Subscriber(self.camera_info_topic, CameraInfo,
                          self.camera_info_callback, queue_size=1)
         self.object_status = "waiting for synchronized RGB, registered depth, and camera info"
@@ -496,6 +530,48 @@ class RoomMapper:
             self.registered_depth = depth
             self.registered_depth_stamp = self.message_time(msg)
             self.t_registered_depth = now
+        if self.use_depth_map and now - self.t_depth_map >= 1.0 / self.depth_map_hz:
+            self.update_depth_obstacle_map(depth, msg)
+
+    def depth_map_camera_info_callback(self, msg):
+        if (len(msg.K) >= 9 and all(math.isfinite(value) for value in msg.K) and
+                msg.K[0] > 0 and msg.K[4] > 0):
+            with self.data_lock:
+                self.depth_map_k = tuple(msg.K)
+                self.depth_map_info_size = (msg.height, msg.width)
+
+    def update_depth_obstacle_map(self, depth, msg):
+        """Project low registered-depth geometry into Hector's planner frame."""
+        now = time.time()
+        with self.data_lock:
+            k = self.depth_map_k
+            size = self.depth_map_info_size
+        if k is None or size != depth.shape:
+            self.depth_map_status = "waiting for matching registered-depth calibration"
+            return
+        frame = getattr(getattr(msg, "header", None), "frame_id", "").lstrip('/')
+        stamp = self.message_time(msg)
+        if not frame or stamp <= 0:
+            self.depth_map_status = "registered depth has no valid frame/time"
+            return
+        try:
+            with self.object_lock:
+                transform = self.tf_buffer.lookup(self.map_frame, frame, stamp, max_age=.5)
+            cells = project_obstacle_cells(
+                depth, k, transform, cell=self.explorer.cell,
+                decimation=self.depth_map_decimation,
+                range_min=self.depth_map_range_min, range_max=self.depth_map_range_max,
+                height_min=self.depth_map_height_min, height_max=self.depth_map_height_max,
+                min_points=self.depth_map_min_points)
+            with self.map_lock:
+                self.explorer.update_depth_obstacles(cells, now, self.depth_map_ttl)
+                count = self.explorer.depth_obstacle_count(now)
+            self.t_depth_map = now
+            self.depth_map_frame = frame
+            self.depth_map_status = "%d temporary obstacle cells" % count
+        except (KeyError, ValueError) as exc:
+            self.depth_map_status = "projection unavailable: %s" % exc
+            rospy.logwarn_throttle(5, "Depth obstacle map unavailable: %s", exc)
 
     def camera_info_callback(self, msg):
         with self.data_lock:
@@ -1706,10 +1782,12 @@ class RoomMapper:
             self.rejected_motion_scans, self.last_cmd)
         manual_cmd = getattr(self, "manual_cmd", None)
         mode = "  MANUAL: %s" % manual_cmd.upper() if manual_cmd else ("  AUTO PAUSED" if self.paused else "")
-        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nMap known: %.0f%%\nObjects: %s\n%s\nLast: %s" % (
+        depth_map_line = ("Depth planner layer: " + self.depth_map_status
+                          if self.use_depth_map else "Depth planner layer: disabled")
+        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nMap known: %.0f%%\nObjects: %s\n%s\nLast: %s" % (
             self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
             scan_line, self.translation_speed_percent, self.rotation_speed_percent,
-            depth_line, front, self.lidar_stop,
+            depth_line, depth_map_line, front, self.lidar_stop,
             100 * coverage,
             self.object_status, survey_line, self.web_msg)
 

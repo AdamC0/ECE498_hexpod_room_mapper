@@ -27,7 +27,7 @@ STARTUP AFTER A ROBOT REBOOT:
 
   cd ~/room_mapper
   python3 room_mapper.py _drive:=true _start_paused:=true \
-    _reset_map:=false _detect_objects:=true _use_depth:=true
+    _reset_map:=false _detect_objects:=true _use_depth:=true _use_depth_map:=true
 
   Use _reset_map:=false only for a still-valid Hector frame. After Hector is
   restarted or localization is lost, start a fresh map instead.
@@ -39,32 +39,25 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 131 tests. Tests do not publish robot movement.
+  Current regression count: 136 tests. Tests do not publish robot movement.
 
-VISUAL/DEPTH SLAM VALIDATION (DEPLOYED 2026-10-19):
-  The candidate is deployed. All 131 tests pass natively on PT. RTAB-Map
-  consumes synchronized RGB-D odometry and LiDAR, updates its graph at about
-  0.9 Hz, and returned an 80 x 86 occupancy grid at 0.05 m resolution while
-  stationary. No physical walking validation has occurred yet.
+HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
+  Hector owns /slam_out_pose and the persistent /map. Registered depth adds
+  only temporary planner obstacles and never feeds localization.
 
-  [x] Deploy the revision and run all 131 tests on the robot.
-  [ ] Start either Hector or RTAB-Map, never both.
-  [ ] For RTAB-Map, start in dry-run mode:
-      roslaunch ~/room_mapper/visual_slam.launch
-      cd ~/room_mapper
-      python3 room_mapper.py _drive:=false _start_paused:=true \
-        _map_topic:=/visual_map _pose_type:=tf \
-        _map_frame:=map _pose_frame:=jethexa/base_link \
-        _reset_service:=/visual_slam/reset \
-        _reset_service_type:=empty
-  [x] Confirm /visual_map, /visual_slam/info, and /visual_slam/odom update.
-  [x] Confirm TF map -> visual_odom -> jethexa/base_link.
-  [ ] Physically confirm camera alignment against measured obstacles.
-  [ ] Place low test objects at measured distances and confirm /visual_map marks
-      them occupied without turning floor texture into false obstacles.
-  [x] Observe CPU/memory and frame rates for at least five stationary minutes.
-  [ ] Validate click coordinates while the rendered map follows a changing pose.
-  [ ] Only then start _drive:=true _start_paused:=true under direct supervision.
+  [x] Deploy the revision and pass all 136 robot-native tests.
+  [x] Confirm Hector pose near 12 Hz and a 512 x 512 /map at 0.05 m.
+  [x] Confirm the status reports live temporary depth obstacle cells.
+  [x] Run one supervised 50% speed, 0.55 s forward pulse with dead-man stop.
+  [x] Confirm coherent Hector delta: about 0.027 m and 0.9 degrees.
+  [ ] Record the supervising operator's physical observation of that pulse.
+  [ ] Place a measured low object in view and confirm the depth planner count
+      rises at the correct map location without marking clear floor occupied.
+  [ ] Move the object and confirm its planner cells clear after the 2.5 s TTL.
+
+  RTAB-Map is non-production after its first motion test failed the expected
+  LiDAR map/robot-position behavior. Never run it alongside Hector and keep it
+  drive-disabled if retained for research comparison.
 
 CURRENT SAFETY CALIBRATION:
   Robot footprint radius:             0.30 m
@@ -74,6 +67,8 @@ CURRENT SAFETY CALIBRATION:
   Ignore depth at or below:            0.00 m
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
+  Depth planner range / height:        0.15-2.0 m / 0.025-0.50 m
+  Depth planner obstacle lifetime:     2.5 s
   Manual dead-man:                     0.55 s
 
   Close depth is no longer excluded; invalid/dropout regions remain stop inputs.
@@ -122,12 +117,11 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT ONLINE. LiDAR was restored with /start_scan. RTAB-Map and exactly one
-  drive-disabled, AUTO PAUSED mapper are running using
-  /tmp/room_mapper_continue.db; Hector is not running. RGB/depth/LiDAR, visual
-  odometry, graph updates, TF, /visual_map, and the web UI are live. Depth is
-  ready in upper-only mode; floor-bump detection is unavailable. RTAB graph
-  heartbeat keeps the unchanged visual grid active; the prior stale-map fault
-  no longer occurs after five seconds.
-  Native robot suite: 131 passing. Physical walking validation: not started.
-  Latest observed battery: 12.307 V (~89.5%). No motion was commanded.
+  PT ONLINE. Hector and exactly one drive-disabled, AUTO PAUSED mapper are live;
+  RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
+  planner cells, TF, battery telemetry, and the web UI are live. Native depth
+  is upper-only; its floor-bump alarm is unavailable, but the independent
+  registered-depth planner layer is active. Native robot suite: 136 passing.
+  One 50% speed, 0.55 s forward pulse completed and dead-man stopped; Hector
+  reported about 0.027 m translation and 0.9 degrees rotation. Await operator
+  physical confirmation before any further movement.

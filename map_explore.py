@@ -7,6 +7,7 @@ selects the nearest reachable free cell beside unknown space (a frontier).
 """
 
 import math
+import time
 from collections import deque
 
 import cv2
@@ -28,12 +29,19 @@ class ExploreMap:
         if not 51 <= self.occupied_threshold <= 100:
             raise ValueError('occupied_threshold must be between 51 and 100')
         self.state = np.full((self.n, self.n), UNKNOWN, np.uint8)
+        self.slam_state = self.state.copy()
+        self.depth_obstacles = {}
+        self.depth_obstacle_ttl = 2.5
+        self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
 
     def reset(self):
         """Forget the planner's copy while Hector starts a fresh map."""
         self.state.fill(UNKNOWN)
+        self.slam_state.fill(UNKNOWN)
+        self.depth_obstacles.clear()
+        self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
 
@@ -65,10 +73,49 @@ class ExploreMap:
         state = np.full((self.n, self.n), UNKNOWN, np.uint8)
         state[free] = FREE
         state[occ] = OCCUPIED
-        self.state = state
+        self.slam_state = state
+        self.state = state.copy()
+        self._apply_depth_obstacles(rebase=False)
         self.have_map = True
 
+    def update_depth_obstacles(self, world_cells, now=None, ttl=2.5):
+        """Overlay temporary depth obstacles without changing the LiDAR map.
+
+        Cells are expressed in the same world-aligned grid as ``self.cell``.
+        Expiration prevents moved objects and stale camera data from becoming
+        permanent walls.
+        """
+        now = time.time() if now is None else float(now)
+        ttl = float(ttl)
+        if not math.isfinite(now) or not math.isfinite(ttl) or ttl <= 0:
+            raise ValueError('Depth obstacle time and TTL must be valid')
+        self.depth_obstacle_ttl = ttl
+        for world_r, world_c in world_cells:
+            r = int(world_r + self.half / self.cell)
+            c = int(world_c + self.half / self.cell)
+            if self.inside(r, c):
+                self.depth_obstacles[(r, c)] = now
+        self._apply_depth_obstacles(now)
+
+    def _apply_depth_obstacles(self, now=None, rebase=True):
+        if not self._depth_overlay_active and not self.depth_obstacles:
+            return
+        now = time.time() if now is None else float(now)
+        cutoff = now - self.depth_obstacle_ttl
+        self.depth_obstacles = {cell: stamp for cell, stamp in self.depth_obstacles.items()
+                                if stamp >= cutoff}
+        if rebase:
+            self.state = self.slam_state.copy()
+        for r, c in self.depth_obstacles:
+            self.state[r, c] = OCCUPIED
+        self._depth_overlay_active = bool(self.depth_obstacles)
+
+    def depth_obstacle_count(self, now=None):
+        self._apply_depth_obstacles(now)
+        return len(self.depth_obstacles)
+
     def obstacle_distance(self):
+        self._apply_depth_obstacles()
         return cv2.distanceTransform((self.state != OCCUPIED).astype(np.uint8),
                                      cv2.DIST_L2, 5) * self.cell
 

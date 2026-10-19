@@ -2,20 +2,26 @@
 
 Autonomous room mapping for the Hiwonder JetHexa:
 
-`YDLIDAR G4 + RGB-D -> Hector or RTAB-Map -> frontier planner -> JetHexa controller`
+`YDLIDAR G4 -> Hector pose/map + RGB-D obstacle layer -> frontier planner -> JetHexa controller`
 
 The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Visual/depth update deployed for no-drive validation (2026-10-19)
+## Hector/depth hybrid deployed and motion-checked (2026-10-19)
 
-This update is deployed and passed the full 131-test suite on PT. RTAB-Map, TF
-pose, and the depth-aware grid were exercised without commanding motion. A tall
-box aligned with depth and mapped face cells at reported 1.00 m and 0.75 m
-placements; low-obstacle and walking validation remain pending. The web UI was
-restored on the latest continuation attempt with one drive-disabled,
-auto-paused mapper and RTAB-Map; verify current robot state before each run.
+Hector is again authoritative for robot pose and the persistent LiDAR room map.
+Registered depth is projected through timestamped TF into a temporary planner
+layer for geometry 0.025-0.50 m above the floor and 0.15-2.0 m from the camera.
+Depth cells expire after 2.5 s, so moved objects do not become permanent walls.
+The depth layer does not feed Hector and therefore cannot move the robot marker
+or distort the LiDAR map.
+
+The hybrid passed all 136 robot-native tests. During a supervised 50% speed,
+0.55 s forward pulse, Hector reported a coherent change from approximately
+`(0.000, 0.006)` to `(0.027, 0.004)` m and about 0.9 degrees. The dead-man stop,
+LiDAR map, and depth planner layer remained active. Physical confirmation of
+this latest pulse is still required from the supervising operator.
 
 - Close depth results are no longer discarded at 0.50 m. Native depth retains
   left/center/right clearance and reacts to a new close return immediately.
@@ -28,9 +34,9 @@ auto-paused mapper and RTAB-Map; verify current robot state before each run.
   burst, and settle gates. Key release, browser blur, and the 0.55 s dead-man
   still stop motion. Use manual mode only with direct sight of the robot.
 - Translation and rotation slider maxima are raised from 150% to 200%.
-- `visual_slam.launch` provides an experimental RTAB-Map alternative using
-  RGB-D visual odometry, LiDAR registration, visual loop closure, and a
-  depth-projected 2D occupancy grid so low obstacles can enter the planner map.
+- `visual_slam.launch` remains available only for experiments. Its first motion
+  run did not preserve the expected LiDAR mapping behavior, so it is not the
+  production localization or mapping path.
 
 These are not claims of physically safe behavior. Keep the first motion run
 paused until camera alignment, ground segmentation, CPU load, and measured
@@ -75,7 +81,8 @@ medium, charging, stale, and unavailable telemetry.
 ## Depth and LiDAR policy
 
 Native `/camera/depth/image_raw` is used for collision sensing. Registered
-depth is reserved for projecting YOLO detections into the map.
+depth plus `/camera/depth_registered/camera_info` supplies temporary low-object
+planner cells and also projects YOLO detections into the map.
 
 - The upper depth band is accepted with at least 200 valid pixels and at least
   2% coverage. Less coverage causes `FAULT: insufficient valid depth in upper
@@ -91,6 +98,9 @@ depth is reserved for projecting YOLO detections into the map.
   `_depth_ignore_at_or_below` only with physical testing.
 - If floor calibration fails three times, the controller continues in clearly
   reported `upper-only` mode; floor-bump detection is then unavailable.
+- The registered-depth planner layer is independent of that per-row floor
+  calibration. It rejects points below 0.025 m as floor and above 0.50 m, keeps
+  only clustered cells, and expires observations after 2.5 s.
 
 ## Web interface
 
@@ -125,9 +135,11 @@ python3 room_mapper.py
 python3 room_mapper.py _drive:=true _start_paused:=true
 ```
 
-### Experimental visual/depth SLAM startup
+### Non-production RTAB-Map experiment
 
-`visual_slam.launch` replaces `hex_map.launch`; never run the two together.
+`visual_slam.launch` replaces `hex_map.launch`; never run the two together. It
+is retained for research comparison but failed the expected mapping behavior
+during its first supervised motion pulse. Do not use it for autonomous motion.
 Start LiDAR with `publish_tf:=false`, then use:
 
 ```bash
@@ -189,13 +201,14 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_explore.py`: 10 cm planning grid, inflation, frontiers, point routes.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
+- `depth_mapping.py`: registered-depth projection for temporary planner cells.
 - `hex_map.launch`: Hector and required TF bridges.
 - `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
 - `RUN_SHEET.txt`: operator checklist.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 131 tests and does not publish physical
+The updated suite contains 136 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -203,9 +216,8 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-The 131-test suite passed natively on PT. A visual-SLAM dry run was restored
-`AUTO PAUSED`; RGB, depth, LiDAR, RTAB-Map, TF pose, `/voltage`, the battery JSON
-endpoint, and the web interface were live. The current dry-run stack uses the
-fresh `/tmp/room_mapper_continue.db` database with exactly one drive-disabled
-mapper and no Hector process. The latest sampled voltage was 12.307 V; physical
-motion remains pending direct supervision.
+All 136 tests passed natively on PT. The current live stack uses Hector, not
+RTAB-Map, with one drive-disabled `AUTO PAUSED` mapper. RGB, native and
+registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
+layer, battery telemetry, and the web interface are live. No further motion
+should be commanded until the supervising operator confirms the latest pulse.

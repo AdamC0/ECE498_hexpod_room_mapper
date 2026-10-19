@@ -531,3 +531,39 @@ heartbeat with a recent grid. All 131 tests pass natively on the robot. In the
 live dry run, the mapper remained localized and AUTO PAUSED after waiting more
 than twice the former timeout, with no new grid publication required. It remains
 drive-disabled; no motion command or physical walking occurred.
+
+## Restore Hector pose/map with a temporary depth obstacle layer - 2026-10-19
+
+The first supervised RTAB-Map motion pulse moved the robot forward correctly,
+but the operator reported that mapping no longer behaved like the original
+LiDAR version: the robot position and room-map creation were not being retained
+as expected. The requested architecture is the proven LiDAR mapper plus depth
+coverage for small objects close to the ground.
+
+Chosen: restore `hex_map.launch` and Hector as the only authority for pose and
+the persistent occupancy map. Registered depth is back-projected with its
+camera calibration and timestamped `map -> camera_depth_optical_frame` TF.
+Clustered points 0.025-0.50 m above the map floor and 0.15-2.0 m from the camera
+become temporary occupied cells in the planner's copy of the Hector grid. They
+expire after 2.5 s. The overlay never feeds Hector, so depth cannot move the
+robot marker or deform the persistent LiDAR map. RTAB-Map remains available
+only as a drive-disabled research experiment.
+
+The implementation adds `depth_mapping.py`, preserves the LiDAR state
+separately from the overlay in `map_explore.py`, and reports the live temporary
+cell count in `/status`. Five new tests cover projection, height filtering,
+expiry, and preservation across Hector updates. All 136 tests pass natively on
+the robot.
+
+Live evidence: Hector published `/slam_out_pose` near 12 Hz and `/map` was a
+512 by 512 grid at 0.05 m. With one drive-disabled mapper, the status was
+localized, showed about 4% known map coverage, and reported live temporary
+depth cells. A subsequent directly supervised 50% speed, 0.55 s forward pulse
+dead-man stopped normally. Hector reported a change from approximately
+`(0.000, 0.006)` to `(0.027, 0.004)` m and about 0.9 degrees. This is SLAM
+evidence only until the operator separately confirms what was physically seen.
+
+The native depth floor-profile detector still reports upper-only mode on this
+scene. The new registered-depth overlay is independent of that calibration,
+but a measured short-object placement and removal/TTL check remain required.
+Reflective, transparent, invalid, or out-of-view geometry can still be missed.
