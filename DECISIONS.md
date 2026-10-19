@@ -567,3 +567,11 @@ The native depth floor-profile detector still reports upper-only mode on this
 scene. The new registered-depth overlay is independent of that calibration,
 but a measured short-object placement and removal/TTL check remain required.
 Reflective, transparent, invalid, or out-of-view geometry can still be missed.
+
+The supervising operator then confirmed that the Hector-based pulse moved the
+robot correctly and that the map looked substantially better. At the operator's
+request, the mapper was restarted with `_drive:=true _start_paused:=true` while
+preserving the current Hector frame. Final live checks showed one mapper, one
+Hector process, no RTAB process, localized stationary survey, approximately 4%
+known map coverage, an updating depth layer, 1.11 m front LiDAR clearance, and
+12.265 V (about 88%) battery telemetry. No resume or movement command was sent.

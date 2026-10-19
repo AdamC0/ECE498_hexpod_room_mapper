@@ -217,7 +217,8 @@ python3 -m unittest discover -v
 ```
 
 All 136 tests passed natively on PT. The current live stack uses Hector, not
-RTAB-Map, with one drive-disabled `AUTO PAUSED` mapper. RGB, native and
+RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. RGB, native and
 registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, battery telemetry, and the web interface are live. No further motion
-should be commanded until the supervising operator confirms the latest pulse.
+layer, battery telemetry, and the web interface are live. The supervising
+operator confirmed that the Hector pulse moved correctly and the map looked
+substantially better; dry-run mode was then disabled without resuming autonomy.

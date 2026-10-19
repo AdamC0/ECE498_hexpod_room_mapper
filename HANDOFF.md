@@ -19,10 +19,10 @@ objects can block planned routes.
 All 136 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
-0.9 degrees heading change; `/map` stayed active at roughly 4% known. Physical
-confirmation of this latest pulse is still pending from the operator. One
-drive-disabled mapper is left `AUTO PAUSED`; do not arm motion again until that
-confirmation is received.
+0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
+operator confirmed that it physically moved correctly and that the map looked
+much better. One drive-enabled mapper is left `AUTO PAUSED`; no autonomy-resume
+or additional movement command was sent.
 
 Last-known box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
 left running with `_drive:=false _start_paused:=true`, using the separate

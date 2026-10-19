@@ -50,7 +50,7 @@ HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   [x] Confirm the status reports live temporary depth obstacle cells.
   [x] Run one supervised 50% speed, 0.55 s forward pulse with dead-man stop.
   [x] Confirm coherent Hector delta: about 0.027 m and 0.9 degrees.
-  [ ] Record the supervising operator's physical observation of that pulse.
+  [x] Operator confirmed correct movement and substantially improved map.
   [ ] Place a measured low object in view and confirm the depth planner count
       rises at the correct map location without marking clear floor occupied.
   [ ] Move the object and confirm its planner cells clear after the 2.5 s TTL.
@@ -117,11 +117,12 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT ONLINE. Hector and exactly one drive-disabled, AUTO PAUSED mapper are live;
+  PT ONLINE. Hector and exactly one drive-enabled, AUTO PAUSED mapper are live;
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native depth
   is upper-only; its floor-bump alarm is unavailable, but the independent
   registered-depth planner layer is active. Native robot suite: 136 passing.
   One 50% speed, 0.55 s forward pulse completed and dead-man stopped; Hector
-  reported about 0.027 m translation and 0.9 degrees rotation. Await operator
-  physical confirmation before any further movement.
+  reported about 0.027 m translation and 0.9 degrees rotation. The operator
+  confirmed correct physical movement and a substantially improved map. Dry
+  run was then disabled; autonomy remains paused. Battery was about 88%.

@@ -72,8 +72,8 @@ cells for low geometry, without modifying Hector's map or pose.
 
 All 136 robot-native tests pass. A supervised 50% speed, 0.55 s forward pulse
 on the hybrid stack dead-man stopped normally; Hector reported about 0.027 m
-translation and 0.9 degrees rotation while `/map` remained live. Await the
-operator's physical confirmation before more motion.
+translation and 0.9 degrees rotation while `/map` remained live. The operator
+confirmed correct motion and a substantially improved map.
 
 ## Historical visual/depth experiment
 
@@ -103,9 +103,9 @@ recharged; the latest value is recorded below.
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
 layer, and the web UI are live. The full native suite passes 136 tests. Exactly
-one drive-disabled mapper is `AUTO PAUSED`. Native depth is upper-only, while
-the independent registered-depth planner overlay is active. Do not command
-more motion until the operator confirms the latest supervised pulse.
+one drive-enabled mapper is `AUTO PAUSED`. Native depth is upper-only, while
+the independent registered-depth planner overlay is active. Dry run is disabled,
+but autonomy has not been resumed.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups
