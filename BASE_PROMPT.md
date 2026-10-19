@@ -4,6 +4,14 @@ You are taking over the JetHexa room-mapping project. Read `HANDOFF.md`,
 `README.md`, `RUN_SHEET.txt`, and the newest `DECISIONS.md` entry before making
 changes. Keep documentation synchronized with deployed behavior.
 
+## Version control
+
+All completed project changes must be committed and pushed to the GitHub
+repository at `https://github.com/AdamC0/ECE498_hexpod_room_mapper`. Before
+committing, review the diff and repository status. Use a clear, accurate commit
+message that describes the changes, and do not leave completed work only in the
+local working tree.
+
 Robot: `hiwonder@192.168.137.223`
 
 Robot project: `/home/hiwonder/room_mapper`
