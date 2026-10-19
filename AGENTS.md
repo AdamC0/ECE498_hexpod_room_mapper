@@ -32,14 +32,15 @@ one mapper process exists.
 
 ## Current architecture
 
-- YDLIDAR G4 raw `/scan` feeds Hector continuously.
-- `hex_map.launch` owns the required TF bridges.
+- YDLIDAR G4 raw `/scan` feeds either Hector or RTAB-Map; never run both.
+- `hex_map.launch` is the Hector path; `visual_slam.launch` is the RGB-D/LiDAR
+  RTAB-Map path and owns its required TF bridges.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
   0.03 m margin.
 - `room_mapper.py` handles bounded gait bursts, recovery, sensor safety,
   manual control, clicked routes, and autonomous object focus.
 - `map_web.py` provides RGB, a robot-following zoomable map, click navigation,
-  Cancel Route, manual W/A/S/D, independent 50-150% translation/rotation
+  Cancel Route, manual W/A/S/D, independent 50-200% translation/rotation
   sliders, object management, and a battery badge.
 - Object mapping uses YOLO, synchronized registered depth, camera intrinsics,
   and timestamped TF. Two observations confirm a landmark.
@@ -48,7 +49,7 @@ one mapper process exists.
 
 - LiDAR emergency stop: 0.45 m.
 - Depth stop: 0.60 m.
-- Operator-requested depth exclusion: results <= 0.50 m are ignored.
+- Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
 - Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
   or no previous valid result still faults.
@@ -56,26 +57,30 @@ one mapper process exists.
 - Turn progress: three consecutive bursts below 3 degrees invalidate SLAM.
 - Object focus: 15 s maximum, two misses, then replan.
 
-Ignoring close depth is a deliberate blind region. LiDAR protects its plane,
-but elevated close objects can be missed. Do not describe this as fully safe.
+Depth still cannot guarantee detection of reflective, transparent, out-of-view,
+or invalid geometry. Do not describe the system as fully safe.
 
-## Pending local update (2026-10-19)
+## Visual/depth update deployed (2026-10-19)
 
-The robot is offline. Candidate repository code removes the close-depth exclusion,
-adds directional depth recovery, render-snapshot click coordinates, direct
-manual override with the dead-man retained, 50-200% sliders, and an
-experimental `visual_slam.launch`. That launch is an RTAB-Map RGB-D/LiDAR
-replacement for Hector; never run both SLAM stacks together. The local suite
-has 128 passing tests with ROS imports stubbed, but no robot-side or physical
-validation has occurred. Preserve the distinction between this candidate and
-the deployed facts above.
+PT is online and the visual/depth candidate is deployed. All 129 tests pass on
+the robot. RTAB-Map must consume `/visual_slam/odom_rgbd_image`; direct
+RGB/depth/odom/scan synchronization did not advance the graph. Both RTAB nodes
+clear private parameters on launch to prevent stale ROS settings. The installed
+reset service is `/visual_slam/reset`. The mapper uses `_pose_type:=tf` with
+`map` and `jethexa/base_link`, because `localization_pose` is not emitted in
+mapping mode. Never run Hector and RTAB-Map together.
+
+No physical walking validation has occurred. The stationary stack produced
+visual odometry near 3.1 Hz, graph updates near 0.9 Hz, and a depth-aware
+occupancy grid. Treat obstacle alignment, sustained resource use, clicked-route
+behavior, and all physical motion as pending supervised tests.
 
 ## Latest validation
 
-The robot lost power on 2026-10-19. The last known deployed checkpoint was
-autonomy paused with all 122 tests passing, but no service or map should now be
-assumed live. The battery endpoint had reported 10.328 V / 18.9% at that older
-checkpoint.
+PT was reachable on 2026-10-19. RGB/depth/LiDAR, visual odometry, RTAB graph,
+TF, and the occupancy-grid service were live during no-drive validation. The
+full native suite passed 129 tests. Battery voltage observed before the visual
+run was 10.448 V.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

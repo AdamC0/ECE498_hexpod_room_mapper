@@ -564,16 +564,37 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.pose, (1.25, -.75, 0.))
         self.assertEqual(n.web_map_center, (1.25, -.75))
 
+    def test_visual_slam_pose_can_be_read_from_tf(self):
+        n = self.node
+        n.pose_type, n.map_frame, n.pose_frame = 'tf', 'map', 'jethexa/base_link'
+        n.slam_stale = 2.5
+        n.object_lock = threading.Lock()
+        n.tf_buffer = Mock()
+        n.tf_buffer.lookup.return_value = (
+            (1.25, -.75, 0.),
+            (0., 0., np.sin(np.radians(15)), np.cos(np.radians(15))))
+        n.prev_pose, n.pose = None, None
+        n.pose_guard_start, n.map_trusted = 0., True
+        n.web_map_center, n.t_pose = None, 0.
+        n.survey = Mock()
+        stamp = SimpleNamespace(to_sec=Mock(return_value=123.0))
+        with patch('room_mapper.rospy.Time.now', return_value=stamp):
+            n.update_pose_from_tf()
+        self.assertEqual(n.pose[:2], (1.25, -.75))
+        self.assertAlmostEqual(n.pose[2], np.radians(30))
+        n.tf_buffer.lookup.assert_called_once_with(
+            'map', 'jethexa/base_link', 123.0, max_age=2.5)
+
     def test_empty_reset_service_supports_rtabmap(self):
         n = self.node
-        n.reset_service = '/visual_slam/rtabmap/reset'
+        n.reset_service = '/visual_slam/reset'
         n.reset_service_type = 'empty'
         reset = Mock(return_value=SimpleNamespace())
         with patch('room_mapper.rospy.wait_for_service') as wait, \
                 patch('room_mapper.rospy.ServiceProxy', return_value=reset) as proxy:
             n.call_reset_service()
-        wait.assert_called_once_with('/visual_slam/rtabmap/reset', timeout=5.0)
-        proxy.assert_called_once_with('/visual_slam/rtabmap/reset', Empty)
+        wait.assert_called_once_with('/visual_slam/reset', timeout=5.0)
+        proxy.assert_called_once_with('/visual_slam/reset', Empty)
         reset.assert_called_once_with()
 
     def test_web_map_reset_stops_pauses_and_clears_local_state(self):

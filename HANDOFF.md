@@ -13,10 +13,11 @@ Web UI: `http://192.168.137.223:8000`
 The SSH password was supplied interactively and must not be written into the
 repository or documentation.
 
-The robot lost power during the 2026-10-19 session and is currently offline.
-Do not assume any process, map, or sensor state survived. The new visual/depth
-SLAM, navigation, manual-control, and speed changes are repository-only: they have
-not been deployed or physically validated.
+PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
+manual-control, and speed changes are deployed. The native suite passes all
+129 tests. Visual SLAM and one mapper are live in DRY RUN / AUTO PAUSED; no
+physical walking validation has occurred. The latest observed battery was
+10.078 V (about 9.9%), so recharge before motion testing.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -26,7 +27,10 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 
 ## Deployed architecture
 
-- Raw `/scan` feeds Hector continuously; `/scan_stable` is diagnostic.
+- Raw `/scan` feeds either Hector or RTAB-Map; never run both SLAM stacks.
+- The visual path bundles registered RGB-D with visual odometry, fuses LiDAR
+  in RTAB-Map, and publishes the depth-aware `/visual_map` grid.
+- Visual mapping pose comes from TF (`map -> visual_odom -> jethexa/base_link`).
 - Frontier and clicked routes use a 0.30 m circular footprint plus 0.03 m
   planning margin.
 - Motion uses bounded bursts, a 0.65 s settle, and stationary survey checks.
@@ -34,14 +38,14 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   emergency fallback and supplies rear/rotation clearance.
 - Web UI provides robot-following zoomable/pannable map, click navigation,
   route cancellation, manual driving, RGB, telemetry, and object management.
-- Independent 50-150% translation and rotation sliders scale manual and
+- Independent 50-200% translation and rotation sliders scale manual and
   autonomous gait output without changing any sensor or planning threshold.
 - The web UI includes a header battery percentage badge with voltage and
   charging details plus clear stale/unavailable states.
 - YOLO landmarks require two distinct observations. Autonomous exploration
   holds in `object_focus` until confirmation, two misses, or a 15 s timeout.
 
-## Local candidate update (not deployed)
+## Visual/depth update (deployed; motion validation pending)
 
 - Removed the 0.50 m close-depth exclusion and added directional
   left/center/right depth clearance.
@@ -57,12 +61,13 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 - Added `visual_slam.launch`, an RTAB-Map replacement for Hector that uses RGB-D
   visual odometry and loop closure, LiDAR registration, and depth projection
   for the planner occupancy grid. Do not run both SLAM stacks together.
-- Added configurable pose message/map frame/reset service support so the same
-  controller can consume RTAB-Map's `/visual_pose` and `/visual_map`.
+- Added TF pose/map frame/reset service support so the controller consumes
+  RTAB-Map's `map -> base_link` transform and `/visual_map`.
 
-The full 128-test suite passed locally with ROS imports stubbed. Syntax and
-launch XML checks passed. Robot-side tests, ROS graph validation, dry-run, and
-supervised motion validation remain pending.
+All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
+updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
+Measured obstacle alignment, five-minute load, clicked routing, and supervised
+physical motion remain pending.
 
 ## Important current calibration
 
@@ -71,7 +76,7 @@ supervised motion validation remain pending.
 - `waypoint_tolerance = 0.12 m`; thinned waypoint spacing about `0.20 m`
 - `lidar_stop = body_radius + 0.15 = 0.45 m`
 - `depth_stop = 0.60 m`
-- depth values `<= 0.50 m` are deliberately ignored
+- close-depth exclusion is disabled (`0.00 m`)
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
 - object confirmation: 2 observations
@@ -79,9 +84,8 @@ supervised motion validation remain pending.
 - weak turn tolerance: fault after 3 consecutive bursts below 3 degrees
 - pose jump guard: 0.25 m / 20 degrees
 
-Ignoring depth at or below 0.50 m is an operator-requested tradeoff. It also
-ignores floor/dropout alarms at those distances. LiDAR still stops at 0.45 m,
-but close elevated objects outside the LiDAR plane can be missed.
+Depth cannot guarantee detection of reflective, transparent, out-of-view, or
+invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 
 ## Session work completed
 
@@ -101,9 +105,9 @@ but close elevated objects outside the LiDAR plane can be missed.
 - Added autonomous object focus/confirm/exclude/replan behavior.
 - Reduced sparse-depth coverage gate from 10% to 2% with a 200-pixel minimum,
   then added a 1.5 s last-valid-result grace for brief post-motion sparsity.
-- Applied the requested `<= 0.50 m` depth-result exclusion.
+- Applied, then removed after diagnosis, the `<= 0.50 m` depth exclusion.
 
-The deployed suite passed all 122 tests on the robot after the speed-slider update.
+The deployed suite passed all 129 tests on the robot after visual-SLAM integration.
 
 ## Restart procedure
 
@@ -129,9 +133,10 @@ python3 room_mapper.py \
 Use `_reset_map:=false` only when Hector's current frame is still trustworthy.
 Reset the map after a Hector restart, pose jump, or sustained stationary drift.
 
-For the experimental RTAB-Map path, follow README.md and RUN_SHEET.txt. Start
-it instead of `hex_map.launch`, use `_drive:=false`, and validate the visual
-topics/TF/depth grid before considering a supervised drive run.
+For the RTAB-Map path, follow README.md and RUN_SHEET.txt. Start it instead of
+`hex_map.launch`; use `_map_topic:=/visual_map _pose_type:=tf _map_frame:=map
+_pose_frame:=jethexa/base_link`. Keep `_drive:=false` until the pending physical
+checks are complete.
 
 ## Verification commands
 

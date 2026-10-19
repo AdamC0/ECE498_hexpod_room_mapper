@@ -55,10 +55,13 @@ class RoomMapper:
         self.map_topic = rospy.get_param("~map_topic", "/map")
         self.pose_topic = rospy.get_param("~pose_topic", "/slam_out_pose")
         self.map_frame = str(rospy.get_param("~map_frame", "map")).lstrip("/")
+        self.pose_frame = str(rospy.get_param(
+            "~pose_frame", "jethexa/base_link")).lstrip("/")
         self.pose_type = str(rospy.get_param(
             "~pose_type", "pose_stamped")).strip().lower()
-        if self.pose_type not in ("pose_stamped", "pose_with_covariance_stamped"):
-            raise ValueError("pose_type must be pose_stamped or pose_with_covariance_stamped")
+        if self.pose_type not in ("pose_stamped", "pose_with_covariance_stamped", "tf"):
+            raise ValueError(
+                "pose_type must be pose_stamped, pose_with_covariance_stamped, or tf")
         self.reset_service = str(rospy.get_param("~reset_service", "/reset_map"))
         self.reset_service_type = str(rospy.get_param(
             "~reset_service_type", "trigger")).strip().lower()
@@ -326,6 +329,7 @@ class RoomMapper:
         self.object_focus_deadline = 0.0
         self.object_focus_misses = 0
         self.tf_buffer = None
+        self.tf_subscribers = []
         self.object_thread = None
 
         self.robot = None
@@ -343,10 +347,13 @@ class RoomMapper:
             rospy.Subscriber(self.depth_topic, Image, self.depth_callback, queue_size=1, buff_size=2**24)
         if self.use_map:
             rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
-            pose_message = (PoseWithCovarianceStamped
-                            if self.pose_type == "pose_with_covariance_stamped"
-                            else PoseStamped)
-            rospy.Subscriber(self.pose_topic, pose_message, self.pose_callback, queue_size=1)
+            if self.pose_type == "tf":
+                self.ensure_tf_listener()
+            else:
+                pose_message = (PoseWithCovarianceStamped
+                                if self.pose_type == "pose_with_covariance_stamped"
+                                else PoseStamped)
+                rospy.Subscriber(self.pose_topic, pose_message, self.pose_callback, queue_size=1)
         for topic in self.battery_topics:
             rospy.Subscriber(topic, rospy.AnyMsg, self.battery_callback,
                              callback_args=topic, queue_size=1)
@@ -444,10 +451,9 @@ class RoomMapper:
             return
         try:
             cv2.setNumThreads(self.opencv_threads)
-            from tf2_msgs.msg import TFMessage
             self.detector = YoloOnnxDetector(self.yolo_model,
                                              confidence=self.object_confidence)
-            self.tf_buffer = TransformCache()
+            self.ensure_tf_listener()
         except Exception as exc:
             self.detector = None
             self.object_status = "startup failed: %s" % exc
@@ -457,10 +463,6 @@ class RoomMapper:
                          self.registered_depth_callback, queue_size=1, buff_size=2**24)
         rospy.Subscriber(self.camera_info_topic, CameraInfo,
                          self.camera_info_callback, queue_size=1)
-        rospy.Subscriber("/tf", TFMessage, self.tf_callback, callback_args=False,
-                         queue_size=20)
-        rospy.Subscriber("/tf_static", TFMessage, self.tf_callback, callback_args=True,
-                         queue_size=20)
         self.object_status = "waiting for synchronized RGB, registered depth, and camera info"
         self.object_thread = threading.Thread(target=self.object_loop, name="object-mapper")
         self.object_thread.start()
@@ -496,6 +498,40 @@ class RoomMapper:
                 self.tf_buffer.update(item.header.frame_id, item.child_frame_id,
                                       (t.x, t.y, t.z), (q.x, q.y, q.z, q.w),
                                       self.message_time(item), is_static)
+
+    def ensure_tf_listener(self):
+        """Create one shared TF cache for SLAM pose and object projection."""
+        if self.tf_buffer is not None:
+            return
+        from tf2_msgs.msg import TFMessage
+        self.tf_buffer = TransformCache()
+        self.tf_subscribers = [
+            rospy.Subscriber("/tf", TFMessage, self.tf_callback,
+                             callback_args=False, queue_size=20),
+            rospy.Subscriber("/tf_static", TFMessage, self.tf_callback,
+                             callback_args=True, queue_size=20),
+        ]
+
+    def update_pose_from_tf(self):
+        """Feed the controller RTAB-Map's map-to-base transform as a pose."""
+        if self.pose_type != "tf" or self.tf_buffer is None:
+            return
+        stamp = rospy.Time.now()
+        try:
+            with self.object_lock:
+                translation, quaternion = self.tf_buffer.lookup(
+                    self.map_frame, self.pose_frame, stamp.to_sec(),
+                    max_age=max(0.5, self.slam_stale))
+        except (KeyError, ValueError) as exc:
+            rospy.logwarn_throttle(5, "SLAM pose TF unavailable: %s", exc)
+            return
+        msg = PoseStamped()
+        msg.header.stamp = stamp
+        msg.header.frame_id = self.map_frame
+        msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = translation
+        (msg.pose.orientation.x, msg.pose.orientation.y,
+         msg.pose.orientation.z, msg.pose.orientation.w) = quaternion
+        self.pose_callback(msg)
 
     def object_loop(self):
         period = 1.0 / max(0.1, self.object_hz)
@@ -1235,6 +1271,7 @@ class RoomMapper:
             if self.shutting_down:
                 return
             try:
+                self.update_pose_from_tf()
                 self.control_step()
             except Exception as exc:
                 try:

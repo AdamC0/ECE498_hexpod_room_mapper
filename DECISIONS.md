@@ -404,7 +404,7 @@ uses visual odometry/loop closure with scan refinement, and publishes a 2-D
 grid projected from depth so low obstacles can enter the planner map. The
 controller now accepts `PoseWithCovarianceStamped`, configurable map frames,
 and Trigger/Empty reset services. The candidate wiring is `/visual_map`,
-`/visual_pose`, and `/visual_slam/rtabmap/reset`.
+`/visual_pose`, and `/visual_slam/reset`.
 
 Higher depth emphasis should improve the reported low-obstacle failure because
 it restores close live stops and makes low geometry available to the global
@@ -416,3 +416,25 @@ Validation: 128 tests pass locally with ROS message modules stubbed; Python
 syntax and launch XML parse checks pass. RTAB-Map topic names, TF ownership,
 camera calibration, resource load, map quality, and physical motion remain
 unverified until the robot returns.
+
+### Robot deployment and no-drive validation
+
+PT returned on 2026-10-19. Native RGB and depth each ran near 30 Hz, LiDAR ran
+near 12 Hz after `/start_scan`, and visual odometry ran near 3.1 Hz. The full
+robot suite passes all 129 tests. No test or validation step commanded motion.
+
+Two integration faults were found live. RTAB-Map initially inherited a stale
+private `odom_frame_id` parameter, so both RTAB nodes now use
+`clear_params="true"`. Directly synchronizing RGB, depth, odometry, and scan
+also starved the graph callback. RTAB-Map now consumes rgbd_odometry's bundled
+`odom_rgbd_image`; graph updates then ran near 0.9 Hz and the grid-map service
+returned an 80 by 86 map at 0.05 m resolution containing free and occupied
+cells. The installed reset service is `/visual_slam/reset`.
+
+RTAB-Map does not publish `localization_pose` while it is in mapping mode. The
+controller therefore gained `_pose_type:=tf`, reading the authoritative
+`map -> visual_odom -> jethexa/base_link` chain. Stationary RGB/depth skew of
+roughly 0.02-0.06 seconds and intermittent scan-time TF extrapolation warnings
+remain live-test observations. Measured obstacle placement, map alignment,
+five-minute resource observation, click-route behavior, and physical walking
+are still required before calling the visual stack motion-validated.

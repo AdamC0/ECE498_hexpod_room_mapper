@@ -2,16 +2,17 @@
 
 Autonomous room mapping for the Hiwonder JetHexa:
 
-`YDLIDAR G4 -> Hector SLAM -> inflated frontier planner -> JetHexa controller`
+`YDLIDAR G4 + RGB-D -> Hector or RTAB-Map -> frontier planner -> JetHexa controller`
 
 The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Local update pending robot validation (2026-10-19)
+## Visual/depth update deployed for no-drive validation (2026-10-19)
 
-The robot powered off before this update could be deployed or physically
-validated. The repository now contains these candidate changes:
+PT is online and this update is deployed. The full 129-test suite passes on the
+robot, and RTAB-Map, TF pose, and the depth-aware grid were exercised without
+commanding motion. Physical obstacle and walking validation remain pending.
 
 - Close depth results are no longer discarded at 0.50 m. Native depth retains
   left/center/right clearance and reacts to a new close return immediately.
@@ -28,9 +29,9 @@ validated. The repository now contains these candidate changes:
   RGB-D visual odometry, LiDAR registration, visual loop closure, and a
   depth-projected 2D occupancy grid so low obstacles can enter the planner map.
 
-These are not claims of deployed or physically safe behavior. Keep the first
-RTAB-Map and controller runs in dry-run mode and validate the camera transform,
-ground segmentation, map/pose topics, and CPU load before enabling motion.
+These are not claims of physically safe behavior. Keep the first motion run
+paused until camera alignment, ground segmentation, CPU load, and measured
+low-obstacle placement have been checked under direct supervision.
 
 The dashboard includes a battery badge in the page header. It accepts
 `sensor_msgs/BatteryState` and common numeric voltage topics, estimates charge
@@ -133,16 +134,20 @@ cd ~/room_mapper
 python3 room_mapper.py \
   _drive:=false _start_paused:=true \
   _map_topic:=/visual_map \
-  _pose_topic:=/visual_pose \
-  _pose_type:=pose_with_covariance_stamped \
-  _reset_service:=/visual_slam/rtabmap/reset \
+  _pose_type:=tf \
+  _map_frame:=map \
+  _pose_frame:=jethexa/base_link \
+  _reset_service:=/visual_slam/reset \
   _reset_service_type:=empty
 ```
 
-Before any supervised drive test, verify `/visual_map`, `/visual_pose`, and
+Before any supervised drive test, verify `/visual_map`, `/visual_slam/info`, and
 `/visual_slam/odom`, confirm the TF chain
 `map -> visual_odom -> jethexa/base_link`, and place several known low obstacles
 in view while checking that they appear occupied in `/visual_map`.
+
+RTAB-Map's `localization_pose` output is inactive while building a map. The
+mapper therefore uses `_pose_type:=tf` to read the live map-to-base transform.
 
 After reboot, if `/scan` has a publisher but no messages:
 
@@ -184,7 +189,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 128 tests and does not publish physical
+The updated suite contains 129 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -192,9 +197,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-The last deployed version passed 122 tests on the robot. The updated 128-test
-suite passed locally with ROS imports stubbed, but has not run on the robot.
-After the latest deployed speed-control update, the mapper was
-restored `AUTO PAUSED`; RGB, depth, LiDAR, Hector, `/voltage`, the battery JSON
+The 129-test suite passed natively on PT. A visual-SLAM dry run was restored
+`AUTO PAUSED`; RGB, depth, LiDAR, RTAB-Map, TF pose, `/voltage`, the battery JSON
 endpoint, and the web interface were live. The first verified dashboard sample
 reported 10.328 V and an estimated 18.9% charge.

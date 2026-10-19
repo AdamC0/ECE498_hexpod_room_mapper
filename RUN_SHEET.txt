@@ -8,7 +8,7 @@ ROBOT:
   Never store the SSH password in project files.
 
 PRE-RUN:
-  [ ] Robot was offline at the last checkpoint; begin as a cold reboot.
+  [ ] Confirm PT is reachable and no stale mapper/SLAM process is running.
   [ ] Confirm the battery is charged; do not operate solely because its alarm is muted.
   [ ] Floor only; physically inspect 0.45 m around the 0.30 m-radius robot.
   [ ] Keep immediate access to PAUSE/STOP or Ctrl+C.
@@ -39,25 +39,27 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 122 tests. Tests do not publish robot movement.
+  Current regression count: 129 tests. Tests do not publish robot movement.
 
-PENDING LOCAL UPDATE VALIDATION:
-  The repository contains 128 tests and an experimental visual/depth SLAM
-  path, but the robot powered off before deployment or validation. Do not treat
-  these settings as the current deployed calibration.
+VISUAL/DEPTH SLAM VALIDATION (DEPLOYED 2026-10-19):
+  The candidate is deployed. All 129 tests pass natively on PT. RTAB-Map
+  consumes synchronized RGB-D odometry and LiDAR, updates its graph at about
+  0.9 Hz, and returned an 80 x 86 occupancy grid at 0.05 m resolution while
+  stationary. No physical walking validation has occurred yet.
 
-  [ ] Pull the committed revision and run all 128 tests on the robot.
+  [x] Deploy the revision and run all 129 tests on the robot.
   [ ] Start either Hector or RTAB-Map, never both.
   [ ] For RTAB-Map, start in dry-run mode:
       roslaunch ~/room_mapper/visual_slam.launch
       cd ~/room_mapper
       python3 room_mapper.py _drive:=false _start_paused:=true \
-        _map_topic:=/visual_map _pose_topic:=/visual_pose \
-        _pose_type:=pose_with_covariance_stamped \
-        _reset_service:=/visual_slam/rtabmap/reset \
+        _map_topic:=/visual_map _pose_type:=tf \
+        _map_frame:=map _pose_frame:=jethexa/base_link \
+        _reset_service:=/visual_slam/reset \
         _reset_service_type:=empty
-  [ ] Confirm /visual_map, /visual_pose, and /visual_slam/odom update.
-  [ ] Confirm TF map -> visual_odom -> jethexa/base_link and camera alignment.
+  [x] Confirm /visual_map, /visual_slam/info, and /visual_slam/odom update.
+  [x] Confirm TF map -> visual_odom -> jethexa/base_link.
+  [ ] Physically confirm camera alignment against measured obstacles.
   [ ] Place low test objects at measured distances and confirm /visual_map marks
       them occupied without turning floor texture into false obstacles.
   [ ] Observe CPU/memory and frame rates for at least five stationary minutes.
@@ -69,13 +71,12 @@ CURRENT SAFETY CALIBRATION:
   Planner margin / total clearance:   0.03 m / 0.33 m
   LiDAR emergency stop:               0.45 m
   Depth stop:                          0.60 m
-  Ignore depth at or below:            0.50 m
+  Ignore depth at or below:            0.00 m
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
   Manual dead-man:                     0.55 s
 
-  WARNING: ignoring <=0.50 m depth also ignores close elevated objects and
-  floor/dropout alarms. LiDAR still protects its scan plane at 0.45 m.
+  Close depth is no longer excluded; invalid/dropout regions remain stop inputs.
 
 WEB CONTROLS:
   Header battery badge: percentage and voltage tooltip; --% means stale/unavailable.
@@ -84,7 +85,7 @@ WEB CONTROLS:
   CANCEL ROUTE: stops a clicked/object route and leaves autonomy paused.
   CLEAR MAP: stops and pauses; clears Hector, planner, and object landmarks.
   W/A/S/D or arrows: manual translation/rotation while paused; release stops.
-  Translation/rotation sliders: independent 50-150% gait scaling; 100% default.
+  Translation/rotation sliders: independent 50-200% gait scaling; 100% default.
   Map click: routes through known, 0.33 m-clear space.
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.
@@ -121,5 +122,6 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  ROBOT OFFLINE after loss of power. Last deployed robot suite: 122 passing.
-  Local candidate suite: 128 passing with ROS imports stubbed; not deployed.
+  PT ONLINE. Visual SLAM and one mapper are live in DRY RUN / AUTO PAUSED.
+  Native robot suite: 129 passing. Physical walking validation: not started.
+  Latest observed battery: 10.078 V (~9.9%); recharge before motion testing.

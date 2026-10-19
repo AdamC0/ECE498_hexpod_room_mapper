@@ -27,7 +27,7 @@
 
   <group ns="visual_slam">
     <node pkg="rtabmap_ros" type="rgbd_odometry" name="rgbd_odometry"
-          output="screen">
+          output="screen" clear_params="true">
       <param name="frame_id" value="$(arg base_frame)"/>
       <param name="odom_frame_id" value="visual_odom"/>
       <param name="publish_tf" value="true"/>
@@ -43,14 +43,17 @@
     </node>
 
     <node pkg="rtabmap_ros" type="rtabmap" name="rtabmap" output="screen"
-          args="--delete_db_on_start">
+          args="--delete_db_on_start" clear_params="true">
       <param name="frame_id" value="$(arg base_frame)"/>
       <param name="map_frame_id" value="map"/>
-      <param name="odom_frame_id" value="visual_odom"/>
       <param name="publish_tf" value="true"/>
       <param name="database_path" value="$(arg database_path)"/>
-      <param name="subscribe_depth" value="true"/>
-      <param name="subscribe_rgb" value="true"/>
+      <!-- rgbd_odometry already synchronizes RGB, registered depth, camera
+           calibration, and odometry. Reuse that packet so RTAB-Map does not
+           attempt a second multi-topic synchronization with the laser scan. -->
+      <param name="subscribe_depth" value="false"/>
+      <param name="subscribe_rgb" value="false"/>
+      <param name="subscribe_rgbd" value="true"/>
       <param name="subscribe_scan" value="true"/>
       <param name="subscribe_odom_info" value="true"/>
       <param name="approx_sync" value="true"/>
@@ -78,8 +81,13 @@
       <param name="Grid/NoiseFilteringMinNeighbors" type="string" value="5"/>
       <param name="Grid/CellSize" type="string" value="0.05"/>
 
+      <!-- Consume rgbd_odometry's nav_msgs/Odometry directly. Setting
+           odom_frame_id here switches RTAB-Map to timestamp-sensitive TF
+           lookup, which the JetHexa's independently stamped scan cannot
+           satisfy reliably. -->
       <remap from="odom" to="odom"/>
       <remap from="odom_info" to="odom_info"/>
+      <remap from="rgbd_image" to="odom_rgbd_image"/>
       <remap from="rgb/image" to="$(arg rgb_topic)"/>
       <remap from="depth/image" to="$(arg depth_topic)"/>
       <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
