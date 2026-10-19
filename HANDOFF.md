@@ -4,6 +4,16 @@ Updated: 2026-10-19
 
 ## Live checkpoint
 
+Latest box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
+left running with `_drive:=false _start_paused:=true`, using the separate
+`/tmp/room_mapper_box_validation.db` database. Latest sampled voltage: 10.069 V.
+The operator's 0.3683 m wide, 0.5588 m tall box was checked at 1.00 m and
+0.75 m from body center. At 0.75 m, depth plus the configured camera offset
+gave 0.757 m; mapped face cells were around 0.79-0.80 m. Old occupied cells
+remained at the previous position. See the newest DECISIONS.md entry for
+measurements and limitations. Low-obstacle and motion validation remain pending.
+This checkpoint supersedes the stopped-process state recorded below.
+
 Robot: `hiwonder@192.168.137.223`
 
 Robot project: `/home/hiwonder/room_mapper`

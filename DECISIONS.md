@@ -449,3 +449,26 @@ one percent because the planner reports coverage over its larger fixed grid.
 Visual odometry settled near 2.4 Hz and graph updates near 0.65 Hz under the
 full mapper load. Approximate process CPU was 94% for visual odometry, 17% for
 RTAB-Map, and 66% for the mapper. No controller fault or motion command occurred.
+
+### Measured tall-box alignment - 2026-10-19
+
+Operator reported a box 14.5 inches wide (0.3683 m) and 22 inches tall
+(0.5588 m), with distances measured from body center to the nearest face.
+All measurements used a paused mapper with drive disabled.
+
+- At the reported 1.00 m placement, a front-face depth patch had median
+  0.984 m and nearly 100% valid pixels. The configured camera transform adds
+  0.065 m forward offset, giving approximately 1.049 m from body center.
+  Occupied map cells corresponding to the face were near 1.041 m ahead.
+- At the reported 0.75 m placement, three distinct depth frames each gave
+  median 0.692 m (10th/90th percentiles 0.682/0.707 m), approximately 0.757 m
+  from body center with the configured offset. Occupied cells transformed
+  into the current base frame placed the new face around 0.79-0.80 m ahead.
+- The map retained occupied cells around 1.04 m from the previous placement.
+  Clearing moved obstacles remains unvalidated. These measurements do not
+  validate the configured extrinsics independently or establish low-obstacle
+  detection: this box is 0.559 m tall. A shorter object is still required.
+
+Latest voltage sampled during the second placement was 10.069 V. One mapper
+remained drive-disabled and AUTO PAUSED, with RTAB-Map running on the separate
+`/tmp/room_mapper_box_validation.db` database. No walking was commanded.
