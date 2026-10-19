@@ -1,0 +1,48 @@
+<!-- Start after jethexa_bringup and lidar.launch.  The bridge joins the
+     prefixed robot frames to lidar.launch's unprefixed body_link. -->
+<launch>
+  <arg name="base_frame" default="jethexa/base_link"/>
+  <arg name="body_frame" default="jethexa/body_link"/>
+  <arg name="lidar_parent" default="body_link"/>
+  <arg name="laser_frame" default="laser_link"/>
+  <arg name="camera_frame" default="camera_link"/>
+  <!-- Hector has no wheel/leg odometry on this robot.  It must see the
+       intermediate scans during translation to estimate the new pose. -->
+  <arg name="scan_topic" default="scan"/>
+  <node pkg="tf" type="static_transform_publisher" name="hex_body_link_bridge"
+        args="0 0 0 0 0 0 $(arg body_frame) $(arg lidar_parent) 50"/>
+  <!-- Own this transform under a unique node name. Start lidar.launch with
+       publish_tf:=false to avoid its node-name collision after robot reboot. -->
+  <node pkg="tf" type="static_transform_publisher" name="room_mapper_laser_mount"
+        args="0 0 0.031 0 0 0 $(arg lidar_parent) $(arg laser_frame) 50"/>
+  <!-- Physical camera mount from the installed JetHexa RTAB-Map setup. -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="room_mapper_camera_mount"
+        args="0.065 0 0.07 0 0 0 $(arg lidar_parent) $(arg camera_frame)"/>
+  <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen">
+    <param name="map_frame" value="map"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="odom_frame" value="$(arg base_frame)"/>
+    <param name="pub_map_odom_transform" value="true"/>
+    <param name="use_tf_scan_transformation" value="true"/>
+    <param name="use_tf_pose_start_estimate" value="false"/>
+    <param name="scan_topic" value="$(arg scan_topic)"/>
+    <param name="map_resolution" value="0.050"/>
+    <param name="map_size" value="512"/>
+    <param name="map_start_x" value="0.5"/>
+    <param name="map_start_y" value="0.5"/>
+    <!-- These are the values used by the independently proven Team-Red
+         mapper.  The motion thresholds avoid making a single stationary
+         viewpoint artificially overconfident. -->
+    <param name="map_multi_res_levels" value="2"/>
+    <param name="update_factor_free" value="0.4"/>
+    <param name="update_factor_occupied" value="0.9"/>
+    <param name="map_update_distance_thresh" value="0.2"/>
+    <param name="map_update_angle_thresh" value="0.06"/>
+    <param name="laser_z_min_value" value="-1.0"/>
+    <param name="laser_z_max_value" value="1.0"/>
+    <param name="laser_min_dist" value="0.20"/>
+    <param name="map_pub_period" value="1.0"/>
+    <param name="advertise_map_service" value="true"/>
+    <param name="scan_subscriber_queue_size" value="5"/>
+  </node>
+</launch>

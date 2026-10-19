@@ -1,0 +1,1614 @@
+#!/usr/bin/env python3
+"""Autonomous JetHexa room mapper.
+
+The robot explores frontier cells in Hector SLAM's map. The depth camera is the
+primary forward collision sensor; LiDAR supplies SLAM and an independent close
+range emergency stop. Stationary RGB/depth observations place YOLO objects on
+the map. Run without _drive:=true for a dry run.
+"""
+
+import math
+import os
+import struct
+import threading
+import time
+
+import cv2
+import numpy as np
+import rospy
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import OccupancyGrid
+from sensor_msgs.msg import BatteryState, CameraInfo, Image, LaserScan
+from std_msgs.msg import Bool
+from std_srvs.srv import Trigger
+
+from map_explore import ExploreMap
+from stationary_survey import StationarySurvey
+from object_mapping import (ObjectTracker, TransformCache, YoloOnnxDetector, backproject,
+                            decode_depth_image, sample_box_depth, transform_point)
+
+try:
+    from jethexa_controller import client
+except ImportError:
+    client = None
+
+
+SEARCH, HOLD, AVOID, FAULT, DONE = "SEARCH", "HOLD", "AVOID", "FAULT", "DONE"
+
+
+class RoomMapper:
+    def __init__(self):
+        rospy.init_node("room_mapper", anonymous=True, log_level=rospy.INFO)
+        self.drive = bool(rospy.get_param("~drive", False))
+        # Hardware validation should be able to bring the complete controller
+        # online without racing to press PAUSE before the first motion command.
+        self.start_paused = bool(rospy.get_param("~start_paused", False))
+        self.use_map = bool(rospy.get_param("~use_map", True))
+        self.reset_map = bool(rospy.get_param("~reset_map", True))
+        self.scan_topic = rospy.get_param("~scan_topic", "/scan")
+        self.stable_scan_topic = rospy.get_param("~stable_scan_topic", "/scan_stable")
+        self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image_raw")
+        # Native depth is substantially denser than RGB-registered depth on
+        # this DABAI camera and is the correct stream for collision geometry.
+        # Registered depth remains useful later for placing YOLO detections.
+        self.depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image_raw")
+        self.map_topic = rospy.get_param("~map_topic", "/map")
+        self.pose_topic = rospy.get_param("~pose_topic", "/slam_out_pose")
+        self.web_port = int(rospy.get_param("~web_port", 8000))
+        battery_topics = rospy.get_param(
+            "~battery_topics", ["/battery", "/battery_state", "/voltage"])
+        if isinstance(battery_topics, str):
+            battery_topics = [battery_topics]
+        self.battery_topics = [str(topic) for topic in battery_topics if str(topic)]
+        self.battery_empty_voltage = float(rospy.get_param("~battery_empty_voltage", 9.8))
+        self.battery_full_voltage = float(rospy.get_param("~battery_full_voltage", 12.6))
+        if (not math.isfinite(self.battery_empty_voltage) or
+                not math.isfinite(self.battery_full_voltage) or
+                self.battery_full_voltage <= self.battery_empty_voltage):
+            raise ValueError("battery voltage limits must be finite and full must exceed empty")
+        self.manual_deadman = float(rospy.get_param("~manual_deadman", 0.55))
+        if not math.isfinite(self.manual_deadman) or not 0.3 <= self.manual_deadman <= 2.0:
+            raise ValueError("manual_deadman must be between 0.3 and 2.0 seconds")
+        # The full leg envelope is modeled as a circular 30 cm footprint.
+        # The planner adds map_margin outside this physical radius.
+        self.body_radius = float(rospy.get_param("~body_radius", 0.30))
+        if not math.isfinite(self.body_radius) or not 0.10 <= self.body_radius <= 0.50:
+            raise ValueError("body_radius must be between 0.10 and 0.50 metres")
+        self.lidar_stop = float(rospy.get_param("~lidar_stop", self.body_radius + 0.15))
+        # The verified G4 installation sees persistent ~0.34-0.40 m returns from
+        # the hexapod's own front leg/body in open space. Ignore that return;
+        # farther obstacles remain visible and the map planner maintains body
+        # clearance around mapped walls.
+        # Keep collision returns inside the 0.40 m stop distance.  Hector has
+        # its own 0.20 m minimum; 0.50 m here made nearby obstacles vanish.
+        self.self_filter = float(rospy.get_param("~lidar_self_filter", 0.15))
+        self.use_depth = bool(rospy.get_param("~use_depth", True))
+        self.depth_stop = float(rospy.get_param("~depth_stop", 0.60))
+        self.depth_ignore_at_or_below = float(rospy.get_param(
+            "~depth_ignore_at_or_below", 0.50))
+        if (not math.isfinite(self.depth_ignore_at_or_below) or
+                not 0.0 <= self.depth_ignore_at_or_below < self.depth_stop):
+            raise ValueError("depth ignore distance must be nonnegative and below depth_stop")
+        self.floor_margin = float(rospy.get_param("~floor_margin", 0.25))
+        self.floor_frames_needed = int(rospy.get_param("~floor_frames", 20))
+        if self.floor_frames_needed < 1:
+            raise ValueError("floor_frames must be positive")
+        self.band_top = float(rospy.get_param("~depth_band_top", 0.20))
+        self.band_split = float(rospy.get_param("~depth_band_split", 0.55))
+        self.band_bottom = float(rospy.get_param("~depth_band_bottom", 0.95))
+        self.band_left = float(rospy.get_param("~depth_band_left", 0.20))
+        self.band_right = float(rospy.get_param("~depth_band_right", 0.80))
+        if not (0 <= self.band_top < self.band_split < self.band_bottom <= 1 and
+                0 <= self.band_left < self.band_right <= 1):
+            raise ValueError("Invalid depth image bands")
+        self.front_half = math.radians(float(rospy.get_param("~front_half_deg", 30)))
+        self.side_max = math.radians(float(rospy.get_param("~side_max_deg", 100)))
+        # This robot reports YDLIDAR_G4 at login. Its raw angle 0 points
+        # forward, unlike the RPLIDAR convention used by some course images.
+        # Keep the parameter override for other hardware, but make the
+        # verified robot default safe when LIDAR_TYPE is not exported.
+        lidar_type = os.environ.get("LIDAR_TYPE", "YDLIDAR_G4")
+        default_offset = 180.0 if lidar_type.startswith("RPLIDAR") else 0.0
+        self.yaw_offset = math.radians(float(rospy.get_param("~lidar_yaw_offset_deg", default_offset)))
+
+        self.stride = float(rospy.get_param("~stride", 40.0))
+        self.step_height = float(rospy.get_param("~step_height", 20.0))
+        self.step_time = float(rospy.get_param("~step_time", 0.5))
+        # The bounded hardware test tracked 0.10-rate rotation accurately.
+        # The former 0.35 rate outran Hector and produced false translation.
+        self.spin_rate = float(rospy.get_param("~spin_rate", 0.10))
+        self.spin_stride = float(rospy.get_param("~spin_stride", 0.0))
+        self.translation_speed_percent = 100.0
+        self.rotation_speed_percent = 100.0
+        self.speed_min_percent = 50.0
+        self.speed_max_percent = 150.0
+        self.waypoint_tolerance = float(rospy.get_param("~waypoint_tolerance", 0.12))
+        if (not math.isfinite(self.waypoint_tolerance) or
+                not 0.05 <= self.waypoint_tolerance < self.body_radius):
+            raise ValueError("waypoint_tolerance must be positive and smaller than body_radius")
+        self.look_seconds = float(rospy.get_param("~look_seconds", 12.0))
+        self.hold_seconds = float(rospy.get_param("~hold_seconds", 2.0))
+        self.avoid_seconds = float(rospy.get_param("~avoid_seconds", 2.0))
+        self.reverse_seconds = float(rospy.get_param("~reverse_seconds", 1.0))
+        if not math.isfinite(self.reverse_seconds) or not 0.3 <= self.reverse_seconds <= 3.0:
+            raise ValueError("reverse_seconds must be between 0.3 and 3.0 seconds")
+        # One gait cycle is 0.50 s.  A shorter burst can stop before the feet
+        # complete a step, which previously produced commands with no travel.
+        self.move_burst = float(rospy.get_param("~move_burst", 1.0))
+        self.spin_burst = float(rospy.get_param("~spin_burst", 0.50))
+        self.min_spin_progress = math.radians(float(rospy.get_param(
+            "~min_spin_progress_deg", 3.0)))
+        self.max_spin_stalls = int(rospy.get_param("~max_spin_stalls", 3))
+        if not 2 <= self.max_spin_stalls <= 10:
+            raise ValueError("max_spin_stalls must be between 2 and 10")
+        self.scan_settle = float(rospy.get_param("~scan_settle", 0.65))
+        self.survey = StationarySurvey(
+            # Hold at every waypoint long enough for repeated clear LiDAR
+            # rays and several CPU YOLO observations, not merely one scan.
+            float(rospy.get_param("~survey_seconds", 6.0)),
+            int(rospy.get_param("~survey_scans", 5)))
+        self.scan_max_age = float(rospy.get_param("~scan_max_age", 0.6))
+        if not math.isfinite(self.scan_max_age) or self.scan_max_age <= 0:
+            raise ValueError("scan_max_age must be finite and positive")
+        # One short burst cannot plausibly move this platform half a metre.
+        # Treat corrections larger than 25 cm / 20 deg as localization loss;
+        # the former 50 cm threshold nearly admitted a bad 0.487 m update.
+        self.max_pose_jump = float(rospy.get_param("~max_pose_jump", 0.25))
+        self.max_yaw_jump = math.radians(float(rospy.get_param("~max_yaw_jump_deg", 20.0)))
+        self.slam_stale = float(rospy.get_param("~slam_stale", 2.5))
+
+        # Object detection is optional at runtime: mapping still starts if the
+        # ONNX model has not been deployed.  Registered depth is intentionally
+        # separate from the denser native depth used for collision avoidance.
+        self.detect_objects = bool(rospy.get_param("~detect_objects", True))
+        self.yolo_model = os.path.expanduser(rospy.get_param(
+            "~yolo_model", "~/room_mapper/models/yolov5n.onnx"))
+        self.registered_depth_topic = rospy.get_param(
+            "~registered_depth_topic", "/camera/depth_registered/image_raw")
+        self.camera_info_topic = rospy.get_param(
+            "~camera_info_topic", "/camera/rgb/camera_info")
+        self.object_hz = float(rospy.get_param("~object_hz", 2.0))
+        self.rgb_processing_hz = float(rospy.get_param("~rgb_processing_hz", 10.0))
+        self.depth_processing_hz = float(rospy.get_param("~depth_processing_hz", 15.0))
+        self.registered_depth_processing_hz = float(rospy.get_param(
+            "~registered_depth_processing_hz", 10.0))
+        self.opencv_threads = int(rospy.get_param("~opencv_threads", 1))
+        if (any(not math.isfinite(value) or value <= 0 for value in
+                (self.rgb_processing_hz, self.depth_processing_hz,
+                 self.registered_depth_processing_hz)) or self.opencv_threads < 1):
+            raise ValueError("image processing rates and opencv_threads must be positive")
+        # Structured-light depth is naturally sparse on dark, reflective, or
+        # distant surfaces. Hundreds of current samples are sufficient for a
+        # robust near-percentile check; requiring 10% coverage caused healthy
+        # 4-9% frames to alternate between READY and FAULT.
+        self.min_depth_valid_fraction = float(rospy.get_param(
+            "~min_depth_valid_fraction", 0.02))
+        self.min_depth_valid_pixels = int(rospy.get_param(
+            "~min_depth_valid_pixels", 200))
+        self.depth_sparse_grace = float(rospy.get_param("~depth_sparse_grace", 1.5))
+        if (not math.isfinite(self.min_depth_valid_fraction) or
+                not 0.005 <= self.min_depth_valid_fraction <= 0.25 or
+                self.min_depth_valid_pixels < 30 or
+                not math.isfinite(self.depth_sparse_grace) or
+                not 0.2 <= self.depth_sparse_grace <= 5.0):
+            raise ValueError("depth validity thresholds are outside safe bounds")
+        self.object_sync_slop = float(rospy.get_param("~object_sync_slop", 0.20))
+        self.object_max_age = float(rospy.get_param("~object_max_age", 2.5))
+        # Admission age rejects backed-up sensor frames. Result age is a
+        # separate bound because CPU-only YOLO can take several seconds after
+        # a fresh, synchronized pair was captured. Motion generation and the
+        # image-time TF snapshot keep that delayed observation map-safe.
+        self.object_result_max_age = float(rospy.get_param(
+            "~object_result_max_age", 12.0))
+        if (not math.isfinite(self.object_max_age) or self.object_max_age <= 0 or
+                not math.isfinite(self.object_result_max_age) or
+                self.object_result_max_age < self.object_max_age):
+            raise ValueError("object ages must be finite, positive, and result age >= admission age")
+        self.object_confidence = float(rospy.get_param("~object_confidence", 0.45))
+        self.object_merge_distance = float(rospy.get_param("~object_merge_distance", 0.65))
+        self.object_min_observations = int(rospy.get_param("~object_min_observations", 2))
+        if self.object_min_observations < 1:
+            raise ValueError("object_min_observations must be positive")
+        self.object_focus_seconds = float(rospy.get_param("~object_focus_seconds", 15.0))
+        self.object_focus_max_misses = int(rospy.get_param("~object_focus_max_misses", 2))
+        if (not math.isfinite(self.object_focus_seconds) or
+                not 5.0 <= self.object_focus_seconds <= 60.0 or
+                not 1 <= self.object_focus_max_misses <= 10):
+            raise ValueError("object focus duration or miss limit is outside safe bounds")
+
+        self.explorer = ExploreMap(
+            robot_radius=self.body_radius,
+            margin=float(rospy.get_param("~map_margin", 0.03)),
+            occupied_threshold=int(rospy.get_param("~occupied_threshold", 75)))
+        if self.use_map and self.reset_map:
+            try:
+                rospy.wait_for_service("/reset_map", timeout=5.0)
+                reset = rospy.ServiceProxy("/reset_map", Trigger)
+                result = reset()
+                # The installed Hector callback resets the map but leaves
+                # Trigger.success at its default false (verified in source).
+                rospy.loginfo("SLAM reset service returned (success=%s, message=%r); "
+                              "installed Hector does not populate these fields",
+                              result.success, result.message)
+            except Exception as exc:
+                raise RuntimeError("Could not reset SLAM map at run start: %s" % exc)
+        self.map_lock = threading.Lock()
+        self.data_lock = threading.Lock()
+        self.control_lock = threading.RLock()
+        self.shutting_down = False
+        self.pose, self.lidar = None, None
+        self.camera = None
+        self.depth = None
+        self.floor_profile = None
+        self.floor_sum = None
+        self.floor_count = None
+        self.floor_zero_sum = None
+        self.floor_zero_frac = 0.0
+        self.floor_frames = 0
+        self.floor_failures = 0
+        self.floor_unavailable = False
+        self.depth_source = ""
+        self.depth_health = "waiting for depth"
+        self.depth_history = []
+        self.depth_sparse_since = None
+        self.last_valid_depth_near = None
+        self.last_valid_depth_source = ""
+        self.last_valid_depth_time = 0.0
+        self.scan_points = None
+        self.t_scan = self.t_pose = self.t_camera = self.t_depth = self.t_map = 0.0
+        self.path = []
+        self.user_goal = None
+        self.nav_goal = None
+        self.object_standoff = float(rospy.get_param("~object_standoff", 0.75))
+        if not math.isfinite(self.object_standoff) or not 0.4 <= self.object_standoff <= 2.0:
+            raise ValueError("object_standoff must be between 0.4 and 2.0 metres")
+        self.phase = "look"
+        self.phase_start = time.time()
+        self.state = SEARCH
+        self.state_start = time.time()
+        self.state_reason = "initializing"
+        self.recovery_action = None
+        self.recovery_start = 0.0
+        self.last_yaw = None
+        self.turned = 0.0
+        self.avoid_dir = 1.0
+        self.last_cmd = None
+        self.motion_until = 0.0
+        self.last_scan_stamp = 0.0
+        self.stable_stationary_scans = 0
+        self.stable_turn_scans = 0
+        self.rejected_motion_scans = 0
+        self.pending_spin_yaw = None
+        self.spin_stall_count = 0
+        self.settle_until = time.time() + self.scan_settle
+        self.survey.reset(self.settle_until)
+        self.web_map_center = None
+        self.commanded_moving = False
+        self.motion_generation = 0
+        self.map_trusted = True
+        self.prev_pose = None
+        self.pose_guard_start = time.time() + 5.0
+        self.paused = self.start_paused
+        self.manual_cmd = None
+        self.manual_until = 0.0
+        self.web_pending = []
+        self.web_msg = "Ready - mapping will begin after sensors and SLAM are online"
+        self.view = {}
+        self.battery_voltage = None
+        self.battery_percentage = None
+        self.battery_charging = None
+        self.battery_stamp = 0.0
+        self.battery_source = "waiting for battery telemetry"
+        self.object_lock = threading.Lock()
+        self.object_tracker = ObjectTracker(self.object_merge_distance,
+                                            self.object_min_observations)
+        self.object_detections = []
+        self.registered_depth = None
+        self.registered_depth_stamp = 0.0
+        self.t_registered_depth = 0.0
+        self.camera_stamp = 0.0
+        self.camera_frame = ""
+        self.camera_k = None
+        self.camera_info_size = None
+        self.camera_info_frame = ""
+        self.last_object_stamps = (0.0, 0.0)
+        self.object_status = "disabled"
+        self.detector = None
+        self.object_processing = False
+        self.object_focus_id = None
+        self.object_focus_label = None
+        self.object_focus_deadline = 0.0
+        self.object_focus_misses = 0
+        self.tf_buffer = None
+        self.object_thread = None
+
+        self.robot = None
+        if self.drive:
+            if client is None:
+                raise RuntimeError("jethexa_controller not found - cannot drive")
+            self.robot = client.Client(self)
+
+        self.stable_scan_pub = rospy.Publisher(self.stable_scan_topic, LaserScan, queue_size=1)
+        self.motion_pub = rospy.Publisher("/room_mapper/moving", Bool, queue_size=1, latch=True)
+        self.motion_pub.publish(Bool(False))
+        rospy.Subscriber(self.rgb_topic, Image, self.image_callback, queue_size=1, buff_size=2**24)
+        rospy.Subscriber(self.scan_topic, LaserScan, self.scan_callback, queue_size=1)
+        if self.use_depth:
+            rospy.Subscriber(self.depth_topic, Image, self.depth_callback, queue_size=1, buff_size=2**24)
+        if self.use_map:
+            rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
+            rospy.Subscriber(self.pose_topic, PoseStamped, self.pose_callback, queue_size=1)
+        for topic in self.battery_topics:
+            rospy.Subscriber(topic, rospy.AnyMsg, self.battery_callback,
+                             callback_args=topic, queue_size=1)
+        if self.detect_objects:
+            self.start_object_detection()
+        self.timer = rospy.Timer(rospy.Duration(0.1), self.safe_step)
+
+        if self.web_port:
+            import map_web
+            requested_web_port = self.web_port
+            self.web_port = map_web.start(self, requested_web_port) or 0
+            if self.web_port:
+                rospy.loginfo("LIVE VIEW: open http://192.168.137.223:%d", self.web_port)
+            else:
+                rospy.logerr("Web server could not bind any port from %d through %d",
+                             requested_web_port, min(requested_web_port + 9, 65535))
+        rospy.loginfo("room_mapper started | %s | map=%s | scan=%s | depth=%s | LiDAR offset=%.0f deg",
+                      "DRIVE" if self.drive else "DRY RUN (no walking)", self.use_map,
+                      self.scan_topic, self.depth_topic if self.use_depth else "off",
+                      math.degrees(self.yaw_offset))
+
+    def battery_callback(self, raw, topic):
+        """Accept common battery message types without requiring a fixed board driver."""
+        message_type = (getattr(raw, "_connection_header", {}) or {}).get("type", "")
+        voltage = percentage = None
+        charging = None
+        try:
+            if message_type == "sensor_msgs/BatteryState":
+                msg = BatteryState().deserialize(raw._buff)
+                voltage = float(msg.voltage)
+                if math.isfinite(msg.percentage) and msg.percentage >= 0:
+                    percentage = 100.0 * msg.percentage
+                charging = msg.power_supply_status == BatteryState.POWER_SUPPLY_STATUS_CHARGING
+            elif message_type in ("std_msgs/Float32", "std_msgs/Float64"):
+                fmt = "<f" if message_type.endswith("Float32") else "<d"
+                voltage = float(struct.unpack_from(fmt, raw._buff)[0])
+            elif message_type in ("std_msgs/UInt16", "std_msgs/Int32"):
+                fmt = "<H" if message_type.endswith("UInt16") else "<i"
+                voltage = float(struct.unpack_from(fmt, raw._buff)[0])
+                if voltage > 100.0:
+                    voltage /= 1000.0
+            else:
+                self.battery_source = "%s uses unsupported %s" % (
+                    topic, message_type or "message type")
+                return
+        except (ValueError, TypeError, struct.error) as exc:
+            rospy.logwarn_throttle(5, "Bad battery telemetry on %s: %s", topic, exc)
+            return
+        if voltage is not None and (not math.isfinite(voltage) or voltage <= 0):
+            return
+        if percentage is None and voltage is not None:
+            percentage = 100.0 * ((voltage - self.battery_empty_voltage) /
+                                  (self.battery_full_voltage - self.battery_empty_voltage))
+        if percentage is not None:
+            percentage = max(0.0, min(100.0, percentage))
+        with self.data_lock:
+            self.battery_voltage = voltage
+            self.battery_percentage = percentage
+            self.battery_charging = charging
+            self.battery_stamp = time.time()
+            self.battery_source = topic
+
+    def image_callback(self, msg):
+        now = time.time()
+        rate = getattr(self, "rgb_processing_hz", 0.0)
+        if rate > 0 and now - getattr(self, "t_camera", 0.0) < 1.0 / rate:
+            return
+        try:
+            raw = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.step)
+            frame = raw[:, :msg.width * 3].reshape(msg.height, msg.width, 3)
+            if msg.encoding != "bgr8":
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        except Exception as exc:
+            rospy.logwarn_throttle(5, "Bad RGB image: %s", exc)
+            return
+        with self.data_lock:
+            self.camera = frame.copy()
+            self.t_camera = now
+            self.camera_stamp = self.message_time(msg)
+            self.camera_frame = getattr(getattr(msg, "header", None), "frame_id", "")
+
+    @staticmethod
+    def message_time(msg):
+        stamp = getattr(getattr(msg, "header", None), "stamp", None)
+        try:
+            value = stamp.to_sec()
+            return value if math.isfinite(value) and value > 0 else 0.0
+        except Exception:
+            return 0.0
+
+    def start_object_detection(self):
+        if not os.path.isfile(self.yolo_model):
+            self.object_status = "model missing: %s" % self.yolo_model
+            rospy.logwarn("Object detection disabled; %s", self.object_status)
+            return
+        try:
+            cv2.setNumThreads(self.opencv_threads)
+            from tf2_msgs.msg import TFMessage
+            self.detector = YoloOnnxDetector(self.yolo_model,
+                                             confidence=self.object_confidence)
+            self.tf_buffer = TransformCache()
+        except Exception as exc:
+            self.detector = None
+            self.object_status = "startup failed: %s" % exc
+            rospy.logerr("Object detection disabled; %s", self.object_status)
+            return
+        rospy.Subscriber(self.registered_depth_topic, Image,
+                         self.registered_depth_callback, queue_size=1, buff_size=2**24)
+        rospy.Subscriber(self.camera_info_topic, CameraInfo,
+                         self.camera_info_callback, queue_size=1)
+        rospy.Subscriber("/tf", TFMessage, self.tf_callback, callback_args=False,
+                         queue_size=20)
+        rospy.Subscriber("/tf_static", TFMessage, self.tf_callback, callback_args=True,
+                         queue_size=20)
+        self.object_status = "waiting for synchronized RGB, registered depth, and camera info"
+        self.object_thread = threading.Thread(target=self.object_loop, name="object-mapper")
+        self.object_thread.start()
+
+    def registered_depth_callback(self, msg):
+        now = time.time()
+        rate = getattr(self, "registered_depth_processing_hz", 0.0)
+        if rate > 0 and now - getattr(self, "t_registered_depth", 0.0) < 1.0 / rate:
+            return
+        try:
+            depth = decode_depth_image(msg)
+        except Exception as exc:
+            rospy.logwarn_throttle(5, "Bad registered depth image: %s", exc)
+            return
+        with self.data_lock:
+            self.registered_depth = depth
+            self.registered_depth_stamp = self.message_time(msg)
+            self.t_registered_depth = now
+
+    def camera_info_callback(self, msg):
+        with self.data_lock:
+            self.camera_k = None
+            if (len(msg.K) >= 9 and all(math.isfinite(v) for v in msg.K) and
+                    msg.K[0] > 0 and msg.K[4] > 0):
+                self.camera_k = tuple(msg.K)
+                self.camera_info_size = (msg.height, msg.width)
+                self.camera_info_frame = msg.header.frame_id.lstrip('/')
+
+    def tf_callback(self, msg, is_static):
+        with self.object_lock:
+            for item in msg.transforms:
+                t, q = item.transform.translation, item.transform.rotation
+                self.tf_buffer.update(item.header.frame_id, item.child_frame_id,
+                                      (t.x, t.y, t.z), (q.x, q.y, q.z, q.w),
+                                      self.message_time(item), is_static)
+
+    def object_loop(self):
+        period = 1.0 / max(0.1, self.object_hz)
+        next_run = 0.0
+        while not rospy.is_shutdown() and not self.shutting_down:
+            now = time.time()
+            if now < next_run:
+                time.sleep(min(.05, next_run - now))
+                continue
+            try:
+                self.process_objects()
+            except Exception as exc:
+                self.object_status = "processing failed: %s" % exc
+                rospy.logerr_throttle(5, "Object processing failed: %s", exc)
+            finally:
+                # Schedule from completion, not start. A slow detector must not
+                # immediately begin another inference and monopolize the CPU.
+                next_run = time.time() + period
+
+    def objects_ready(self, now):
+        """Called with control/data locks; freshness alone does not prove SLAM accuracy."""
+        return (not self.shutting_down and not self.commanded_moving and
+                now >= self.settle_until and self.map_trusted and self.use_map and
+                self.pose is not None and 0 <= now - self.t_pose <= self.slam_stale and
+                0 <= now - self.t_map <= 5.0 and self.detector is not None)
+
+    def process_objects(self):
+        """Process one distinct RGB/depth pair; never hold control locks during YOLO."""
+        with self.control_lock, self.data_lock:
+            now = time.time()
+            if not self.objects_ready(now):
+                self.object_status = "waiting for settled robot and fresh, trusted SLAM"
+                return
+            if (self.camera is None or self.registered_depth is None or
+                    self.camera_k is None or not self.camera_frame):
+                self.object_status = "waiting for RGB, registered depth, or camera info"
+                return
+            stamps = (self.camera_stamp, self.registered_depth_stamp)
+            ros_now = rospy.Time.now().to_sec()
+            if any(s <= 0 or not 0 <= ros_now - s <= self.object_max_age for s in stamps):
+                self.object_status = "waiting for fresh RGB/depth timestamps"
+                return
+            if (any(s <= old for s, old in zip(stamps, self.last_object_stamps)) or
+                    min(self.t_camera, self.t_registered_depth) < self.settle_until or
+                    min(stamps) < ros_now - (now - self.settle_until)):
+                self.object_status = "waiting for a new settled RGB/depth pair"
+                return
+            if abs(stamps[0] - stamps[1]) > self.object_sync_slop:
+                self.object_status = "waiting for synchronized RGB/depth (skew %.3f s)" % \
+                    abs(stamps[0] - stamps[1])
+                return
+            shape = self.camera.shape[:2]
+            if (shape != self.registered_depth.shape[:2] or shape != self.camera_info_size or
+                    self.camera_frame.lstrip('/') != self.camera_info_frame):
+                self.object_status = "RGB/depth/calibration dimensions or RGB frame mismatch"
+                return
+            frame, depth = self.camera.copy(), self.registered_depth.copy()
+            k, frame_id = self.camera_k, self.camera_frame
+            generation = self.motion_generation
+            self.last_object_stamps = stamps
+            # Snapshot image-time TF before slow inference can evict its history.
+            with self.object_lock:
+                try:
+                    transform = self.tf_buffer.lookup("map", frame_id, stamps[0], max_age=.5)
+                except (KeyError, ValueError) as exc:
+                    transform = None
+                    rospy.logwarn_throttle(5, "Object map TF unavailable: %s", exc)
+            # Set this before releasing the control lock so a motion command
+            # cannot slip between image capture and the inference guard.
+            self.object_processing = True
+        inference_started = time.time()
+        try:
+            detections = self.detector.detect(frame)
+        except Exception:
+            with self.control_lock:
+                self.object_processing = False
+            raise
+        inference_seconds = time.time() - inference_started
+        for detection in detections:
+            detection["map_point"] = None
+            sample = sample_box_depth(depth, detection["box"])
+            if sample is not None:
+                distance, u, v = sample
+                detection["depth"] = distance
+                if transform is not None:
+                    detection["map_point"] = transform_point(backproject(u, v, distance, k),
+                                                              *transform)
+        # Serialize commit with motion, shutdown, and pose-loss track clearing.
+        with self.control_lock, self.data_lock, self.object_lock:
+            self.object_processing = False
+            now = time.time()
+            ros_now = rospy.Time.now().to_sec()
+            capture_ages = tuple(ros_now - s for s in stamps)
+            if not self.objects_ready(now):
+                for detection in detections:
+                    detection["map_point"] = None
+                if not self.shutting_down:
+                    self.object_detections = detections
+                self.object_status = ("discarded observation after %.2f s: robot moved or "
+                                      "SLAM/map became unavailable" % inference_seconds)
+                return
+            if generation != self.motion_generation:
+                for detection in detections:
+                    detection["map_point"] = None
+                self.object_detections = detections
+                self.object_status = "discarded observation after %.2f s: motion changed" % \
+                    inference_seconds
+                return
+            if any(not 0 <= age <= self.object_result_max_age for age in capture_ages):
+                for detection in detections:
+                    detection["map_point"] = None
+                self.object_detections = detections
+                self.object_status = ("%d detections shown; map observation discarded after "
+                                      "%.2f s: RGB/depth age %.2f/%.2f s exceeds %.2f s" %
+                                      (len(detections), inference_seconds,
+                                       capture_ages[0], capture_ages[1],
+                                       self.object_result_max_age))
+                return
+            mapped = 0
+            updated_tracks = []
+            for detection in detections:
+                point = detection["map_point"]
+                if point is not None:
+                    track = self.object_tracker.update(
+                        detection["label"], point[0], point[1],
+                        detection["confidence"], now, observation_id=stamps[0])
+                    if track is not None:
+                        updated_tracks.append(track)
+                        mapped += 1
+            self.object_detections = detections
+            confirmed = len(self.object_tracker.snapshot(True, now))
+            self.object_status = "%d detections, %d mapped, %d confirmed" % (
+                len(detections), mapped, confirmed)
+            self.update_object_focus_locked(updated_tracks, now)
+
+    def update_object_focus_locked(self, updated_tracks, now):
+        """Start or resolve autonomous object focus while object_lock is held."""
+        focus_id = getattr(self, "object_focus_id", None)
+        if focus_id is None:
+            if (getattr(self, "paused", True) or
+                    getattr(self, "phase", "") in ("user_go", "goal_reached",
+                                                    "goal_stopped", "goal_cancelled")):
+                return
+            minimum = getattr(self.object_tracker, "min_observations", 2)
+            candidate = next((track for track in updated_tracks
+                              if track["count"] < minimum), None)
+            if candidate is None:
+                return
+            self.object_focus_id = candidate["id"]
+            self.object_focus_label = candidate["label"]
+            self.object_focus_deadline = now + getattr(self, "object_focus_seconds", 15.0)
+            self.object_focus_misses = 0
+            self.path = []
+            self.phase, self.phase_start = "object_focus", now
+            self.web_msg = "Focusing on possible %s (observation %d/%d)" % (
+                candidate["label"], candidate["count"], minimum)
+            return
+
+        target = next((track for track in self.object_tracker.tracks
+                       if track["id"] == focus_id), None)
+        minimum = getattr(self.object_tracker, "min_observations", 2)
+        if target is not None and target["count"] >= minimum:
+            self.finish_object_focus_locked(True, now)
+            return
+        if not any(track["id"] == focus_id for track in updated_tracks):
+            self.object_focus_misses = getattr(self, "object_focus_misses", 0) + 1
+        else:
+            self.object_focus_misses = 0
+        if self.object_focus_misses >= getattr(self, "object_focus_max_misses", 2):
+            self.finish_object_focus_locked(False, now, "not seen consistently")
+
+    def finish_object_focus_locked(self, confirmed, now, reason=""):
+        """Finish focus and resume frontier planning; object_lock must be held."""
+        focus_id = getattr(self, "object_focus_id", None)
+        label = getattr(self, "object_focus_label", None) or "object"
+        if not confirmed and focus_id is not None:
+            self.object_tracker.discard(focus_id)
+        self.object_focus_id = None
+        self.object_focus_label = None
+        self.object_focus_deadline = 0.0
+        self.object_focus_misses = 0
+        self.path = []
+        self.phase, self.phase_start = "plan", now
+        self.web_msg = ("Added %s to the map; continuing mapping" % label if confirmed else
+                        "Excluded possible %s (%s); continuing mapping" %
+                        (label, reason or "focus timed out"))
+
+    def scan_callback(self, msg):
+        if not msg.ranges:
+            return
+        stamp = self.message_time(msg)
+        ros_now = rospy.Time.now().to_sec()
+        if stamp <= 0 or not 0 <= ros_now - stamp <= self.scan_max_age:
+            rospy.logwarn_throttle(5, "Ignoring LiDAR scan with missing, stale, or future timestamp")
+            return
+        ranges = np.asarray(msg.ranges, dtype=np.float32)
+        angles = msg.angle_min + np.arange(len(ranges), dtype=np.float32) * msg.angle_increment
+        angles = np.arctan2(np.sin(angles + self.yaw_offset), np.cos(angles + self.yaw_offset))
+        valid = np.isfinite(ranges) & (ranges >= max(msg.range_min, self.self_filter)) & (ranges <= msg.range_max)
+
+        def sector(mask):
+            values = ranges[valid & mask]
+            return float(values.min()) if values.size else float("inf")
+
+        heads = np.radians(np.arange(-180, 180, 10))
+        free = np.full(len(heads), 3.0)
+        x, y = ranges[valid] * np.cos(angles[valid]), ranges[valid] * np.sin(angles[valid])
+        for i, h in enumerate(heads):
+            fwd = x * math.cos(h) + y * math.sin(h)
+            side = -x * math.sin(h) + y * math.cos(h)
+            hit = (fwd > 0) & (np.abs(side) < self.body_radius)
+            if hit.any():
+                free[i] = min(3.0, float(fwd[hit].min()))
+        scan = {
+            "front": sector(np.abs(angles) <= self.front_half),
+            "left": sector((angles > self.front_half) & (angles <= self.side_max)),
+            "right": sector((angles < -self.front_half) & (angles >= -self.side_max)),
+            "back": sector(np.abs(angles) >= math.radians(150)),
+            "near_front": sector(np.abs(angles) <= math.radians(60)),
+            "near_back": sector(np.abs(angles) >= math.radians(120)),
+            "nearest": sector(np.ones(len(angles), dtype=bool)),
+            "heads": heads, "free": free,
+        }
+        with self.data_lock:
+            if stamp <= self.last_scan_stamp:
+                return
+            self.last_scan_stamp = stamp
+            self.lidar = scan
+            self.t_scan = time.time()
+            self.scan_points = np.column_stack((x, y))
+        # Translating scans are excluded. Pure zero-stride turns are different:
+        # Hector needs their incremental geometry to estimate yaw; hiding a
+        # full turn makes it invent translation when scans resume afterward.
+        with self.control_lock, self.data_lock:
+            now = time.time()
+            if self.scan_ready_for_mapping(now, stamp, rospy.Time.now().to_sec()):
+                self.stable_scan_pub.publish(msg)
+                # Turning scans localize yaw but do not satisfy a stationary
+                # survey requirement.
+                if (hasattr(self, "survey") and not self.commanded_moving and
+                        now >= self.settle_until):
+                    self.survey.observe(stamp)
+                    self.stable_stationary_scans += 1
+                elif self.commanded_moving:
+                    self.stable_turn_scans += 1
+            elif self.commanded_moving:
+                self.rejected_motion_scans += 1
+
+    def scan_ready_for_mapping(self, now, stamp=None, ros_now=None):
+        if self.shutting_down or not self.map_trusted:
+            return False
+        rotating_in_place = (self.commanded_moving and self.last_cmd is not None and
+                             self.last_cmd[0] == "spin" and self.spin_stride == 0.0)
+        if self.commanded_moving:
+            return rotating_in_place
+        if now < self.settle_until:
+            return False
+        if stamp is None:
+            return True
+        # LaserScan stamps identify the FIRST ray. Callback receipt after
+        # settling is insufficient if acquisition began during motion/settling.
+        return (stamp > 0 and 0 <= ros_now - stamp <= self.scan_max_age and
+                stamp >= ros_now - (now - self.settle_until))
+
+    def depth_callback(self, msg):
+        now = time.time()
+        rate = getattr(self, "depth_processing_hz", 0.0)
+        if rate > 0 and now - getattr(self, "t_depth", 0.0) < 1.0 / rate:
+            return
+        try:
+            if msg.encoding in ("16UC1", "mono16"):
+                kind, scale = "u2", 0.001
+            elif msg.encoding == "32FC1":
+                kind, scale = "f4", 1.0
+            else:
+                raise ValueError("Unsupported depth encoding: " + msg.encoding)
+            dtype = np.dtype((">" if msg.is_bigendian else "<") + kind)
+            if (msg.height < 2 or msg.width < 2 or
+                    msg.step < msg.width * dtype.itemsize or
+                    len(msg.data) < msg.height * msg.step):
+                raise ValueError("Invalid depth dimensions, stride, or buffer length")
+            d = np.ndarray((msg.height, msg.width), dtype=dtype, buffer=msg.data,
+                           strides=(msg.step, dtype.itemsize)).astype(np.float32) * scale
+        except Exception as exc:
+            rospy.logwarn_throttle(5, "Bad depth image: %s", exc)
+            return
+        d = d[::2, ::2].copy()
+        d[~np.isfinite(d)] = 0.0
+        with self.data_lock:
+            if self.depth is not None and self.depth.shape != d.shape:
+                self.floor_profile = self.floor_sum = self.floor_count = None
+                self.floor_zero_sum = None
+                self.floor_frames = 0
+                self.floor_failures = 0
+                self.floor_unavailable = False
+            if self.floor_profile is None:
+                self.learn_floor(d)
+            self.depth = d
+            self.t_depth = now
+
+    def learn_floor(self, depth):
+        """Learn per-row floor range while the robot is stationary."""
+        h, w = depth.shape
+        c0, c1 = int(self.band_left * w), int(self.band_right * w)
+        cols = depth[:, c0:c1]
+        if self.floor_sum is None:
+            self.floor_sum = np.zeros(h, np.float32)
+            self.floor_count = np.zeros(h, np.float32)
+            self.floor_zero_sum = np.zeros(h, np.float32)
+        for r in range(int(self.band_split * h), int(self.band_bottom * h)):
+            values = cols[r][cols[r] > 0.1]
+            self.floor_zero_sum[r] += 1.0 - values.size / float(cols.shape[1])
+            if values.size > 0.3 * cols.shape[1]:
+                self.floor_sum[r] += np.median(values)
+                self.floor_count[r] += 1
+        self.floor_frames += 1
+        if self.floor_frames >= self.floor_frames_needed:
+            with np.errstate(invalid="ignore", divide="ignore"):
+                profile = self.floor_sum / self.floor_count
+            profile[self.floor_count < self.floor_frames_needed * 0.7] = np.nan
+            rows = np.isfinite(profile)
+            needed = max(3, int(0.25 * (self.band_bottom - self.band_split) * h))
+            if rows.sum() < needed:
+                self.floor_failures += 1
+                self.depth_health = "floor calibration failed: insufficient valid rows"
+                rospy.logwarn_throttle(5, self.depth_health)
+                if self.floor_failures >= 3:
+                    # Registered depth can have almost no valid lower-image
+                    # pixels in some scenes. Keep the upper-band obstacle
+                    # check instead of blocking all mapping indefinitely.
+                    self.floor_profile = np.full(h, np.nan, np.float32)
+                    self.floor_unavailable = True
+                    self.depth_health = "ready (upper-only; floor unavailable)"
+                    rospy.logwarn("Depth continuing in upper-only mode; floor bumps are not detectable")
+                    return
+                self.floor_sum = self.floor_count = self.floor_zero_sum = None
+                self.floor_frames = 0
+                return
+            self.floor_zero_frac = float((self.floor_zero_sum[rows] / self.floor_frames).mean())
+            self.floor_profile = profile
+            self.depth_health = "ready"
+            rospy.loginfo("Depth floor learned: %d usable image rows", int(np.isfinite(profile).sum()))
+
+    def depth_ahead(self, depth):
+        """Return the nearest plausible obstacle in the central camera view."""
+        if depth is None:
+            self.depth_source = ""
+            return float("inf")
+        h, w = depth.shape
+        c0, c1 = int(self.band_left * w), int(self.band_right * w)
+        split, bottom = int(self.band_split * h), int(self.band_bottom * h)
+        top = depth[int(self.band_top * h):split, c0:c1]
+        values = top[(top > 0.1) & np.isfinite(top)]
+        min_valid = max(getattr(self, "min_depth_valid_pixels", 200),
+                        int(getattr(self, "min_depth_valid_fraction", 0.02) * top.size))
+        if values.size < min_valid:
+            now = time.time()
+            if getattr(self, "depth_sparse_since", None) is None:
+                self.depth_sparse_since = now
+            cached = getattr(self, "last_valid_depth_near", None)
+            age = now - getattr(self, "last_valid_depth_time", 0.0)
+            grace = getattr(self, "depth_sparse_grace", 1.5)
+            if cached is not None and age <= grace:
+                self.depth_health = "ready (brief sparse depth; using recent result)"
+                self.depth_source = "recent " + (getattr(
+                    self, "last_valid_depth_source", "") or "clear depth")
+                return cached
+            self.depth_health = "insufficient valid depth in upper band"
+            self.depth_source = "unknown"
+            return float("inf")
+        self.depth_sparse_since = None
+        self.depth_health = ("ready (upper-only; floor unavailable)"
+                             if self.floor_unavailable else "ready")
+        ignore_distance = getattr(self, "depth_ignore_at_or_below", 0.50)
+        obstacle_values = values[values > ignore_distance]
+        nearest = (float(np.percentile(obstacle_values, 10))
+                   if obstacle_values.size >= 30 else float("inf"))
+        source = "high" if nearest < 99 else ""
+        if self.floor_profile is not None:
+            low = depth[split:bottom, c0:c1]
+            floor = self.floor_profile[split:bottom][:, None]
+            valid_floor = np.isfinite(floor)
+            valid = (low > 0.1) & valid_floor
+            floor_pixels = np.broadcast_to(valid_floor, low.shape)
+            if floor_pixels.any():
+                zero_frac = float(np.count_nonzero(floor_pixels & ~valid)) / np.count_nonzero(floor_pixels)
+                if zero_frac - self.floor_zero_frac > 0.30:
+                    nearest, source = 0.30, "depth dropout / too close"
+            if np.count_nonzero(valid) > 100:
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    ratio = low / floor
+                    shift = float(np.median(ratio[valid]))
+                    bump = valid & (ratio < shift * (1.0 - self.floor_margin))
+                if np.count_nonzero(bump) >= max(40, int(0.02 * np.count_nonzero(valid))):
+                    bump_distance = float(np.percentile(low[bump], 10))
+                    if bump_distance < nearest:
+                        nearest, source = bump_distance, "floor-bump"
+        if nearest <= ignore_distance:
+            nearest = float("inf")
+            source = "ignored depth <= %.2f m" % ignore_distance
+        self.last_valid_depth_near = nearest
+        self.last_valid_depth_source = source
+        self.last_valid_depth_time = time.time()
+        self.depth_source = source
+        return nearest
+
+    def map_callback(self, msg):
+        i = msg.info
+        with self.map_lock:
+            self.explorer.update_from_slam(msg.data, i.width, i.height, i.resolution,
+                                           i.origin.position.x, i.origin.position.y)
+            self.t_map = time.time()
+
+    def pose_callback(self, msg):
+        q = msg.pose.orientation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        pose = (msg.pose.position.x, msg.pose.position.y, yaw)
+        now = time.time()
+        with self.data_lock:
+            if self.prev_pose is not None and now >= self.pose_guard_start and self.map_trusted:
+                distance = math.hypot(pose[0] - self.prev_pose[0], pose[1] - self.prev_pose[1])
+                turn = abs(math.atan2(math.sin(pose[2] - self.prev_pose[2]),
+                                      math.cos(pose[2] - self.prev_pose[2])))
+                if distance > self.max_pose_jump or turn > self.max_yaw_jump:
+                    self.map_trusted = False
+                    self.clear_object_tracks()
+                    self.web_msg = ("SLAM LOST: pose jumped %.2f m / %.0f deg; restart mapper "
+                                    "before continuing" % (distance, math.degrees(turn)))
+                    rospy.logerr(self.web_msg)
+            self.prev_pose = pose
+            self.pose = (msg.pose.position.x, msg.pose.position.y, yaw)
+            self.t_pose = time.time()
+            if hasattr(self, "survey"):
+                self.survey.localize(self.message_time(msg))
+            if getattr(self, "web_map_center", None) is None:
+                self.web_map_center = pose[:2]
+
+    def clear_object_tracks(self):
+        """Discard landmarks tied to a SLAM frame that is no longer valid."""
+        # The attribute guard also keeps the callback independently testable
+        # with lightweight RoomMapper.__new__ fixtures.
+        if not hasattr(self, "object_lock"):
+            return
+        with self.object_lock:
+            self.object_tracker.clear()
+            self.object_detections = []
+
+    def send_actual(self, cmd):
+        if cmd == self.last_cmd:
+            return
+        if not self.drive:
+            self.last_cmd = cmd
+            rospy.loginfo("[dry run] would send: %s", cmd)
+            return
+        try:
+            translation_scale = getattr(self, "translation_speed_percent", 100.0) / 100.0
+            rotation_scale = getattr(self, "rotation_speed_percent", 100.0) / 100.0
+            if cmd[0] == "stop":
+                self.robot.traveling(gait=0)
+            elif cmd[0] == "forward":
+                self.robot.traveling(gait=1, stride=self.stride * translation_scale,
+                                     height=self.step_height,
+                                     direction=0.0, rotation=0.0, time=self.step_time,
+                                     steps=0, interrupt=True, relative_height=False)
+            elif cmd[0] == "back":
+                self.robot.traveling(gait=1, stride=self.stride * translation_scale,
+                                     height=self.step_height,
+                                     direction=math.pi, rotation=0.0, time=self.step_time,
+                                     steps=0, interrupt=True, relative_height=False)
+            elif cmd[0] == "spin":
+                self.robot.traveling(gait=1, stride=self.spin_stride, height=self.step_height,
+                                     direction=0.0,
+                                     rotation=cmd[1] * self.spin_rate * rotation_scale,
+                                     time=self.step_time, steps=0, interrupt=True,
+                                     relative_height=False)
+            self.last_cmd = cmd
+        except Exception as exc:
+            self.last_cmd = None
+            rospy.logerr("traveling() failed: %s", exc)
+            raise
+
+    def set_motion(self, moving):
+        moving = bool(moving)
+        if moving != self.commanded_moving:
+            self.motion_generation = getattr(self, "motion_generation", 0) + 1
+            self.commanded_moving = moving
+            self.motion_pub.publish(Bool(moving))
+
+    def send(self, cmd, interrupt_object=False):
+        """Apply motion in short bursts, then stand still for clean SLAM scans.
+
+        Autonomous motion waits for an object observation to finish so it can
+        be committed to the map.  Manual motion instead invalidates that
+        observation through ``motion_generation`` below; making the operator
+        wait for CPU-only YOLO inference creates a multi-second control lag.
+        """
+        now = time.time()
+        if not self.drive:
+            self.send_actual(cmd)
+            return
+        if cmd[0] == "stop":
+            was_moving = self.commanded_moving
+            self.motion_until = 0.0
+            self.send_actual(cmd)
+            self.set_motion(False)
+            if was_moving:
+                self.settle_until = time.time() + self.scan_settle
+                if hasattr(self, "survey"):
+                    with self.data_lock:
+                        self.survey.reset(self.settle_until)
+            return
+        if self.commanded_moving:
+            if now >= self.motion_until:
+                self.send_actual(("stop",))
+                self.set_motion(False)
+                self.settle_until = time.time() + self.scan_settle
+                if hasattr(self, "survey"):
+                    with self.data_lock:
+                        self.survey.reset(self.settle_until)
+            return
+        if now < self.settle_until:
+            return
+        # A complete stationary survey is required before choosing a new
+        # viewpoint, not between every short gait burst.  Hector now receives
+        # raw scans continuously, so pose tracking does not depend on this
+        # application-level survey gate.
+        spin_start = getattr(self, "pending_spin_yaw", None)
+        if spin_start is not None:
+            with self.data_lock:
+                pose = self.pose
+            progress = (abs(math.atan2(math.sin(pose[2] - spin_start),
+                                       math.cos(pose[2] - spin_start)))
+                        if pose is not None else 0.0)
+            self.pending_spin_yaw = None
+            if progress < getattr(self, "min_spin_progress", math.radians(3.0)):
+                self.spin_stall_count = getattr(self, "spin_stall_count", 0) + 1
+                limit = getattr(self, "max_spin_stalls", 3)
+                if self.spin_stall_count >= limit:
+                    self.map_trusted = False
+                    self.clear_object_tracks()
+                    self.web_msg = ("SLAM LOST: %d consecutive turns made less than %.1f deg "
+                                    "progress; robot remains stopped" %
+                                    (self.spin_stall_count,
+                                     math.degrees(self.min_spin_progress)))
+                    rospy.logerr(self.web_msg)
+                else:
+                    self.web_msg = ("Turn made only %.1f deg progress; retrying (%d/%d)" %
+                                    (math.degrees(progress), self.spin_stall_count, limit))
+                return
+            self.spin_stall_count = 0
+        # CPU inference is slow on this robot.  Do not invalidate an image and
+        # transform captured at this waypoint by moving just before it commits.
+        if getattr(self, "object_processing", False) and not interrupt_object:
+            return
+        if cmd[0] == "spin":
+            with self.data_lock:
+                self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
+        self.send_actual(cmd)
+        self.set_motion(True)
+        self.motion_until = now + (self.spin_burst if cmd[0] == "spin" else self.move_burst)
+
+    def set_state(self, state, reason=""):
+        if reason:
+            self.state_reason = reason
+        if state != self.state:
+            rospy.loginfo(">>> %s -> %s %s", self.state, state, reason)
+            self.state, self.state_start = state, time.time()
+
+    def open_side(self, lidar):
+        return 1.0 if lidar["left"] >= lidar["right"] else -1.0
+
+    def begin_recovery(self, lidar, rotation_blocked, rear_clear, reason, now):
+        """Choose a safe escape shared by autonomous mapping and web routes."""
+        self.avoid_dir = self.open_side(lidar)
+        self.avoid_forward_start = None
+        self.recovery_start = now
+        if not rotation_blocked:
+            self.recovery_action = "spin"
+            detail = "turning toward open side"
+        elif rear_clear:
+            self.recovery_action = "back"
+            detail = "rotation constrained; reversing to create clearance"
+        else:
+            self.recovery_action = None
+            return False
+        self.set_state(AVOID, reason + "; " + detail)
+        self.web_msg = "Blocked: %s; %s" % (reason, detail)
+        return True
+
+    def start_look(self, now):
+        # A 360-degree LiDAR already surveys the room without rotating the body.
+        self.phase, self.phase_start, self.turned, self.last_yaw = "survey", now, 0.0, None
+
+    def start_navigation(self, x, y, label="selected point", standoff=0.0):
+        """Plan a web-requested route while preserving all control safety gates."""
+        # Stop the previous autonomous burst before spending time planning.
+        self.send(("stop",))
+        with self.data_lock:
+            pose = self.pose
+        if (pose is None or not self.map_trusted or not self.explorer.have_map):
+            self.stop_manual("Navigation unavailable: waiting for a trusted map and pose")
+            return False
+        with self.map_lock:
+            path, actual = self.explorer.plan_to_point(pose, (x, y), standoff)
+        if not path or actual is None:
+            self.stop_manual("Navigation unavailable: no reachable known-free route")
+            return False
+        self.manual_cmd, self.manual_until = None, 0.0
+        self.paused = False
+        self.path = path
+        self.user_goal = (float(x), float(y), str(label), float(standoff))
+        self.nav_goal = actual
+        self.state, self.state_start = SEARCH, time.time()
+        self.phase, self.phase_start = "user_go", time.time()
+        adjustment = math.hypot(actual[0] - x, actual[1] - y)
+        self.web_msg = ("Navigating to %s via safe goal %.2f, %.2f m%s" %
+                        (label, actual[0], actual[1],
+                         " (adjusted %.2f m)" % adjustment if adjustment > .15 else ""))
+        return True
+
+    def plan(self, pose, now):
+        with self.map_lock:
+            path, goal = self.explorer.plan_frontier(pose)
+        if path:
+            self.path = path
+            self.phase, self.phase_start = "go", now
+            rospy.loginfo("%s goal (%.1f, %.1f), %d waypoints, map %.0f%% known",
+                          self.explorer.last_plan_kind or "mapping", goal[0], goal[1],
+                          len(path), 100 * self.explorer.coverage())
+            return True
+        return False
+
+    def follow_path(self, pose):
+        x, y, yaw = pose
+        while (self.path and math.hypot(self.path[0][0] - x,
+                                        self.path[0][1] - y) < self.waypoint_tolerance):
+            self.path.pop(0)
+        if not self.path:
+            return None
+        wx, wy = self.path[0]
+        err = math.atan2(math.sin(math.atan2(wy-y, wx-x) - yaw),
+                         math.cos(math.atan2(wy-y, wx-x) - yaw))
+        return ("spin", 1.0 if err > 0 else -1.0) if abs(err) > math.radians(25) else ("forward",)
+
+    def safe_step(self, _event):
+        with self.control_lock:
+            if self.shutting_down:
+                return
+            try:
+                self.control_step()
+            except Exception as exc:
+                try:
+                    self.send(("stop",))
+                except Exception:
+                    pass  # Keep the timer alive to retry the stop next cycle.
+                rospy.logerr_throttle(2, "Controller error; stop requested: %s", exc)
+
+    def control_step(self):
+        now = time.time()
+        with self.data_lock:
+            pose, lidar = self.pose, getattr(self, "lidar", None)
+            depth = self.depth
+            t_pose, t_scan, t_camera, t_depth = self.t_pose, self.t_scan, self.t_camera, self.t_depth
+        # Web safety controls must still work while a sensor or map is faulty.
+        self.handle_web()
+        manual_cmd = getattr(self, "manual_cmd", None)
+        if manual_cmd is not None and now > getattr(self, "manual_until", 0.0):
+            self.stop_manual("Manual drive stopped: browser command timed out")
+            return
+        if self.paused and manual_cmd is None:
+            self.send(("stop",))
+            return
+        # RGB is used for display and YOLO, not collision sensing. A stalled
+        # RGB stream must not disable depth/LiDAR-protected manual navigation.
+        if (now - t_scan > 0.6 or lidar is None or
+                (self.use_depth and (depth is None or now - t_depth > 1.0))):
+            self.send(("stop",))
+            missing = []
+            if lidar is None or now - t_scan > 0.6: missing.append("LiDAR")
+            if self.use_depth and (depth is None or now - t_depth > 1.0): missing.append("depth")
+            self.set_state(FAULT, "waiting for " + ", ".join(missing))
+            return
+        mapping_ok = (self.use_map and pose is not None and now - t_pose <= self.slam_stale
+                      and self.explorer.have_map and now - self.t_map <= 5.0
+                      and self.map_trusted)
+        if self.use_map and not mapping_ok:
+            self.send(("stop",))
+            reason = ("SLAM pose jump detected; mapper restart required" if not self.map_trusted
+                      else "waiting for fresh SLAM pose and map")
+            self.set_state(FAULT, reason)
+            return
+        if self.drive and now < self.pose_guard_start:
+            self.send(("stop",))
+            self.set_state(FAULT, "waiting for startup pose guard")
+            return
+        if self.use_depth and self.floor_profile is None:
+            self.send(("stop",))
+            rospy.loginfo_throttle(2, "Learning depth-camera floor - keep the robot still...")
+            return
+        front = min(lidar["front"], lidar["free"][len(lidar["free"]) // 2])
+        with self.data_lock:
+            depth_near = self.depth_ahead(depth) if self.use_depth else float("inf")
+        # Body tilt during an in-place turn can briefly make the learned floor
+        # look like a bump/dropout. A zero-stride turn cannot drive forward
+        # into it, and LiDAR still protects the rotating footprint.
+        turning = (self.commanded_moving and self.last_cmd is not None and
+                   self.last_cmd[0] == "spin" and self.spin_stride == 0.0)
+        if turning and self.depth_source in ("floor-bump", "depth dropout / too close"):
+            depth_near = float("inf")
+            self.depth_source = "floor ignored while turning"
+        self.depth_history = (self.depth_history + [depth_near])[-5:]
+        depth_near = float(np.median(self.depth_history))
+        if self.use_depth and not self.depth_health.startswith("ready"):
+            self.send(("stop",))
+            self.set_state(FAULT, self.depth_health)
+            return
+        if self.state == FAULT:
+            self.set_state(SEARCH, "sensors recovered")
+            self.start_look(now)
+        if self.phase == "object_focus":
+            self.send(("stop",))
+            if now >= getattr(self, "object_focus_deadline", 0.0):
+                with self.object_lock:
+                    self.finish_object_focus_locked(False, now, "focus timed out")
+            else:
+                self.set_state(SEARCH, "holding still to verify detected object")
+            return
+        # Depth is the primary forward obstacle signal and gets the longer
+        # stopping distance. LiDAR remains an independent close-range fallback
+        # because SLAM already requires it and the camera has a limited FOV.
+        depth_limit = self.depth_stop
+        depth_blocked = depth_near < depth_limit
+        lidar_emergency = front < self.lidar_stop
+        blocked = depth_blocked or lidar_emergency
+        # Forward clearance and in-place rotation are different geometries.
+        # A zero-stride turn may safely look for an open route when an object
+        # blocks translation, provided nothing intrudes into the circular
+        # swept footprint of the body and legs.
+        rotation_clearance = self.body_radius + 0.05
+        rotation_blocked = (self.spin_stride != 0.0 or
+                            lidar["nearest"] < rotation_clearance or
+                            depth_near < rotation_clearance)
+        rear = min(lidar.get("back", float("inf")),
+                   lidar.get("near_back", float("inf")))
+        rear_clearance = self.lidar_stop + 0.20
+        # Rearward travel has LiDAR coverage but no depth-camera view of the
+        # floor. Never reverse in response to a possible bump/dropout alarm.
+        rear_clear = (rear >= rear_clearance and
+                      self.depth_source not in ("floor-bump", "depth dropout / too close"))
+        reason = ("depth %.2f m (%s)" % (depth_near, self.depth_source)
+                  if depth_blocked else "LiDAR fallback %.2f m" % front)
+        self.view = {"front": front, "nearest": lidar["nearest"], "blocked": blocked,
+                     "depth": depth_near, "depth_limit": depth_limit, "depth_source": self.depth_source,
+                     "depth_primary": True, "lidar_emergency": lidar_emergency,
+                     "coverage": self.explorer.coverage() if self.explorer.have_map else 0.0}
+
+        if manual_cmd is not None:
+            if manual_cmd == "back":
+                rear = min(lidar.get("back", float("inf")),
+                           lidar.get("near_back", float("inf")))
+                manual_blocked = rear < self.lidar_stop
+                manual_reason = "rear LiDAR %.2f m" % rear
+                command = ("back",)
+            elif manual_cmd in ("left", "right"):
+                manual_blocked = rotation_blocked
+                manual_reason = "rotation footprint occupied"
+                command = ("spin", 1.0 if manual_cmd == "left" else -1.0)
+            else:
+                manual_blocked = blocked
+                manual_reason = reason
+                command = ("forward",)
+            if manual_blocked:
+                self.stop_manual("Manual drive blocked: " + manual_reason)
+                return
+            self.web_msg = "Manual drive: hold %s; release to stop" % manual_cmd
+            self.send(command, interrupt_object=True)
+            return
+
+        if self.state == HOLD:
+            self.send(("stop",))
+            if not blocked:
+                self.set_state(SEARCH, "path cleared")
+            elif self.begin_recovery(lidar, rotation_blocked, rear_clear,
+                                     "obstacle remains", now):
+                pass
+            elif now - self.state_start > self.hold_seconds:
+                self.web_msg = ("Blocked safely: rotation footprint occupied and rear "
+                                "clearance %.2f m is below %.2f m" %
+                                (rear, rear_clearance))
+            return
+        if self.state == AVOID:
+            if self.recovery_action == "back":
+                if not rear_clear:
+                    self.send(("stop",))
+                    self.set_state(HOLD, "rear clearance lost while reversing")
+                elif now - self.recovery_start < self.reverse_seconds:
+                    self.web_msg = "Recovery: reversing briefly to create turning clearance"
+                    self.send(("back",), interrupt_object=True)
+                else:
+                    self.send(("stop",))
+                    self.recovery_action = None
+                    self.set_state(HOLD, "reverse complete; reassessing clearance")
+                return
+            if rotation_blocked:
+                if rear_clear:
+                    self.recovery_action = "back"
+                    self.recovery_start = now
+                    self.send(("back",), interrupt_object=True)
+                    self.web_msg = "Recovery: turn constrained; switching to reverse"
+                else:
+                    self.send(("stop",))
+                    self.set_state(HOLD, "rotation and reverse paths occupied")
+                return
+            if (blocked and self.commanded_moving and self.last_cmd is not None and
+                    self.last_cmd[0] == "forward"):
+                self.send(("stop",))
+                return
+            if not blocked and lidar["free"][len(lidar["free"]) // 2] > self.lidar_stop + 0.3:
+                if getattr(self, "avoid_forward_start", None) is None:
+                    self.avoid_forward_start = now
+                self.send(("forward",), interrupt_object=True)
+                if now - self.avoid_forward_start > self.avoid_seconds:
+                    if self.phase == "user_go" and self.user_goal is not None:
+                        x, y, label, standoff = self.user_goal
+                        self.start_navigation(x, y, label, standoff)
+                    else:
+                        self.set_state(SEARCH, "cleared obstacle")
+                        self.start_look(now)
+            else:
+                self.avoid_forward_start = None
+                self.send(("spin", self.avoid_dir), interrupt_object=True)
+            return
+        if blocked:
+            # Terminate an existing translation before selecting an escape.
+            # The subsequent turn/reverse command will begin after scan_settle.
+            self.send(("stop",))
+            if self.phase == "user_go":
+                if self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now):
+                    command = (("back",) if self.recovery_action == "back" else
+                               ("spin", self.avoid_dir))
+                    self.send(command, interrupt_object=True)
+                else:
+                    self.send(("stop",))
+                    self.set_state(HOLD, reason + "; no safe rotation or reverse route")
+                return
+            self.path = []
+            self.phase = "plan"
+            if not self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now):
+                self.send(("stop",))
+                self.set_state(HOLD, reason + "; no safe rotation or reverse route")
+            else:
+                command = (("back",) if self.recovery_action == "back" else
+                           ("spin", self.avoid_dir))
+                self.send(command, interrupt_object=True)
+            return
+
+        if not mapping_ok:
+            self.phase = "wander"
+            if now - self.phase_start < self.look_seconds:
+                self.send(("spin", 1.0))
+            else:
+                self.send(("forward",))
+                if now - self.phase_start > self.look_seconds + 5:
+                    self.start_look(now)
+            return
+
+        if self.phase in ("look", "survey"):
+            self.send(("stop",))
+            if self.survey.ready(now):
+                self.phase = "plan"
+        elif self.phase == "plan":
+            self.send(("stop",))
+            if not self.plan(pose, now):
+                self.web_msg = "No reachable frontier; holding position and surveying"
+                self.start_look(now)
+        elif self.phase in ("go", "user_go"):
+            cmd = self.follow_path(pose)
+            if cmd is None:
+                if self.phase == "user_go":
+                    label = self.user_goal[2] if self.user_goal else "selected goal"
+                    self.send(("stop",))
+                    self.paused = True
+                    self.path = []
+                    self.nav_goal = None
+                    self.phase = "goal_reached"
+                    self.web_msg = "Reached %s; autonomy paused" % label
+                else:
+                    self.start_look(now)
+            elif blocked:
+                self.path = []
+                self.set_state(HOLD, "planned path blocked (%s)" % reason)
+                self.phase = "plan"
+            elif now - self.phase_start > 45:
+                if self.phase == "user_go":
+                    self.send(("stop",))
+                    self.paused = True
+                    self.path = []
+                    self.nav_goal = None
+                    self.phase = "goal_stopped"
+                    self.web_msg = "Goal navigation timed out; robot paused"
+                else:
+                    self.phase = "plan"
+            else:
+                self.send(cmd, interrupt_object=self.phase == "user_go")
+        else:  # fallback wander
+            self.send(("forward",))
+            if now - self.phase_start > 5:
+                self.start_look(now)
+
+    def web_request(self, command):
+        self.web_pending.append(command)
+
+    def stop_manual(self, message="Autonomy paused; manual drive available"):
+        self.manual_cmd = None
+        self.manual_until = 0.0
+        self.paused = True
+        self.send(("stop",))
+        self.web_msg = message
+
+    def cancel_navigation(self):
+        """Immediately stop and discard any web-selected route."""
+        self.manual_cmd = None
+        self.manual_until = 0.0
+        self.paused = True
+        self.path = []
+        self.user_goal = None
+        self.nav_goal = None
+        if self.phase == "user_go":
+            self.phase = "goal_cancelled"
+        self.send(("stop",))
+        self.web_msg = "Route cancelled; autonomy paused"
+
+    def reset_mapping(self):
+        """Stop, clear Hector/local state, and begin a fresh stationary survey."""
+        self.manual_cmd = None
+        self.manual_until = 0.0
+        self.paused = True
+        self.send(("stop",))
+        try:
+            rospy.wait_for_service("/reset_map", timeout=5.0)
+            reset = rospy.ServiceProxy("/reset_map", Trigger)
+            result = reset()
+            rospy.loginfo("Web map reset returned (success=%s, message=%r)",
+                          result.success, result.message)
+        except Exception as exc:
+            self.web_msg = "CLEAR MAP failed; robot remains paused: %s" % exc
+            rospy.logerr(self.web_msg)
+            return
+        now = time.time()
+        with self.map_lock:
+            self.explorer.reset()
+            self.t_map = 0.0
+        with self.data_lock:
+            pose = self.pose
+            self.settle_until = now + self.scan_settle
+            self.survey.reset(self.settle_until)
+            self.prev_pose = None
+            self.pose_guard_start = now + 5.0
+            self.map_trusted = True
+            self.pending_spin_yaw = None
+            self.spin_stall_count = 0
+            # Any inference captured against the old map must fail its
+            # generation check rather than repopulate cleared landmarks.
+            self.motion_generation += 1
+        self.path = []
+        self.user_goal = None
+        self.nav_goal = None
+        self.object_focus_id = None
+        self.object_focus_label = None
+        self.object_focus_deadline = 0.0
+        self.object_focus_misses = 0
+        self.phase, self.phase_start = "survey", now
+        self.state, self.state_start = SEARCH, now
+        self.web_map_center = pose[:2] if pose else None
+        self.clear_object_tracks()
+        self.web_msg = "Map and object landmarks cleared; PAUSED for a fresh survey"
+
+    def handle_web(self):
+        commands, self.web_pending = self.web_pending, []
+        for cmd in commands:
+            if cmd[0] == "pause":
+                self.stop_manual("AUTONOMY PAUSED - manual drive remains available")
+            elif cmd[0] == "cancel_route":
+                self.cancel_navigation()
+            elif cmd[0] == "resume":
+                self.manual_cmd, self.manual_until = None, 0.0
+                if self.phase in ("goal_reached", "goal_stopped", "goal_cancelled"):
+                    self.phase = "plan"
+                self.paused, self.web_msg = False, "Resumed"
+            elif cmd[0] == "clear_map":
+                self.reset_mapping()
+            elif cmd[0] == "manual" and len(cmd) == 2:
+                action = cmd[1]
+                if action == "stop":
+                    self.stop_manual()
+                elif action in ("forward", "back", "left", "right"):
+                    if not self.drive:
+                        self.stop_manual("Manual drive unavailable in dry-run mode")
+                    else:
+                        # Manual motion always suspends autonomous exploration.
+                        # The browser refreshes this deadline while held.
+                        self.paused = True
+                        self.manual_cmd = action
+                        self.manual_until = time.time() + self.manual_deadman
+                        self.web_msg = "Manual drive armed: " + action
+            elif cmd[0] == "speed" and len(cmd) == 3:
+                translation, rotation = float(cmd[1]), float(cmd[2])
+                if (self.speed_min_percent <= translation <= self.speed_max_percent and
+                        self.speed_min_percent <= rotation <= self.speed_max_percent):
+                    self.translation_speed_percent = translation
+                    self.rotation_speed_percent = rotation
+                    # Force the gait command to be refreshed if a slider changes
+                    # while a manual button is held.
+                    self.last_cmd = None
+                    self.web_msg = "Speed set: translation %.0f%%, rotation %.0f%%" % (
+                        translation, rotation)
+            elif cmd[0] == "navigate" and len(cmd) == 3:
+                self.start_navigation(cmd[1], cmd[2])
+            elif cmd[0] == "navigate_object" and len(cmd) == 2:
+                with self.object_lock:
+                    objects = self.object_tracker.snapshot(False)
+                target = next((item for item in objects if item["id"] == cmd[1]), None)
+                if target is None:
+                    self.stop_manual("Object navigation failed: object no longer exists")
+                else:
+                    self.start_navigation(target["x"], target["y"],
+                                          target.get("name", target["label"]),
+                                          self.object_standoff)
+            elif cmd[0] == "rename_object" and len(cmd) == 3:
+                with self.object_lock:
+                    changed = self.object_tracker.rename(cmd[1], cmd[2])
+                self.web_msg = ("Object renamed to " + cmd[2] if changed else
+                                "Rename failed: object no longer exists or name is invalid")
+            elif cmd[0] == "remove_object" and len(cmd) == 2:
+                with self.object_lock:
+                    removed = self.object_tracker.remove(cmd[1])
+                self.web_msg = ("Object removed from this map" if removed else
+                                "Remove failed: object no longer exists")
+
+    def web_status(self):
+        # Status is served from an HTTP worker thread and must derive its own
+        # snapshot.  These values used to be calculated only by reset_mapping,
+        # which made /status fail before the first web reset.
+        with self.data_lock:
+            pose, lidar = self.pose, getattr(self, "lidar", None)
+        front = self.view.get("front", float("inf"))
+        if lidar is not None:
+            front = min(lidar["front"], lidar["free"][len(lidar["free"]) // 2])
+        with self.map_lock:
+            coverage = self.explorer.coverage() if self.explorer.have_map else 0.0
+        depth = self.view.get("depth", 99.0)
+        depth_line = "Depth: %.2f m (%s), limit %.2f" % (
+            depth, self.view.get("depth_source", "clear"), self.view.get("depth_limit", self.depth_stop)) if depth < 99 else "Depth: clear"
+        if not self.use_depth:
+            depth_line = "Depth: disabled"
+        elif time.time() - self.t_depth > 1.0:
+            depth_line = "Depth: waiting / stale"
+        elif self.floor_profile is None:
+            depth_line = "Depth: learning floor (%d/%d frames); %s" % (
+                self.floor_frames, self.floor_frames_needed, self.depth_health)
+        elif self.depth_health != "ready":
+            depth_line = "Depth: " + self.depth_health
+        survey_line = "Stationary survey: %d/%d scans, %s" % (
+            min(self.survey.count, self.survey.required), self.survey.required,
+            "localized" if self.survey.ready(time.time()) else "waiting for settled scans / SLAM")
+        pose_line = ("Pose: x %.2f m, y %.2f m, heading %.1f deg" %
+                     (pose[0], pose[1], math.degrees(pose[2]))) if pose else "Pose: unavailable"
+        scan_line = "SLAM scans: stationary %d, turn %d, rejected motion %d; command %s" % (
+            self.stable_stationary_scans, self.stable_turn_scans,
+            self.rejected_motion_scans, self.last_cmd)
+        manual_cmd = getattr(self, "manual_cmd", None)
+        mode = "  MANUAL: %s" % manual_cmd.upper() if manual_cmd else ("  AUTO PAUSED" if self.paused else "")
+        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nMap known: %.0f%%\nObjects: %s\n%s\nLast: %s" % (
+            self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
+            scan_line, self.translation_speed_percent, self.rotation_speed_percent,
+            depth_line, front, self.lidar_stop,
+            100 * coverage,
+            self.object_status, survey_line, self.web_msg)
+
+    def web_battery(self):
+        with self.data_lock:
+            voltage = self.battery_voltage
+            percentage = self.battery_percentage
+            charging = self.battery_charging
+            stamp = self.battery_stamp
+            source = self.battery_source
+        age = time.time() - stamp if stamp else None
+        return {
+            "available": bool(stamp and age <= 10.0),
+            "percentage": percentage,
+            "voltage": voltage,
+            "charging": charging,
+            "age": age,
+            "source": source,
+        }
+
+    def web_speed(self):
+        return {
+            "translation": self.translation_speed_percent,
+            "rotation": self.rotation_speed_percent,
+            "minimum": self.speed_min_percent,
+            "maximum": self.speed_max_percent,
+        }
+
+    def shutdown(self):
+        with self.control_lock:
+            self.shutting_down = True
+            self.timer.shutdown()
+            self.last_cmd = None
+            try:
+                self.send(("stop",))
+            except Exception as exc:
+                rospy.logerr("Shutdown stop publication failed: %s", exc)
+        # The worker needs control_lock to reject any in-flight result.
+        object_thread = getattr(self, "object_thread", None)
+        if (object_thread is not None and object_thread.is_alive() and
+                object_thread is not threading.current_thread()):
+            object_thread.join(timeout=5.0)
+        rospy.loginfo("room_mapper shutdown; no further controller commands")
+
+
+if __name__ == "__main__":
+    node = RoomMapper()
+    rospy.on_shutdown(node.shutdown)
+    rospy.spin()

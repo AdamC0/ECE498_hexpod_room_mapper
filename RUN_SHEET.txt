@@ -1,0 +1,102 @@
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-12)
+=====================================================
+
+ROBOT:
+  SSH: hiwonder@192.168.137.223
+  Project: /home/hiwonder/room_mapper
+  Web: http://192.168.137.223:8000
+  Never store the SSH password in project files.
+
+PRE-RUN:
+  [ ] Confirm the battery is charged; do not operate solely because its alarm is muted.
+  [ ] Floor only; physically inspect 0.45 m around the 0.30 m-radius robot.
+  [ ] Keep immediate access to PAUSE/STOP or Ctrl+C.
+  [ ] Confirm exactly one room_mapper.py process.
+  [ ] Confirm /scan, /slam_out_pose, RGB, and depth are publishing.
+  [ ] Confirm status is not FAULT and stationary pose is stable.
+  [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
+
+STARTUP AFTER A ROBOT REBOOT:
+  Battery source is /voltage (std_msgs/Float32), 9.8 V empty / 12.6 V full.
+  Audible battery_low_alarm launch includes are disabled in both controller
+  variants; retain /voltage and the website's visual low-battery warning.
+  source /opt/ros/melodic/setup.bash
+  rosservice call /start_scan '{}'
+  roslaunch ~/room_mapper/hex_map.launch
+
+  cd ~/room_mapper
+  python3 room_mapper.py _drive:=true _start_paused:=true \
+    _reset_map:=false _detect_objects:=true _use_depth:=true
+
+  Use _reset_map:=false only for a still-valid Hector frame. After Hector is
+  restarted or localization is lost, start a fresh map instead.
+
+VERIFY:
+  curl -fsS http://127.0.0.1:8000/status
+  curl -fsS http://127.0.0.1:8000/battery.json
+  pgrep -af '^/usr/bin/python3 room_mapper.py'
+  rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
+  cd ~/room_mapper && python3 -m unittest discover -v
+
+  Current regression count: 122 tests. Tests do not publish robot movement.
+
+CURRENT SAFETY CALIBRATION:
+  Robot footprint radius:             0.30 m
+  Planner margin / total clearance:   0.03 m / 0.33 m
+  LiDAR emergency stop:               0.45 m
+  Depth stop:                          0.60 m
+  Ignore depth at or below:            0.50 m
+  Sparse-depth minimum:                200 pixels and 2% upper-band coverage
+  Sparse-depth grace:                  1.5 s using last valid decision
+  Manual dead-man:                     0.55 s
+
+  WARNING: ignoring <=0.50 m depth also ignores close elevated objects and
+  floor/dropout alarms. LiDAR still protects its scan plane at 0.45 m.
+
+WEB CONTROLS:
+  Header battery badge: percentage and voltage tooltip; --% means stale/unavailable.
+  PAUSE AUTO: stops autonomy; manual controls remain available.
+  RESUME AUTO: continues frontier mapping.
+  CANCEL ROUTE: stops a clicked/object route and leaves autonomy paused.
+  CLEAR MAP: stops and pauses; clears Hector, planner, and object landmarks.
+  W/A/S/D or arrows: manual translation/rotation while paused; release stops.
+  Translation/rotation sliders: independent 50-150% gait scaling; 100% default.
+  Map click: routes through known, 0.33 m-clear space.
+  Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
+  Objects tab: navigate, rename, or remove a landmark.
+
+AUTONOMOUS OBJECT HANDLING:
+  A new tentative object stops mapping in object_focus. It is added after two
+  distinct observations, excluded after two misses, or excluded after 15 s.
+  The planner then replans and continues. Existing confirmed objects do not
+  repeatedly stop exploration.
+
+BLOCKED ROUTES:
+  The controller first stops. It rotates toward an open side when the 0.30 m
+  swept footprint is clear. If rotation is constrained and rear LiDAR has at
+  least lidar_stop + 0.20 m, it reverses briefly. It holds if neither is safe.
+
+FAULTS:
+  insufficient valid depth in upper band:
+    The topic may still be 30 Hz. Measure usable depth pixels; do not resume
+    merely because a publisher exists.
+
+  RGB publisher but no frames / camera says waiting:
+    Reboot the robot. Restore /start_scan, Hector, and mapper afterward.
+
+  SLAM LOST / pose jump / sustained stationary drift:
+    Stop. Reset or restart Hector and begin a fresh map. Never reuse the
+    invalid grid. A single weak turn retries; three consecutive weak turns
+    latch localization loss.
+
+  /scan publisher exists but no scan messages after reboot:
+    rosservice call /start_scan '{}'
+
+  TF timeout:
+    Check jethexa/base_link -> jethexa/body_link -> body_link -> laser_link.
+    Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
+
+LIVE STATUS AT DOCUMENTATION UPDATE:
+  AUTO PAUSED; RGB, depth, LiDAR, Hector, map, /voltage, and web UI live.
+  Battery endpoint reported 10.328 V / 18.9%. Alarm node absent. All 122 tests
+  passed on the robot before services were restored.

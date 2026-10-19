@@ -1,0 +1,370 @@
+# Room Mapper Decision Log
+
+This file is intentionally part of the project. Add an entry whenever the
+architecture, safety behavior, interface, or robot assumptions change.
+
+## Initial decisions — 2026-10-11
+
+### Goal: autonomous exploration, with manual assistance available
+
+Chosen: the robot autonomously explores until no reachable frontier remains;
+the web GUI can pause it or send it to a clicked location.
+
+Considered: manual teleoperation-only mapping. Rejected because the old
+project already demonstrated reliable autonomous walking and frontier-style
+search, and the requested behavior is to walk around the room.
+
+### Reuse Hector SLAM and the old TF bridge
+
+Chosen: keep `hex_map.launch`, Hector SLAM, `/map`, and `/slam_out_pose`.
+
+Considered: write a new occupancy-grid mapper or use the robot's full
+navigation launch. Rejected: the old project already fixed the robot's
+prefixed/unprefixed LiDAR TF issue, and the robot navigation launches can
+start duplicate controllers.
+
+### Separate, smaller frontier planner
+
+Chosen: `map_explore.py` converts Hector's 5 cm map into a 10 cm planning grid,
+inflates obstacles for the 0.25 m leg radius, and uses BFS to reach the
+nearest free frontier cell.
+
+Considered: copy the old object's search state machine wholesale. Rejected:
+target detection, approach behavior, and remembered-object goals are unrelated
+to room coverage and would make the new controller harder to understand.
+
+### Preserve the old web GUI interaction model
+
+Chosen: camera and map JPEG endpoints, updating browser images, status text,
+pause/resume/clear controls, and map clicks that create a temporary safe
+corridor.
+
+Considered: ROS web tools or a separate desktop UI. Rejected because the old
+project's built-in Python server works offline on the robot and is already
+familiar.
+
+### Layered LiDAR and depth safety
+
+Chosen: retain LiDAR as the primary scan/planning sensor and add the depth
+camera as a conservative central-view obstacle check. The node learns a
+per-image-row floor profile while stationary, then flags elevated depth returns
+and floor bumps. Missing or stale depth data stops the robot while depth mode
+is enabled.
+
+Considered: use depth as a full replacement for LiDAR or fuse both sensors
+into Hector SLAM. Rejected for now: the depth camera is useful for collision
+checks but its registration/calibration and field of view are installation
+specific; Hector continues to consume `/scan`.
+
+### Dry-run remains the default
+
+Chosen: movement is disabled unless `_drive:=true` is supplied.
+
+Reason: this is inherited from the old project's safest demonstrated workflow
+and lets sensor/map behavior be checked before servo movement.
+
+## Implementation checkpoint — 2026-10-11
+
+Created the independent project files and retained the old topic names,
+walking API, map resolution, body radius, and TF bridge. Offline syntax and
+import checks were attempted, but this Windows workspace has only inaccessible
+Microsoft Store Python launchers and no available linter. Source-level review
+completed; robot validation has not occurred yet.
+
+### Robot connection — 2026-10-11
+
+The target robot is `hiwonder@192.168.137.223`. Documentation and the live
+view log message use this address. The SSH password is not stored in the
+repository; enter it interactively.
+
+Connection attempt from the development workspace failed before SSH
+authentication: TCP port 22 and ICMP to `192.168.137.223` timed out. The
+workspace is therefore not currently on the robot's network, so no robot
+process was started from here.
+
+### Robot validation — 2026-10-11
+
+The robot is reachable at `192.168.137.223`, and the deployed directory is
+`~/room_mapper` (lowercase). The first mapper attempt was made before the
+LiDAR launch had finished, so `/scan` and `laser_link` did not yet exist. After
+starting `roslaunch jethexa_peripherals lidar.launch` and waiting for the
+YDLIDAR G4 to report healthy scanning, the chain resolved correctly:
+`jethexa/base_link -> jethexa/body_link -> body_link -> laser_link`.
+Hector then published `/map`, and the dry-run node reported approximately 2%
+map coverage while planning. The live status endpoint returned successfully
+from port 8000. The deployed script's live-view address was corrected to
+`192.168.137.223`.
+
+The first real-drive attempt was started from `~/room_mapper`. It reached a
+frontier and increased coverage to about 3%, then repeatedly entered
+`HOLD -> AVOID -> SEARCH` for LiDAR readings between 0.18 m and 0.23 m. It was
+stopped with Ctrl+C after roughly one minute to avoid continued maneuvering in
+place. This needs a physical-position check and LiDAR self/obstacle diagnosis
+before another drive run; no new navigation behavior was enabled automatically.
+
+### Movement diagnosis — 2026-10-11
+
+The robot's login banner identifies the sensor as `YDLIDAR_G4`, but the new
+controller defaulted to `RPLIDAR_A1` when `LIDAR_TYPE` was absent from the
+environment. That selected a 180-degree offset even though this robot's raw
+angle 0 is forward. The resulting sector inversion explains the repeated
+close-obstacle avoidance and circular movement despite open floor. The default
+was changed to YDLIDAR/0 degrees; the startup log now prints the active offset.
+
+The subsequent stationary scan showed a persistent approximately 0.342 m
+front return in open space while the rear was approximately 1.14 m. This is
+consistent with the front leg/body. The default self-filter was raised from
+0.15 m to 0.35 m, following the old project's documented self-leg workaround.
+The real-drive test still saw 0.34-0.38 m returns, so the robot-specific
+default is now 0.50 m. This is a deliberate hardware calibration and should be
+re-measured if the LiDAR mount or leg geometry changes.
+
+### Fresh map per run — 2026-10-11
+
+The robot retained the previous Hector map between attempts, so later runs
+could plan against geometry from an earlier physical position. The controller
+now calls Hector's `/reset_map` (`std_srvs/Trigger`) at startup by default.
+`_reset_map:=false` is available for intentional continuation runs.
+
+### Depth implementation checkpoint — 2026-10-11
+
+Depth support is implemented locally but has not yet been deployed and
+validated on the robot. The default topic is
+`/camera/depth_registered/image_raw`; verify it with `rostopic list` and
+`rostopic echo -n1` before a real-drive test. First validate in dry-run, watch
+the floor-learning message, confirm the GUI depth status, and only then test
+with `_drive:=true` under direct supervision. Tune `_depth_stop`,
+`_depth_creep`, and the depth band parameters only from observed data.
+
+## Depth validation and controller corrections - 2026-10-11
+
+Deployed depth integration and `test_room_mapper.py` to the robot. Verified
+the DABAI registered stream as 640 x 480 `32FC1` in metres. All 14 tests
+passed and the stationary dry-run learned 30 floor rows; GUI status reported
+about 0.77 m depth and 0.88 m front LiDAR. These changes have not yet been
+tested during real walking.
+
+The initial timed dry-run exposed a late timer command after shutdown's stop.
+Added a controller lock and shutdown flag, with a regression test. Camera and
+map JPEG endpoints and status all returned HTTP 200 during the final dry-run.
+
+Chosen: retain the full 0.60 m depth threshold, fail closed on unusable depth
+or stale mapping data, retry incomplete floor calibration, and treat a large
+increase in missing floor pixels as a possible close object. Ported the floor
+dropout concept from the old project's depth detector. Alternatives considered:
+trusting a clear LiDAR scan to reduce the depth threshold, or interpreting
+invalid depth as free space. Rejected because the LiDAR self-filter excludes
+close objects and invalid depth can indicate an object inside camera range.
+
+Corrected depth decoding for padding/endian order, delayed stop on entering
+HOLD, and command deduplication after failed publication. Paths are discarded
+when obstructed. Mapping mode now waits for fresh SLAM pose/map instead of
+wandering without localization. The former depth_creep parameter is removed.
+
+Inspected the robot's Hector reset callback: it calls slamProcessor->reset()
+but never writes the Trigger response, explaining the false/empty reply.
+Retained the working service and clarified logs rather than modifying vendor
+SLAM code. Startup now aborts if the reset service cannot be called; silently
+continuing with a previous map would violate the requested fresh-run behavior.
+
+## Open questions
+
+### Rotated map overlay diagnosis and local fix — 2026-10-11
+
+Observed behavior: the map is initially correct, then Hector loses heading and
+draws rotated copies of the room over the existing occupancy grid. The robot
+was disconnected during this work, so no remote deployment or hardware test
+was attempted.
+
+The concrete configuration mismatch is that room_mapper ignored the robot's
+verified 0.34–0.40 m body/leg returns with a 0.50 m self-filter, while Hector
+accepted returns from 0.20 m. Moving legs could therefore become SLAM
+landmarks. Hector also received scans continuously during gait and turning,
+when a 2D scan is distorted by translation and body rocking. With no external
+odometry and no loop closure, a wrong scan match permanently folds the map.
+
+Chosen local changes: Hector minimum range 0.50 m, three multiresolution
+levels, scan queue one, and `/scan_stable` input. The controller publishes
+stable scans only while stopped after 0.65 seconds settling, and commands
+motion in 0.45-second translation or 0.35-second turn bursts. It rejects pose
+jumps over 0.50 m or 35 degrees and stops in FAULT. All values are parameters.
+
+Considered: tuning Hector alone, automatically resetting after a jump, or
+immediately using `/odom/filtered`/IMU as a pose prior. Tuning alone does not
+remove motion-distorted scans. Automatic reset discards the map without
+solving the cause. The robot's odometry topic and TF frame semantics were not
+captured before disconnection, so enabling it blindly could create conflicting
+TF publishers. When reconnected, inspect `/odom/filtered` headers and
+`odom -> jethexa/base_link` TF; a valid independent yaw/odometry prior is the
+next improvement if stationary scan matching still jumps.
+
+Lower-band depth floor/dropout alarms are ignored only during commanded
+zero-stride turns because body tilt was observed to cause these alarms and the
+turn does not advance toward them. Upper-band depth and LiDAR remain active.
+
+Added `OBJECT_MAPPING_PLAN.md`. YOLO object placement is deferred until room
+mapping is repeatably stable. The planned method combines YOLO boxes,
+registered depth, camera intrinsics, and timestamped camera-to-map TF, then
+tracks repeated observations separately from the occupancy grid.
+
+### Post-reboot deployment and dry-run — 2026-10-11
+
+Reconnected after the user restarted the robot and deployed the stable-scan
+changes. The first dry-run exposed a deterministic TF startup failure:
+`lidar.launch`'s `body_link_to_laser_link` node collided by name after reboot,
+leaving no `laser_link`. Chosen fix: start the peripheral launch with
+`publish_tf:=false` and make `hex_map.launch` publish the verified 0.031 m
+`body_link -> laser_link` mount under the unique name
+`room_mapper_laser_mount`. This restored the full transform chain.
+
+The current camera view had only one lower-band row with more than 30% valid
+registered depth, so floor calibration could never complete. Chosen: after
+three failed calibration windows, continue in explicitly reported upper-only
+mode. Elevated-object depth protection remains active; floor-bump protection
+is unavailable. Considered lowering the validity requirement, but sparse rows
+may describe furniture rather than floor and would create an unsafe baseline.
+
+All 18 tests passed on the robot. Final dry-run evidence: `/scan_stable` about
+12 Hz, map known 2%, camera and map HTTP endpoints 200, no Hector TF timeout,
+and stationary Hector drift over 10 seconds of 0.008 m / 0.23 degrees. A real
+object in the upper depth band at about 0.56 m triggered dry-run HOLD/AVOID
+commands. No walking was enabled. The dry-run was left running.
+
+### First depth-enabled walking test - 2026-10-11
+
+At the user's request, started the deployed mapper with `_drive:=true` and
+default map reset. Sensor preflight passed and floor learning found 30 rows.
+Walking produced repeated short depth-dropout/floor-bump HOLD/SEARCH cycles;
+map-known fraction rose from 2% to 7%. Paused walking through `/pause`, leaving
+the GUI/process running. Final status confirmed PAUSED, depth 0.45 m and
+LiDAR 0.48 m. Do not classify all detections as false without inspecting the
+scene. Chosen: pause for diagnosis rather than weaken sensor thresholds during
+the run. This supersedes the earlier 'real walking untested' checkpoint.
+
+- Should autonomous exploration stop based on map coverage, frontier absence,
+  or an operator command/time limit?
+- Validate depth thresholds while walking and physically isolate the suspected
+  LiDAR body return before replacing the broad 0.50 m filter with a narrower
+  geometric mask.
+
+## Integrated navigation, UI, object, and depth update - 2026-10-12
+
+This entry supersedes earlier operational defaults while retaining them above
+as history.
+
+### Routing and recovery
+
+Chosen: model the full leg envelope as a 0.30 m radius circle and retain a
+0.03 m planner margin. Paths now use approximately 0.20 m waypoint spacing and
+0.12 m waypoint tolerance to reduce corner cutting. Blocked autonomous mapping
+and selected routes stop first, rotate when the swept footprint is clear, or
+reverse briefly when rotation is constrained and rear LiDAR clearance exists.
+If neither is safe, the robot holds. Selected routes can be cancelled from the
+web UI.
+
+One weak 0.5-second turn burst is no longer enough to invalidate SLAM. The
+controller retries and faults after three consecutive bursts with less than
+3 degrees heading progress. The 0.25 m / 20 degree pose-jump guard remains.
+
+### Web interface
+
+Chosen: keep world geometry stable but render a moving viewport centered on
+the current robot pose. Added wheel/button zoom, drag-to-pan, and a Center
+button that restores 100% robot-following view. Click navigation includes the
+displayed scale and offset, so zoomed/panned clicks retain correct world
+coordinates. Added manual W/A/S/D and touch controls usable while autonomy is
+paused, an Objects tab, object actions, and route cancellation.
+
+### Object mapping and focus
+
+YOLO/depth/TF object placement is deployed. Two distinct observations confirm
+a landmark. During autonomous mapping, an unconfirmed detection enters
+`object_focus`, stops motion, and gathers observations until confirmation, two
+distinct misses, or a 15-second timeout. It then replans. Automatic exclusion
+discards rather than suppresses the candidate; explicit user removal suppresses
+nearby re-detection.
+
+### Camera and fault recovery
+
+The UVC RGB publisher twice remained registered without emitting frames. A
+full robot reboot restored RGB and depth. After reboot, the LiDAR driver node
+could remain present without scans; `/start_scan` restored `/scan`, after which
+Hector and the mapper were restarted. A corrupted/drifting Hector frame was
+reset rather than reused.
+
+### Depth policy
+
+Observed native upper-band validity varied around 4-9% in some scenes, making
+the former 10% requirement oscillate into FAULT. Chosen: require at least 200
+pixels and 2% coverage. Per explicit operator request, depth results at or
+below 0.50 m are ignored, including elevated returns, floor bumps, and the
+synthetic dropout/too-close result. Values above 0.50 m retain the 0.60 m stop.
+LiDAR remains an independent 0.45 m emergency stop. This intentionally leaves
+a close elevated-object blind region and is documented as a safety tradeoff.
+
+Post-motion frames still occasionally fell below 2%. Chosen: keep the most
+recent valid depth decision for a maximum 1.5-second grace period while LiDAR
+remains active. Sustained sparsity, or sparsity before any valid result, still
+fails closed. This was preferred to treating arbitrary missing depth as clear.
+
+### Validation and live checkpoint
+
+The deployed suite passed 117 tests. A no-drive live controller exercised
+autonomous planning for six samples without recurrence of the sparse-depth
+fault. The real controller was then restored with `_drive:=true` and
+`_start_paused:=true`; final status was AUTO PAUSED, depth ready in upper-only
+mode, LiDAR live, and one mapper process. Physical routing with the new temporal
+grace still requires supervised observation after Resume.
+
+## Battery telemetry and pending alarm configuration - 2026-10-12
+
+The robot lost power during post-reboot service restoration and is currently
+offline. No motion command was issued during that restoration attempt.
+
+Chosen: add a prominent battery badge to the web header. The controller uses
+type-erased subscriptions to `/battery`, `/battery_state`, and `/voltage`, then
+decodes standard `BatteryState`, floating-point voltage, or integer millivolt
+messages. A native `BatteryState.percentage` takes precedence; otherwise the
+percentage is a clamped estimate between the vendor alarm's verified 9.8 V
+cutoff and a configurable 12.6 V full default. The endpoint reports stale
+readings unavailable after 10 s.
+The UI visually distinguishes low, medium, and charging states and exposes
+voltage/source in its tooltip.
+
+The operator requested that the audible low-voltage alarm be disabled on the
+next reconnect. The hardware/software source is not yet known, so no guessed
+board command was added while offline. Reconnect work must identify the actual
+battery topic, pack limits, and alarm source, then persistently disable only
+the sound while retaining voltage telemetry and the visual low-battery warning.
+
+Two battery unit tests bring the pending robot suite to 119 tests. All nine web
+tests and source syntax checks pass locally; robot-side full-suite validation
+and deployment remain pending.
+
+### Deployment result
+
+On reconnect, `/voltage` was confirmed as `std_msgs/Float32`. Its first samples
+were 10.524 V and later 10.328 V. Both controller launch variants were backed
+up and their `battery_low_alarm.launch` includes commented out; the running
+alarm node was then stopped through ROS so its shutdown callback switched the
+buzzer off. Voltage publishing continued and the alarm did not respawn.
+
+All 119 tests passed on the robot. Hector and one mapper were restored with the
+mapper `AUTO PAUSED`. The live battery endpoint reported 10.328 V / 18.9%, and
+RGB, depth, LiDAR, SLAM pose, map, and web services were operational.
+
+## Adjustable movement speed - 2026-10-12
+
+The requested fixed speed increase was cancelled before implementation.
+Chosen instead: independent web sliders for translation and rotation, each
+bounded from 50% to 150% in 5% steps and reset to 100% at mapper startup.
+Translation scales the forward/reverse stride; rotation scales the zero-stride
+turn rate. Manual and autonomous commands share these settings. Collision
+thresholds, the 0.30 m footprint, settling, burst timing, and browser dead-man
+remain unchanged. Telemetry displays both active percentages.
+
+The HTTP layer validates both bounds, and changing a slider invalidates the
+cached gait command so a held manual direction picks up the new setting. All
+122 tests passed on the robot. Live endpoint checks successfully changed and
+read back both settings; an active browser then exercised the controls while
+autonomy remained paused.
