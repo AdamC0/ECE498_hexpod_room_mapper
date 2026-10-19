@@ -62,7 +62,7 @@ VISUAL/DEPTH SLAM VALIDATION (DEPLOYED 2026-10-19):
   [ ] Physically confirm camera alignment against measured obstacles.
   [ ] Place low test objects at measured distances and confirm /visual_map marks
       them occupied without turning floor texture into false obstacles.
-  [ ] Observe CPU/memory and frame rates for at least five stationary minutes.
+  [x] Observe CPU/memory and frame rates for at least five stationary minutes.
   [ ] Validate click coordinates while the rendered map follows a changing pose.
   [ ] Only then start _drive:=true _start_paused:=true under direct supervision.
 
@@ -122,9 +122,10 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT ONLINE, but visual SLAM and the mapper are stopped. A stationary retry
-  began with LiDAR/RGB/depth near 12.05/29.72/29.66 Hz. RGB then stalled with
-  its publisher still registered after visual SLAM started, so visual odometry
-  produced no synchronized output. Recharge and fully reboot before retrying.
+  PT ONLINE; visual SLAM and the mapper are stopped. After recharge and a full
+  reboot, a dry-run stack completed more than five stationary minutes without
+  a controller fault. RGB held near 29.8 Hz, visual odometry near 2.4 Hz, graph
+  updates near 0.65 Hz, and the web map returned HTTP 200. Approximate process
+  CPU was 94% odometry, 17% RTAB-Map, and 66% mapper.
   Native robot suite: 129 passing. Physical walking validation: not started.
-  Latest observed battery: 9.852 V (~1.9%); do not motion-test at this charge.
+  Latest observed battery: 10.175 V (~13.4%); recharge before motion testing.

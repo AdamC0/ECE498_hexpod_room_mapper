@@ -15,12 +15,11 @@ repository or documentation.
 
 PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
 manual-control, and speed changes are deployed. The native suite passes all
-129 tests, but no physical walking validation has occurred. A follow-up dry-run
-attempt ended with the visual stack and mapper stopped: RGB initially published
-near 29.7 Hz, then stalled while its publisher remained registered after the
-visual stack started. Registered depth and LiDAR remained live. The latest
-observed battery was 9.852 V (about 1.9%), so recharge and reboot before
-resuming validation.
+129 tests, but no physical walking validation has occurred. After recharge and
+a full reboot, the visual stack and mapper completed more than five stationary
+minutes in DRY RUN / AUTO PAUSED without a controller fault. Both are stopped
+now. The latest observed battery was 10.175 V (about 13.4%); recharge further
+before motion testing.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -69,14 +68,15 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 
 All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
 updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
-Measured obstacle alignment, five-minute load, clicked routing, and supervised
-physical motion remain pending.
+Measured obstacle alignment, clicked routing, and supervised physical motion
+remain pending.
 
-A later stationary attempt began with LiDAR near 12.05 Hz, RGB near 29.72 Hz,
-and depth near 29.66 Hz. RTAB-Map started without Hector, but RGB then stopped
-emitting and visual odometry could not produce synchronized output. RTAB-Map
-was stopped cleanly and no mapper was started. Recharge the battery and perform
-a full robot reboot, the established UVC recovery, before repeating this test.
+After the UVC stall and low-battery stop, a full reboot and recharge restored
+RGB. A stationary retry kept RGB near 29.8 Hz, visual odometry near 2.4 Hz, and
+graph updates near 0.65 Hz under the full mapper load. Approximate CPU use was
+94% for visual odometry, 17% for RTAB-Map, and 66% for the mapper. The grid
+service contained 71 free and 76 occupied cells, TF remained localized, and
+the web server rendered a 9.6 KB map JPEG. No motion command occurred.
 
 ## Important current calibration
 

@@ -438,3 +438,14 @@ roughly 0.02-0.06 seconds and intermittent scan-time TF extrapolation warnings
 remain live-test observations. Measured obstacle placement, map alignment,
 five-minute resource observation, click-route behavior, and physical walking
 are still required before calling the visual stack motion-validated.
+
+### Stationary resource validation after recharge
+
+A reboot-and-recharge retry completed more than five stationary minutes with
+RGB, visual odometry, graph updates, TF, depth, and LiDAR live. RTAB-Map's grid
+service contained 71 free and 76 occupied cells. The mapper received the map
+topic and served a 9.6 KB rendered JPEG; its displayed coverage rounded below
+one percent because the planner reports coverage over its larger fixed grid.
+Visual odometry settled near 2.4 Hz and graph updates near 0.65 Hz under the
+full mapper load. Approximate process CPU was 94% for visual odometry, 17% for
+RTAB-Map, and 66% for the mapper. No controller fault or motion command occurred.
