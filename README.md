@@ -10,11 +10,11 @@ offline web dashboard at `http://192.168.137.223:8000`.
 
 ## Visual/depth update deployed for no-drive validation (2026-10-19)
 
-PT is online and this update is deployed. The full 129-test suite passes on the
-robot, and RTAB-Map, TF pose, and the depth-aware grid were exercised without
-commanding motion. A tall box aligned with depth and mapped face cells at
-reported 1.00 m and 0.75 m placements; low-obstacle and walking validation
-remain pending.
+This update is deployed and passed the full 129-test suite on PT. RTAB-Map, TF
+pose, and the depth-aware grid were exercised without commanding motion. A tall
+box aligned with depth and mapped face cells at reported 1.00 m and 0.75 m
+placements; low-obstacle and walking validation remain pending. The web UI was
+unreachable on the latest continuation attempt, so verify current robot state.
 
 - Close depth results are no longer discarded at 0.50 m. Native depth retains
   left/center/right clearance and reacts to a new close return immediately.

@@ -483,3 +483,11 @@ All measurements used a paused mapper with drive disabled.
 Latest voltage sampled during the second placement was 10.069 V. One mapper
 remained drive-disabled and AUTO PAUSED, with RTAB-Map running on the separate
 `/tmp/room_mapper_box_validation.db` database. No walking was commanded.
+
+### Continuation reachability check - 2026-10-19
+
+Later read-only HTTP requests to the mapper's `/status` and `/battery.json`
+endpoints could not connect from the development workstation. No command was
+sent to the robot. The tall-box checkpoint remains the last-known state, not a
+claim that those processes are still live; process, sensor, and battery state
+must be checked again before further validation.

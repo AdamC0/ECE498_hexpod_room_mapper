@@ -122,8 +122,9 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT ONLINE. RTAB-Map and one drive-disabled, AUTO PAUSED mapper were left
-  running after measured tall-box checks using
-  /tmp/room_mapper_box_validation.db. Confirm that state before any next step.
+  PT WEB UI UNREACHABLE at the latest continuation check. Current process,
+  sensor, and battery state are unverified. Last known: RTAB-Map and one
+  drive-disabled, AUTO PAUSED mapper were left running after measured tall-box
+  checks using /tmp/room_mapper_box_validation.db. Recheck before any next step.
   Native robot suite: 129 passing. Physical walking validation: not started.
-  Latest observed battery: 10.069 V; recharge before motion testing.
+  Last observed battery: 10.069 V; recharge before motion testing.

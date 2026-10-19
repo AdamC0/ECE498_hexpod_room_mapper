@@ -4,7 +4,12 @@ Updated: 2026-10-19
 
 ## Live checkpoint
 
-Latest box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
+On the latest continuation attempt (2026-10-19), read-only requests to
+`http://192.168.137.223:8000/status` and `/battery.json` could not connect.
+The robot's current process, sensor, and battery state therefore was not
+verified; do not assume the last-known processes are still running.
+
+Last-known box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
 left running with `_drive:=false _start_paused:=true`, using the separate
 `/tmp/room_mapper_box_validation.db` database. Latest sampled voltage: 10.069 V.
 The operator's 0.3683 m wide, 0.5588 m tall box was checked at 1.00 m and
@@ -12,7 +17,8 @@ The operator's 0.3683 m wide, 0.5588 m tall box was checked at 1.00 m and
 gave 0.757 m; mapped face cells were around 0.79-0.80 m. Old occupied cells
 remained at the previous position. See the newest DECISIONS.md entry for
 measurements and limitations. Low-obstacle and motion validation remain pending.
-This checkpoint supersedes the stopped-process state recorded below.
+This checkpoint superseded the stopped-process state recorded below, but must
+be rechecked now that the web UI is unreachable.
 
 Robot: `hiwonder@192.168.137.223`
 

@@ -81,12 +81,13 @@ voltage was 10.069 V.
 
 ## Latest validation
 
-PT was reachable on 2026-10-19. RGB/depth/LiDAR, visual odometry, RTAB graph,
-TF, and the occupancy-grid service were live during no-drive validation. The
-full native suite passed 129 tests. Visual SLAM and mapper were stopped after
+PT was reachable earlier on 2026-10-19. RGB/depth/LiDAR, visual odometry, RTAB
+graph, TF, and the occupancy-grid service were live during no-drive validation.
+The full native suite passed 129 tests. Visual SLAM and mapper were stopped after
 the initial validation, then restarted drive-disabled for measured tall-box
 checks. One mapper and RTAB-Map were left running on the separate
-`/tmp/room_mapper_box_validation.db` database; verify live state before work.
+`/tmp/room_mapper_box_validation.db` database. Later HTTP health checks could
+not connect, so verify live state before work.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups
