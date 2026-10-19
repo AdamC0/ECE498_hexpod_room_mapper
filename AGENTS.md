@@ -59,11 +59,23 @@ one mapper process exists.
 Ignoring close depth is a deliberate blind region. LiDAR protects its plane,
 but elevated close objects can be missed. Do not describe this as fully safe.
 
+## Pending local update (2026-10-19)
+
+The robot is offline. Candidate repository code removes the close-depth exclusion,
+adds directional depth recovery, render-snapshot click coordinates, direct
+manual override with the dead-man retained, 50-200% sliders, and an
+experimental `visual_slam.launch`. That launch is an RTAB-Map RGB-D/LiDAR
+replacement for Hector; never run both SLAM stacks together. The local suite
+has 128 passing tests with ROS imports stubbed, but no robot-side or physical
+validation has occurred. Preserve the distinction between this candidate and
+the deployed facts above.
+
 ## Latest validation
 
-The robot is online with autonomy paused. All 122 tests passed on the robot. RGB,
-depth, LiDAR, Hector, `/voltage`, map, and web UI are live. The battery endpoint
-initially reported 10.328 V / 18.9%.
+The robot lost power on 2026-10-19. The last known deployed checkpoint was
+autonomy paused with all 122 tests passing, but no service or map should now be
+assumed live. The battery endpoint had reported 10.328 V / 18.9% at that older
+checkpoint.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

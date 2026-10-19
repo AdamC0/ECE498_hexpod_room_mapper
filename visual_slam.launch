@@ -1,0 +1,91 @@
+<!--
+  Experimental RTAB-Map RGB-D + LiDAR stack for the JetHexa.
+
+  This is an alternative to hex_map.launch, not a sidecar. Running both would
+  create competing map/odometry TF trees. Validate it with drive disabled
+  before making it authoritative for autonomous motion.
+-->
+<launch>
+  <arg name="base_frame" default="jethexa/base_link"/>
+  <arg name="body_frame" default="jethexa/body_link"/>
+  <arg name="lidar_parent" default="body_link"/>
+  <arg name="laser_frame" default="laser_link"/>
+  <arg name="camera_frame" default="camera_link"/>
+  <arg name="rgb_topic" default="/camera/rgb/image_raw"/>
+  <arg name="depth_topic" default="/camera/depth_registered/image_raw"/>
+  <arg name="camera_info_topic" default="/camera/rgb/camera_info"/>
+  <arg name="scan_topic" default="/scan"/>
+  <arg name="database_path" default="$(env HOME)/.ros/room_mapper_rtabmap.db"/>
+
+  <!-- Same verified physical bridges as hex_map.launch. -->
+  <node pkg="tf" type="static_transform_publisher" name="visual_body_link_bridge"
+        args="0 0 0 0 0 0 $(arg body_frame) $(arg lidar_parent) 50"/>
+  <node pkg="tf" type="static_transform_publisher" name="visual_laser_mount"
+        args="0 0 0.031 0 0 0 $(arg lidar_parent) $(arg laser_frame) 50"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="visual_camera_mount"
+        args="0.065 0 0.07 0 0 0 $(arg lidar_parent) $(arg camera_frame)"/>
+
+  <group ns="visual_slam">
+    <node pkg="rtabmap_ros" type="rgbd_odometry" name="rgbd_odometry"
+          output="screen">
+      <param name="frame_id" value="$(arg base_frame)"/>
+      <param name="odom_frame_id" value="visual_odom"/>
+      <param name="publish_tf" value="true"/>
+      <param name="approx_sync" value="true"/>
+      <param name="queue_size" value="10"/>
+      <param name="wait_for_transform_duration" value="0.3"/>
+      <param name="publish_null_when_lost" value="true"/>
+      <param name="Reg/Force3DoF" type="string" value="true"/>
+      <param name="Kp/MaxFeatures" type="string" value="400"/>
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+    </node>
+
+    <node pkg="rtabmap_ros" type="rtabmap" name="rtabmap" output="screen"
+          args="--delete_db_on_start">
+      <param name="frame_id" value="$(arg base_frame)"/>
+      <param name="map_frame_id" value="map"/>
+      <param name="odom_frame_id" value="visual_odom"/>
+      <param name="publish_tf" value="true"/>
+      <param name="database_path" value="$(arg database_path)"/>
+      <param name="subscribe_depth" value="true"/>
+      <param name="subscribe_rgb" value="true"/>
+      <param name="subscribe_scan" value="true"/>
+      <param name="subscribe_odom_info" value="true"/>
+      <param name="approx_sync" value="true"/>
+      <param name="queue_size" value="10"/>
+      <param name="Reg/Strategy" type="string" value="2"/>
+      <param name="Reg/Force3DoF" type="string" value="true"/>
+      <param name="Vis/MinInliers" type="string" value="12"/>
+      <param name="RGBD/NeighborLinkRefining" type="string" value="true"/>
+      <param name="RGBD/ProximityBySpace" type="string" value="true"/>
+      <param name="RGBD/OptimizeFromGraphEnd" type="string" value="false"/>
+      <param name="Rtabmap/DetectionRate" type="string" value="1.0"/>
+
+      <!-- Build the planner grid from depth so low obstacles outside the
+           2-D LiDAR plane become occupied cells. LiDAR still refines pose. -->
+      <param name="Grid/Sensor" type="string" value="1"/>
+      <param name="Grid/3D" type="string" value="false"/>
+      <param name="Grid/DepthDecimation" type="string" value="4"/>
+      <param name="Grid/RangeMin" type="string" value="0.15"/>
+      <param name="Grid/RangeMax" type="string" value="3.0"/>
+      <param name="Grid/MinGroundHeight" type="string" value="-0.20"/>
+      <param name="Grid/MaxGroundHeight" type="string" value="0.10"/>
+      <param name="Grid/MaxObstacleHeight" type="string" value="0.80"/>
+      <param name="Grid/FlatObstacleDetected" type="string" value="true"/>
+      <param name="Grid/NoiseFilteringRadius" type="string" value="0.10"/>
+      <param name="Grid/NoiseFilteringMinNeighbors" type="string" value="5"/>
+      <param name="Grid/CellSize" type="string" value="0.05"/>
+
+      <remap from="odom" to="odom"/>
+      <remap from="odom_info" to="odom_info"/>
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+      <remap from="scan" to="$(arg scan_topic)"/>
+      <remap from="grid_map" to="/visual_map"/>
+      <remap from="localization_pose" to="/visual_pose"/>
+    </node>
+  </group>
+</launch>

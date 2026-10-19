@@ -53,7 +53,7 @@ class FakeNode:
 
     def web_speed(self):
         return {'translation': 100.0, 'rotation': 100.0,
-                'minimum': 50.0, 'maximum': 150.0}
+                'minimum': 50.0, 'maximum': 200.0}
 
     def web_request(self, command):
         self.commands.append(command)
@@ -89,6 +89,8 @@ class WebServerTests(unittest.TestCase):
             self.assertIn("id='translation-speed'", body)
             self.assertIn("id='rotation-speed'", body)
             self.assertIn("fetch('/speed.json')", body)
+            self.assertIn("max='200'", body)
+            self.assertNotIn('Navigate to this map position?', body)
 
     def test_status_jpeg_and_object_endpoints(self):
         with self.request('/status') as response:
@@ -136,7 +138,7 @@ class WebServerTests(unittest.TestCase):
         with self.request('/speed?translation=125&rotation=80', 'POST') as response:
             self.assertEqual(response.status, 200)
         self.assertEqual(self.node.commands[-1], ('speed', 125.0, 80.0))
-        for path in ('/speed?translation=151&rotation=100',
+        for path in ('/speed?translation=201&rotation=100',
                      '/speed?translation=nope&rotation=100'):
             with self.assertRaises(urllib.error.HTTPError) as raised:
                 self.request(path, 'POST')
@@ -149,6 +151,13 @@ class WebServerTests(unittest.TestCase):
         with self.request('/navigate?px=210&py=160&scale=100&dx=.5&dy=-.25', 'POST') as response:
             self.assertEqual(response.status, 200)
         self.assertEqual(self.node.commands[-1], ('navigate', 1.0, -0.25))
+        # A rendered viewport center is authoritative even if the robot moves
+        # before the click reaches the server.
+        self.node.pose = (8., 9., 0.)
+        with self.request('/navigate?px=210&py=160&scale=100&cx=.5&cy=-.25', 'POST') as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.node.commands[-1], ('navigate', 1.0, -0.25))
+        self.node.pose = None
         for action, expected in (
                 ('navigate', ('navigate_object', 1)),
                 ('remove', ('remove_object', 1))):
@@ -169,6 +178,9 @@ class WebServerTests(unittest.TestCase):
     def test_map_image_accepts_valid_view_and_rejects_invalid_zoom(self):
         with self.request('/map.jpg?scale=100&dx=.5&dy=-.25') as response:
             self.assertEqual(response.headers.get_content_type(), 'image/jpeg')
+            self.assertEqual(float(response.headers['X-Map-Center-X']), .5)
+            self.assertEqual(float(response.headers['X-Map-Center-Y']), -.25)
+            self.assertEqual(float(response.headers['X-Map-Scale']), 100.)
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request('/map.jpg?scale=500')
         self.assertEqual(raised.exception.code, 400)

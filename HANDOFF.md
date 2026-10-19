@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-Updated: 2026-10-12
+Updated: 2026-10-19
 
 ## Live checkpoint
 
@@ -13,9 +13,10 @@ Web UI: `http://192.168.137.223:8000`
 The SSH password was supplied interactively and must not be written into the
 repository or documentation.
 
-The robot is online and `AUTO PAUSED`. RGB, depth, LiDAR, Hector, mapping,
-`/voltage`, and the web UI are live. The battery endpoint initially reported
-10.328 V / 18.9%. Keep the robot paused until supervised operation resumes.
+The robot lost power during the 2026-10-19 session and is currently offline.
+Do not assume any process, map, or sensor state survived. The new visual/depth
+SLAM, navigation, manual-control, and speed changes are repository-only: they have
+not been deployed or physically validated.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -39,6 +40,29 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   charging details plus clear stale/unavailable states.
 - YOLO landmarks require two distinct observations. Autonomous exploration
   holds in `object_focus` until confirmation, two misses, or a 15 s timeout.
+
+## Local candidate update (not deployed)
+
+- Removed the 0.50 m close-depth exclusion and added directional
+  left/center/right depth clearance.
+- Recovery follows the selected route's turn direction when that side remains
+  clear, then falls back to combined depth/LiDAR side clearance.
+- Map JPEG responses carry their rendered center/scale; browser clicks return
+  that snapshot, preventing pose drift between render and click conversion.
+- Removed the click-to-navigate confirmation dialog.
+- Manual commands directly reach the gait client while held and bypass all
+  autonomous sensing/planning/burst restrictions. Release/blur and the 0.55 s
+  server dead-man remain active.
+- Slider range is 50-200% locally.
+- Added `visual_slam.launch`, an RTAB-Map replacement for Hector that uses RGB-D
+  visual odometry and loop closure, LiDAR registration, and depth projection
+  for the planner occupancy grid. Do not run both SLAM stacks together.
+- Added configurable pose message/map frame/reset service support so the same
+  controller can consume RTAB-Map's `/visual_pose` and `/visual_map`.
+
+The full 128-test suite passed locally with ROS imports stubbed. Syntax and
+launch XML checks passed. Robot-side tests, ROS graph validation, dry-run, and
+supervised motion validation remain pending.
 
 ## Important current calibration
 
@@ -104,6 +128,10 @@ python3 room_mapper.py \
 
 Use `_reset_map:=false` only when Hector's current frame is still trustworthy.
 Reset the map after a Hector restart, pose jump, or sustained stationary drift.
+
+For the experimental RTAB-Map path, follow README.md and RUN_SHEET.txt. Start
+it instead of `hex_map.launch`, use `_drive:=false`, and validate the visual
+topics/TF/depth grid before considering a supervised drive run.
 
 ## Verification commands
 

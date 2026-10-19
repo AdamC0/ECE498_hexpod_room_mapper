@@ -35,14 +35,14 @@ PAGE = """<!doctype html><html><head><meta charset='utf-8'>
 <section class='grid'><article class='card cam'><div class='card-head'><h2>Camera + YOLO detections</h2><span class='tag'>RGB / LIVE</span></div><div class='frame'><img id='cam' src='/cam.jpg' alt='Live robot camera'></div></article>
 <article class='card map'><div class='card-head'><h2>SLAM + landmarks</h2><span class='tag' id='map-mode'>ROBOT-CENTERED / 100%</span></div><div class='frame'><img id='map' src='/map.jpg' alt='Robot-centered clickable SLAM occupancy map'><div class='map-tools'><button class='zoom' id='zoom-out' aria-label='Zoom out'>−</button><button id='center-map'>CENTER</button><button class='zoom' id='zoom-in' aria-label='Zoom in'>+</button></div></div><div class='map-hint'>Scroll or use +/− to zoom. Drag to pan, Center to follow the robot, or click to navigate safely.</div></article></section>
 <section class='console'><div class='console-head'><span>Telemetry</span><span>● streaming</span></div><pre id='status'>connecting...</pre></section>
-<section class='card speed-panel'><h2>Movement speed</h2><div class='speed-grid'><div class='speed-control'><label for='translation-speed'>Translation</label><output id='translation-value'>100%</output><input id='translation-speed' type='range' min='50' max='150' step='5' value='100'></div><div class='speed-control'><label for='rotation-speed'>Rotation</label><output id='rotation-value'>100%</output><input id='rotation-speed' type='range' min='50' max='150' step='5' value='100'></div></div></section>
-<section class='card manual'><div class='manual-copy'><h2>Manual drive</h2><p>Available while autonomy is paused. Hold a direction to move; releasing it stops immediately. Keyboard: W/A/S/D or arrow keys.</p></div><div class='drive-pad' aria-label='Manual drive controls'><button class='drive forward' data-drive='forward' aria-label='Move forward'>▲<span class='key'>W / ↑</span></button><button class='drive left' data-drive='left' aria-label='Rotate left'>↶<span class='key'>A / ←</span></button><button class='drive drive-stop' data-stop aria-label='Stop'>■<span class='key'>STOP</span></button><button class='drive right' data-drive='right' aria-label='Rotate right'>↷<span class='key'>D / →</span></button><button class='drive back' data-drive='back' aria-label='Move backward'>▼<span class='key'>S / ↓</span></button></div></section>
+<section class='card speed-panel'><h2>Movement speed</h2><div class='speed-grid'><div class='speed-control'><label for='translation-speed'>Translation</label><output id='translation-value'>100%</output><input id='translation-speed' type='range' min='50' max='200' step='5' value='100'></div><div class='speed-control'><label for='rotation-speed'>Rotation</label><output id='rotation-value'>100%</output><input id='rotation-speed' type='range' min='50' max='200' step='5' value='100'></div></div></section>
+<section class='card manual'><div class='manual-copy'><h2>Manual drive</h2><p>Available while autonomy is paused. Manual commands bypass map and obstacle gating; maintain direct sight of the robot. Releasing a key stops immediately. Keyboard: W/A/S/D or arrow keys.</p></div><div class='drive-pad' aria-label='Manual drive controls'><button class='drive forward' data-drive='forward' aria-label='Move forward'>▲<span class='key'>W / ↑</span></button><button class='drive left' data-drive='left' aria-label='Rotate left'>↶<span class='key'>A / ←</span></button><button class='drive drive-stop' data-stop aria-label='Stop'>■<span class='key'>STOP</span></button><button class='drive right' data-drive='right' aria-label='Rotate right'>↷<span class='key'>D / →</span></button><button class='drive back' data-drive='back' aria-label='Move backward'>▼<span class='key'>S / ↓</span></button></div></section>
 <nav class='controls' aria-label='Robot controls'><button class='stop' onclick="post('/pause')">PAUSE AUTO</button><button class='cancel-route' onclick="cancelRoute()">CANCEL ROUTE</button><button class='go' onclick="post('/resume')">RESUME AUTO</button><button class='clear' onclick="clearMap()">CLEAR MAP</button></nav></section><section class='pane card object-panel' id='objects' hidden><div class='object-intro'><div><h2>Detected objects</h2><p>Navigate to a safe stand-off point, rename a landmark, or remove it from this map.</p></div><span class='object-count' id='object-count'>0 OBJECTS</span></div><div class='object-list' id='object-list'><div class='empty'>Waiting for detected objects...</div></div></section>
 <script>function fresh(id,ms){let x=document.getElementById(id),load=()=>x.src='/'+id+'.jpg?t='+Date.now();x.onload=x.onerror=()=>setTimeout(load,ms);load()}fresh('cam',150);
-const mapImage=document.getElementById('map'),mapView={scale:50,dx:0,dy:0},MAP_BASE_SCALE=50,MAP_MIN_SCALE=15,MAP_MAX_SCALE=180;let mapTimer=null,mapDrag=null,mapDragged=false;
+const mapImage=document.getElementById('map'),mapView={scale:50,dx:0,dy:0,rendered:null},MAP_BASE_SCALE=50,MAP_MIN_SCALE=15,MAP_MAX_SCALE=180;let mapTimer=null,mapDrag=null,mapDragged=false,mapObjectUrl=null,mapLoadSequence=0;
 function mapUrl(){let q=new URLSearchParams({t:Date.now(),scale:mapView.scale.toFixed(3),dx:mapView.dx.toFixed(4),dy:mapView.dy.toFixed(4)});return '/map.jpg?'+q}
 function updateMapMode(){let centered=Math.abs(mapView.dx)<.001&&Math.abs(mapView.dy)<.001;document.getElementById('map-mode').textContent=(centered?'ROBOT-CENTERED':'PANNED')+' / '+Math.round(mapView.scale/MAP_BASE_SCALE*100)+'%'}
-function loadMapNow(){if(mapTimer)clearTimeout(mapTimer);mapImage.src=mapUrl();updateMapMode()}mapImage.onload=mapImage.onerror=()=>{mapTimer=setTimeout(loadMapNow,800)};loadMapNow();
+async function loadMapNow(){if(mapTimer)clearTimeout(mapTimer);let sequence=++mapLoadSequence;updateMapMode();try{let response=await fetch(mapUrl());if(!response.ok)throw Error('HTTP '+response.status);let hx=response.headers.get('X-Map-Center-X'),hy=response.headers.get('X-Map-Center-Y'),hs=response.headers.get('X-Map-Scale');if(hx===null||hy===null||hs===null)throw Error('missing map coordinates');let rendered={cx:Number(hx),cy:Number(hy),scale:Number(hs)};if(!Number.isFinite(rendered.cx)||!Number.isFinite(rendered.cy)||!Number.isFinite(rendered.scale))throw Error('invalid map coordinates');let blob=await response.blob();if(sequence!==mapLoadSequence)return;let next=URL.createObjectURL(blob),previous=mapObjectUrl;mapImage.onload=()=>{if(sequence!==mapLoadSequence||mapImage.src!==next){URL.revokeObjectURL(next);return}mapObjectUrl=next;mapView.rendered=rendered;if(previous)URL.revokeObjectURL(previous);mapTimer=setTimeout(loadMapNow,800)};mapImage.onerror=()=>{URL.revokeObjectURL(next);mapTimer=setTimeout(loadMapNow,800)};mapView.rendered=null;mapImage.src=next}catch(e){show('Map unavailable: '+e.message);mapTimer=setTimeout(loadMapNow,800)}}loadMapNow();
 function imagePoint(event){let r=mapImage.getBoundingClientRect();return{x:(event.clientX-r.left)*mapImage.naturalWidth/r.width,y:(event.clientY-r.top)*mapImage.naturalHeight/r.height}}
 function setZoom(next,event){next=Math.max(MAP_MIN_SCALE,Math.min(MAP_MAX_SCALE,next));if(next===mapView.scale)return;if(event){let p=imagePoint(event),m=mapImage.naturalWidth/2;mapView.dx+=(m-p.y)*(1/mapView.scale-1/next);mapView.dy+=(m-p.x)*(1/mapView.scale-1/next)}mapView.scale=next;loadMapNow()}
 document.getElementById('zoom-in').addEventListener('click',e=>{e.stopPropagation();setZoom(mapView.scale*1.3)});document.getElementById('zoom-out').addEventListener('click',e=>{e.stopPropagation();setZoom(mapView.scale/1.3)});document.getElementById('center-map').addEventListener('click',e=>{e.stopPropagation();mapView.scale=MAP_BASE_SCALE;mapView.dx=mapView.dy=0;loadMapNow()});
@@ -60,7 +60,7 @@ function sendSpeed(){showSpeed();if(speedTimer)clearTimeout(speedTimer);speedTim
 function clearMap(){if(confirm('Pause the robot and permanently clear the current map and object landmarks?'))post('/clear-map')}
 function cancelRoute(){if(confirm('Cancel the active route and leave autonomy paused?'))post('/cancel-route')}
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(item=>item.classList.toggle('active',item===button));document.querySelectorAll('.pane').forEach(pane=>pane.hidden=pane.id!==button.dataset.tab)}));
-mapImage.addEventListener('click',event=>{if(mapDragged){mapDragged=false;return}let p=imagePoint(event),q=new URLSearchParams({px:p.x.toFixed(2),py:p.y.toFixed(2),scale:mapView.scale.toFixed(3),dx:mapView.dx.toFixed(4),dy:mapView.dy.toFixed(4)});if(confirm('Navigate to this map position? The robot will use the nearest safely reachable point.'))post('/navigate?'+q)});
+mapImage.addEventListener('click',event=>{if(mapDragged){mapDragged=false;return}let p=imagePoint(event),v=mapView.rendered;if(!v){show('Map coordinates are not ready yet');return}let q=new URLSearchParams({px:p.x.toFixed(2),py:p.y.toFixed(2),scale:v.scale.toFixed(3),cx:v.cx.toFixed(6),cy:v.cy.toFixed(6)});post('/navigate?'+q)});
 function objectAction(action,id,name){let url='/object/'+action+'?id='+encodeURIComponent(id);if(action==='rename'){let next=prompt('New object name:',name);if(next===null)return;url+='&name='+encodeURIComponent(next)}if(action==='remove'&&!confirm('Remove '+name+' from this map and suppress it at this location?'))return;post(url)}
 function renderObjects(items){let list=document.getElementById('object-list'),count=document.getElementById('object-count');count.textContent=items.length+' OBJECT'+(items.length===1?'':'S');list.replaceChildren();if(!items.length){let empty=document.createElement('div');empty.className='empty';empty.textContent='No mapped detections yet.';list.appendChild(empty);return}items.forEach(item=>{let row=document.createElement('article');row.className='object-row';let info=document.createElement('div'),name=document.createElement('div'),meta=document.createElement('div');name.className='object-name';name.textContent=item.name||item.label;meta.className='object-meta';meta.textContent=item.label+' class | '+item.count+' observation'+(item.count===1?'':'s')+' | '+item.x.toFixed(2)+', '+item.y.toFixed(2)+' m';info.append(name,meta);let state=document.createElement('div');let confirmed=item.confirmed!==false;state.className='object-state'+(confirmed?'':' pending');state.textContent=confirmed?'CONFIRMED':'PENDING';let actions=document.createElement('div');actions.className='object-actions';[['navigate','NAVIGATE'],['rename','RENAME'],['remove','REMOVE']].forEach(pair=>{let button=document.createElement('button');button.className=pair[0];button.textContent=pair[1];button.addEventListener('click',()=>objectAction(pair[0],item.id,item.name||item.label));actions.appendChild(button)});row.append(info,state,actions);list.appendChild(row)})}
 function refreshObjects(){fetch('/objects.json').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(renderObjects).catch(e=>{let list=document.getElementById('object-list');list.textContent='Object list unavailable: '+e.message})}refreshObjects();setInterval(refreshObjects,1500);
@@ -141,12 +141,15 @@ def map_view_center(node):
     return getattr(node, 'web_map_center', None) or (0.0, 0.0)
 
 
-def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0):
+def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     e, pose = node.explorer, node.pose
     # The occupancy data remains in world coordinates while this viewport
     # pans, keeping the robot fixed at the visual center.
-    cx, cy = map_view_center(node)
-    cx, cy = cx + dx, cy + dy
+    if center is None:
+        cx, cy = map_view_center(node)
+        cx, cy = cx + dx, cy + dy
+    else:
+        cx, cy = float(center[0]), float(center[1])
     with node.map_lock:
         state = e.state.copy()
         path = list(node.path)
@@ -223,10 +226,13 @@ def start(node, port=8000):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
-        def reply(self, body, content_type='text/plain; charset=utf-8', status=200):
+        def reply(self, body, content_type='text/plain; charset=utf-8', status=200,
+                  headers=None):
             if isinstance(body, str): body = body.encode()
             self.send_response(status); self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
+            for name, value in (headers or {}).items():
+                self.send_header(name, str(value))
             self.end_headers()
             try:
                 self.wfile.write(body)
@@ -248,7 +254,13 @@ def start(node, port=8000):
                 if not (15.0 <= scale <= 180.0 and math.isfinite(dx) and
                         math.isfinite(dy) and abs(dx) <= 50.0 and abs(dy) <= 50.0):
                     self.reply('Invalid map view', status=400); return
-                self.reply(jpeg(draw_map(node, scale, dx, dy), 85), 'image/jpeg')
+                base_cx, base_cy = map_view_center(node)
+                cx, cy = base_cx + dx, base_cy + dy
+                headers = {'X-Map-Center-X': '%.9f' % cx,
+                           'X-Map-Center-Y': '%.9f' % cy,
+                           'X-Map-Scale': '%.9f' % scale}
+                self.reply(jpeg(draw_map(node, scale, center=(cx, cy)), 85),
+                           'image/jpeg', headers=headers)
             elif path == '/status': self.reply(node.web_status())
             elif path == '/battery.json':
                 self.reply(json.dumps(node.web_battery()), 'application/json')
@@ -295,17 +307,26 @@ def start(node, port=8000):
                 try:
                     px, py = float(values['px'][0]), float(values['py'][0])
                     scale = float(values.get('scale', [MAP_SCALE])[0])
-                    dx = float(values.get('dx', [0.0])[0])
-                    dy = float(values.get('dy', [0.0])[0])
+                    supplied_center = 'cx' in values or 'cy' in values
+                    if supplied_center:
+                        cx = float(values['cx'][0])
+                        cy = float(values['cy'][0])
+                    else:
+                        dx = float(values.get('dx', [0.0])[0])
+                        dy = float(values.get('dy', [0.0])[0])
                 except (KeyError, IndexError, TypeError, ValueError):
                     self.reply('Invalid map position', status=400); return
                 if not (math.isfinite(px) and math.isfinite(py) and
                         0 <= px <= MAP_SIZE and 0 <= py <= MAP_SIZE and
-                        15.0 <= scale <= 180.0 and math.isfinite(dx) and
-                        math.isfinite(dy) and abs(dx) <= 50.0 and abs(dy) <= 50.0):
+                         15.0 <= scale <= 180.0 and
+                         (not supplied_center or (math.isfinite(cx) and math.isfinite(cy) and
+                                                  abs(cx) <= 1000.0 and abs(cy) <= 1000.0)) and
+                         (supplied_center or (math.isfinite(dx) and math.isfinite(dy) and
+                                              abs(dx) <= 50.0 and abs(dy) <= 50.0))):
                     self.reply('Map position is outside the viewport', status=400); return
-                cx, cy = map_view_center(node)
-                cx, cy = cx + dx, cy + dy
+                if not supplied_center:
+                    cx, cy = map_view_center(node)
+                    cx, cy = cx + dx, cy + dy
                 x = cx + (MAP_SIZE/2.0 - py) / scale
                 y = cy + (MAP_SIZE/2.0 - px) / scale
                 node.web_request(('navigate', x, y))

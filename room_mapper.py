@@ -16,11 +16,11 @@ import time
 import cv2
 import numpy as np
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import BatteryState, CameraInfo, Image, LaserScan
 from std_msgs.msg import Bool
-from std_srvs.srv import Trigger
+from std_srvs.srv import Empty, Trigger
 
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
@@ -54,6 +54,16 @@ class RoomMapper:
         self.depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image_raw")
         self.map_topic = rospy.get_param("~map_topic", "/map")
         self.pose_topic = rospy.get_param("~pose_topic", "/slam_out_pose")
+        self.map_frame = str(rospy.get_param("~map_frame", "map")).lstrip("/")
+        self.pose_type = str(rospy.get_param(
+            "~pose_type", "pose_stamped")).strip().lower()
+        if self.pose_type not in ("pose_stamped", "pose_with_covariance_stamped"):
+            raise ValueError("pose_type must be pose_stamped or pose_with_covariance_stamped")
+        self.reset_service = str(rospy.get_param("~reset_service", "/reset_map"))
+        self.reset_service_type = str(rospy.get_param(
+            "~reset_service_type", "trigger")).strip().lower()
+        if self.reset_service_type not in ("trigger", "empty"):
+            raise ValueError("reset_service_type must be trigger or empty")
         self.web_port = int(rospy.get_param("~web_port", 8000))
         battery_topics = rospy.get_param(
             "~battery_topics", ["/battery", "/battery_state", "/voltage"])
@@ -85,7 +95,7 @@ class RoomMapper:
         self.use_depth = bool(rospy.get_param("~use_depth", True))
         self.depth_stop = float(rospy.get_param("~depth_stop", 0.60))
         self.depth_ignore_at_or_below = float(rospy.get_param(
-            "~depth_ignore_at_or_below", 0.50))
+            "~depth_ignore_at_or_below", 0.0))
         if (not math.isfinite(self.depth_ignore_at_or_below) or
                 not 0.0 <= self.depth_ignore_at_or_below < self.depth_stop):
             raise ValueError("depth ignore distance must be nonnegative and below depth_stop")
@@ -121,7 +131,7 @@ class RoomMapper:
         self.translation_speed_percent = 100.0
         self.rotation_speed_percent = 100.0
         self.speed_min_percent = 50.0
-        self.speed_max_percent = 150.0
+        self.speed_max_percent = 200.0
         self.waypoint_tolerance = float(rospy.get_param("~waypoint_tolerance", 0.12))
         if (not math.isfinite(self.waypoint_tolerance) or
                 not 0.05 <= self.waypoint_tolerance < self.body_radius):
@@ -222,14 +232,7 @@ class RoomMapper:
             occupied_threshold=int(rospy.get_param("~occupied_threshold", 75)))
         if self.use_map and self.reset_map:
             try:
-                rospy.wait_for_service("/reset_map", timeout=5.0)
-                reset = rospy.ServiceProxy("/reset_map", Trigger)
-                result = reset()
-                # The installed Hector callback resets the map but leaves
-                # Trigger.success at its default false (verified in source).
-                rospy.loginfo("SLAM reset service returned (success=%s, message=%r); "
-                              "installed Hector does not populate these fields",
-                              result.success, result.message)
+                self.call_reset_service()
             except Exception as exc:
                 raise RuntimeError("Could not reset SLAM map at run start: %s" % exc)
         self.map_lock = threading.Lock()
@@ -248,11 +251,14 @@ class RoomMapper:
         self.floor_failures = 0
         self.floor_unavailable = False
         self.depth_source = ""
+        self.depth_sectors = {"left": float("inf"), "center": float("inf"),
+                              "right": float("inf")}
         self.depth_health = "waiting for depth"
         self.depth_history = []
         self.depth_sparse_since = None
         self.last_valid_depth_near = None
         self.last_valid_depth_source = ""
+        self.last_valid_depth_sectors = dict(self.depth_sectors)
         self.last_valid_depth_time = 0.0
         self.scan_points = None
         self.t_scan = self.t_pose = self.t_camera = self.t_depth = self.t_map = 0.0
@@ -337,7 +343,10 @@ class RoomMapper:
             rospy.Subscriber(self.depth_topic, Image, self.depth_callback, queue_size=1, buff_size=2**24)
         if self.use_map:
             rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
-            rospy.Subscriber(self.pose_topic, PoseStamped, self.pose_callback, queue_size=1)
+            pose_message = (PoseWithCovarianceStamped
+                            if self.pose_type == "pose_with_covariance_stamped"
+                            else PoseStamped)
+            rospy.Subscriber(self.pose_topic, pose_message, self.pose_callback, queue_size=1)
         for topic in self.battery_topics:
             rospy.Subscriber(topic, rospy.AnyMsg, self.battery_callback,
                              callback_args=topic, queue_size=1)
@@ -550,7 +559,8 @@ class RoomMapper:
             # Snapshot image-time TF before slow inference can evict its history.
             with self.object_lock:
                 try:
-                    transform = self.tf_buffer.lookup("map", frame_id, stamps[0], max_age=.5)
+                    transform = self.tf_buffer.lookup(getattr(self, "map_frame", "map"), frame_id,
+                                                      stamps[0], max_age=.5)
                 except (KeyError, ValueError) as exc:
                     transform = None
                     rospy.logwarn_throttle(5, "Object map TF unavailable: %s", exc)
@@ -831,9 +841,15 @@ class RoomMapper:
             rospy.loginfo("Depth floor learned: %d usable image rows", int(np.isfinite(profile).sum()))
 
     def depth_ahead(self, depth):
-        """Return the nearest plausible obstacle in the central camera view."""
+        """Return the nearest obstacle and retain left/center/right clearance.
+
+        The directional values let recovery honor the planned turn instead of
+        choosing from LiDAR alone, which cannot see many low obstacles.
+        """
         if depth is None:
             self.depth_source = ""
+            self.depth_sectors = {"left": float("inf"), "center": float("inf"),
+                                  "right": float("inf")}
             return float("inf")
         h, w = depth.shape
         c0, c1 = int(self.band_left * w), int(self.band_right * w)
@@ -853,18 +869,34 @@ class RoomMapper:
                 self.depth_health = "ready (brief sparse depth; using recent result)"
                 self.depth_source = "recent " + (getattr(
                     self, "last_valid_depth_source", "") or "clear depth")
+                self.depth_sectors = dict(getattr(
+                    self, "last_valid_depth_sectors",
+                    {"left": float("inf"), "center": float("inf"),
+                     "right": float("inf")}))
                 return cached
             self.depth_health = "insufficient valid depth in upper band"
             self.depth_source = "unknown"
+            self.depth_sectors = {"left": float("inf"), "center": float("inf"),
+                                  "right": float("inf")}
             return float("inf")
         self.depth_sparse_since = None
         self.depth_health = ("ready (upper-only; floor unavailable)"
                              if self.floor_unavailable else "ready")
-        ignore_distance = getattr(self, "depth_ignore_at_or_below", 0.50)
+        ignore_distance = getattr(self, "depth_ignore_at_or_below", 0.0)
         obstacle_values = values[values > ignore_distance]
         nearest = (float(np.percentile(obstacle_values, 10))
                    if obstacle_values.size >= 30 else float("inf"))
         source = "high" if nearest < 99 else ""
+        sectors = {}
+        names = ("left", "center", "right")
+        edges = np.linspace(0, top.shape[1], 4, dtype=int)
+        for index, name in enumerate(names):
+            part = top[:, edges[index]:edges[index + 1]]
+            part_values = part[(part > ignore_distance) & np.isfinite(part)]
+            required = max(20, int(getattr(
+                self, "min_depth_valid_fraction", 0.02) * part.size))
+            sectors[name] = (float(np.percentile(part_values, 10))
+                             if part_values.size >= required else float("inf"))
         if self.floor_profile is not None:
             low = depth[split:bottom, c0:c1]
             floor = self.floor_profile[split:bottom][:, None]
@@ -875,6 +907,7 @@ class RoomMapper:
                 zero_frac = float(np.count_nonzero(floor_pixels & ~valid)) / np.count_nonzero(floor_pixels)
                 if zero_frac - self.floor_zero_frac > 0.30:
                     nearest, source = 0.30, "depth dropout / too close"
+                    sectors["center"] = min(sectors["center"], nearest)
             if np.count_nonzero(valid) > 100:
                 with np.errstate(invalid="ignore", divide="ignore"):
                     ratio = low / floor
@@ -884,11 +917,22 @@ class RoomMapper:
                     bump_distance = float(np.percentile(low[bump], 10))
                     if bump_distance < nearest:
                         nearest, source = bump_distance, "floor-bump"
+                    for index, name in enumerate(names):
+                        section = bump[:, edges[index]:edges[index + 1]]
+                        section_low = low[:, edges[index]:edges[index + 1]]
+                        if np.count_nonzero(section) >= 10:
+                            sector_bump = float(np.percentile(section_low[section], 10))
+                            sectors[name] = min(sectors[name], sector_bump)
         if nearest <= ignore_distance:
             nearest = float("inf")
             source = "ignored depth <= %.2f m" % ignore_distance
+        for name in names:
+            if sectors[name] <= ignore_distance:
+                sectors[name] = float("inf")
+        self.depth_sectors = sectors
         self.last_valid_depth_near = nearest
         self.last_valid_depth_source = source
+        self.last_valid_depth_sectors = dict(sectors)
         self.last_valid_depth_time = time.time()
         self.depth_source = source
         return nearest
@@ -901,9 +945,10 @@ class RoomMapper:
             self.t_map = time.time()
 
     def pose_callback(self, msg):
-        q = msg.pose.orientation
+        stamped_pose = msg.pose.pose if hasattr(msg.pose, "pose") else msg.pose
+        q = stamped_pose.orientation
         yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-        pose = (msg.pose.position.x, msg.pose.position.y, yaw)
+        pose = (stamped_pose.position.x, stamped_pose.position.y, yaw)
         now = time.time()
         with self.data_lock:
             if self.prev_pose is not None and now >= self.pose_guard_start and self.map_trusted:
@@ -917,7 +962,7 @@ class RoomMapper:
                                     "before continuing" % (distance, math.degrees(turn)))
                     rospy.logerr(self.web_msg)
             self.prev_pose = pose
-            self.pose = (msg.pose.position.x, msg.pose.position.y, yaw)
+            self.pose = pose
             self.t_pose = time.time()
             if hasattr(self, "survey"):
                 self.survey.localize(self.message_time(msg))
@@ -1048,6 +1093,19 @@ class RoomMapper:
         self.set_motion(True)
         self.motion_until = now + (self.spin_burst if cmd[0] == "spin" else self.move_burst)
 
+    def send_manual(self, cmd):
+        """Send an operator-held command without autonomous motion gates.
+
+        Manual mode intentionally bypasses map trust, sensor freshness,
+        collision checks, burst timing, settling, and turn-progress checks.
+        The browser key-up/blur handling and server dead-man remain active so a
+        lost browser event still issues a stop.
+        """
+        self.motion_until = 0.0
+        self.pending_spin_yaw = None
+        self.send_actual(cmd)
+        self.set_motion(cmd[0] != "stop")
+
     def set_state(self, state, reason=""):
         if reason:
             self.state_reason = reason
@@ -1055,12 +1113,53 @@ class RoomMapper:
             rospy.loginfo(">>> %s -> %s %s", self.state, state, reason)
             self.state, self.state_start = state, time.time()
 
-    def open_side(self, lidar):
-        return 1.0 if lidar["left"] >= lidar["right"] else -1.0
+    def route_turn_direction(self, pose):
+        """Return the turn sign toward the next planned waypoint, if any."""
+        if pose is None or not getattr(self, "path", None):
+            return None
+        tolerance = getattr(self, "waypoint_tolerance", 0.12)
+        target = next(((wx, wy) for wx, wy in self.path
+                       if math.hypot(wx - pose[0], wy - pose[1]) > tolerance), None)
+        if target is None:
+            return None
+        wx, wy = target
+        error = math.atan2(math.sin(math.atan2(wy - pose[1], wx - pose[0]) - pose[2]),
+                           math.cos(math.atan2(wy - pose[1], wx - pose[0]) - pose[2]))
+        if abs(error) <= math.radians(5.0):
+            return None
+        return 1.0 if error > 0 else -1.0
 
-    def begin_recovery(self, lidar, rotation_blocked, rear_clear, reason, now):
+    def open_side(self, lidar, pose=None):
+        """Choose a turn using the route first, then LiDAR and depth clearance."""
+        preferred = self.route_turn_direction(pose)
+        depth = getattr(self, "depth_sectors", {})
+        left = min(lidar["left"], depth.get("left", float("inf")))
+        right = min(lidar["right"], depth.get("right", float("inf")))
+        rotation_clearance = getattr(self, "body_radius", 0.30) + 0.05
+        if preferred == 1.0 and left >= rotation_clearance:
+            return preferred
+        if preferred == -1.0 and right >= rotation_clearance:
+            return preferred
+        return 1.0 if left >= right else -1.0
+
+    def call_reset_service(self):
+        """Reset Hector (Trigger) or RTAB-Map (Empty), as configured."""
+        rospy.wait_for_service(self.reset_service, timeout=5.0)
+        service_type = Empty if self.reset_service_type == "empty" else Trigger
+        result = rospy.ServiceProxy(self.reset_service, service_type)()
+        if self.reset_service_type == "trigger":
+            # The installed Hector callback resets the map but leaves the
+            # Trigger response at its default values (verified in source).
+            rospy.loginfo("SLAM reset service returned (success=%s, message=%r)",
+                          result.success, result.message)
+        else:
+            rospy.loginfo("SLAM reset service %s completed", self.reset_service)
+        return result
+
+    def begin_recovery(self, lidar, rotation_blocked, rear_clear, reason, now,
+                       pose=None):
         """Choose a safe escape shared by autonomous mapping and web routes."""
-        self.avoid_dir = self.open_side(lidar)
+        self.avoid_dir = self.open_side(lidar, pose)
         self.avoid_forward_start = None
         self.recovery_start = now
         if not rotation_blocked:
@@ -1156,6 +1255,14 @@ class RoomMapper:
         if manual_cmd is not None and now > getattr(self, "manual_until", 0.0):
             self.stop_manual("Manual drive stopped: browser command timed out")
             return
+        if manual_cmd is not None:
+            command = ({"forward": ("forward",), "back": ("back",),
+                        "left": ("spin", 1.0), "right": ("spin", -1.0)}
+                       [manual_cmd])
+            self.web_msg = ("Manual override: hold %s; map and obstacle gates bypassed; "
+                            "release to stop" % manual_cmd)
+            self.send_manual(command)
+            return
         if self.paused and manual_cmd is None:
             self.send(("stop",))
             return
@@ -1198,7 +1305,9 @@ class RoomMapper:
             depth_near = float("inf")
             self.depth_source = "floor ignored while turning"
         self.depth_history = (self.depth_history + [depth_near])[-5:]
-        depth_near = float(np.median(self.depth_history))
+        # React to a newly close depth return immediately; use the history only
+        # to avoid clearing an established obstacle on one noisy frame.
+        depth_near = min(depth_near, float(np.median(self.depth_history)))
         if self.use_depth and not self.depth_health.startswith("ready"):
             self.send(("stop",))
             self.set_state(FAULT, self.depth_health)
@@ -1243,34 +1352,12 @@ class RoomMapper:
                      "depth_primary": True, "lidar_emergency": lidar_emergency,
                      "coverage": self.explorer.coverage() if self.explorer.have_map else 0.0}
 
-        if manual_cmd is not None:
-            if manual_cmd == "back":
-                rear = min(lidar.get("back", float("inf")),
-                           lidar.get("near_back", float("inf")))
-                manual_blocked = rear < self.lidar_stop
-                manual_reason = "rear LiDAR %.2f m" % rear
-                command = ("back",)
-            elif manual_cmd in ("left", "right"):
-                manual_blocked = rotation_blocked
-                manual_reason = "rotation footprint occupied"
-                command = ("spin", 1.0 if manual_cmd == "left" else -1.0)
-            else:
-                manual_blocked = blocked
-                manual_reason = reason
-                command = ("forward",)
-            if manual_blocked:
-                self.stop_manual("Manual drive blocked: " + manual_reason)
-                return
-            self.web_msg = "Manual drive: hold %s; release to stop" % manual_cmd
-            self.send(command, interrupt_object=True)
-            return
-
         if self.state == HOLD:
             self.send(("stop",))
             if not blocked:
                 self.set_state(SEARCH, "path cleared")
             elif self.begin_recovery(lidar, rotation_blocked, rear_clear,
-                                     "obstacle remains", now):
+                                     "obstacle remains", now, pose):
                 pass
             elif now - self.state_start > self.hold_seconds:
                 self.web_msg = ("Blocked safely: rotation footprint occupied and rear "
@@ -1324,7 +1411,8 @@ class RoomMapper:
             # The subsequent turn/reverse command will begin after scan_settle.
             self.send(("stop",))
             if self.phase == "user_go":
-                if self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now):
+                if self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now,
+                                       pose):
                     command = (("back",) if self.recovery_action == "back" else
                                ("spin", self.avoid_dir))
                     self.send(command, interrupt_object=True)
@@ -1334,7 +1422,8 @@ class RoomMapper:
                 return
             self.path = []
             self.phase = "plan"
-            if not self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now):
+            if not self.begin_recovery(lidar, rotation_blocked, rear_clear, reason, now,
+                                       pose):
                 self.send(("stop",))
                 self.set_state(HOLD, reason + "; no safe rotation or reverse route")
             else:
@@ -1426,11 +1515,7 @@ class RoomMapper:
         self.paused = True
         self.send(("stop",))
         try:
-            rospy.wait_for_service("/reset_map", timeout=5.0)
-            reset = rospy.ServiceProxy("/reset_map", Trigger)
-            result = reset()
-            rospy.loginfo("Web map reset returned (success=%s, message=%r)",
-                          result.success, result.message)
+            self.call_reset_service()
         except Exception as exc:
             self.web_msg = "CLEAR MAP failed; robot remains paused: %s" % exc
             rospy.logerr(self.web_msg)

@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 from room_mapper import RoomMapper, SEARCH, HOLD, AVOID, FAULT
+from std_srvs.srv import Empty
 
 
 class MapperTests(unittest.TestCase):
@@ -29,6 +30,10 @@ class MapperTests(unittest.TestCase):
         n.floor_frames, n.floor_zero_frac = 0, 0.0
         n.floor_failures, n.floor_unavailable = 0, False
         n.depth, n.depth_source, n.depth_health = None, '', 'waiting'
+        n.depth_ignore_at_or_below = 0.0
+        n.depth_sectors = {"left": float("inf"), "center": float("inf"),
+                           "right": float("inf")}
+        n.last_valid_depth_sectors = dict(n.depth_sectors)
         n.depth_history = []
         n.data_lock = threading.Lock()
         n.floor = np.full((100, 100), 2.0, np.float32)
@@ -57,7 +62,7 @@ class MapperTests(unittest.TestCase):
         n.commanded_moving, n.last_cmd = False, None
         n.spin_stride = 0.0
         n.waypoint_tolerance = .12
-        n.handle_web, n.send = Mock(), Mock()
+        n.handle_web, n.send, n.send_manual = Mock(), Mock(), Mock()
         return n
 
     def test_floor_and_body_bob_are_clear(self):
@@ -93,24 +98,25 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.battery_voltage, 12.6)
         self.assertEqual(n.battery_percentage, 100.0)
 
-    def test_elevated_obstacle_at_or_below_ignore_distance_is_clear(self):
+    def test_close_elevated_obstacle_is_detected(self):
         self.calibrate()
         frame = self.node.floor.copy()
         frame[20:55, 20:80] = .50
-        self.assertGreater(self.node.depth_ahead(frame), .6)
+        self.assertAlmostEqual(self.node.depth_ahead(frame), .50, places=5)
 
-    def test_floor_bump_at_or_below_ignore_distance_is_clear(self):
+    def test_close_floor_bump_is_detected(self):
         self.calibrate()
         frame = self.node.floor.copy()
         frame[60:80, 40:60] = .4
-        self.assertGreater(self.node.depth_ahead(frame), .6)
-        self.assertIn('ignored depth', self.node.depth_source)
+        self.assertAlmostEqual(self.node.depth_ahead(frame), .4, places=5)
+        self.assertEqual(self.node.depth_source, 'floor-bump')
 
-    def test_floor_dropout_sentinel_at_or_below_ignore_distance_is_clear(self):
+    def test_floor_dropout_sentinel_is_detected(self):
         self.calibrate()
         frame = self.node.floor.copy()
         frame[55:95, 20:80] = 0
-        self.assertGreater(self.node.depth_ahead(frame), .6)
+        self.assertAlmostEqual(self.node.depth_ahead(frame), .30, places=5)
+        self.assertEqual(self.node.depth_source, 'depth dropout / too close')
 
     def test_invalid_calibration_retries(self):
         for _ in range(3):
@@ -185,11 +191,12 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.state, HOLD)
         self.assertEqual(n.path, [])
 
-    def test_manual_forward_uses_safety_pipeline_and_keeps_auto_paused(self):
+    def test_manual_forward_bypasses_autonomous_pipeline_and_keeps_auto_paused(self):
         n = self.controller()
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
         n.control_step()
-        n.send.assert_called_with(('forward',), interrupt_object=True)
+        n.send_manual.assert_called_once_with(('forward',))
+        n.send.assert_not_called()
         self.assertTrue(n.paused)
 
     def test_manual_forward_does_not_depend_on_rgb_stream(self):
@@ -197,23 +204,34 @@ class MapperTests(unittest.TestCase):
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
         n.t_camera = 0.
         n.control_step()
-        n.send.assert_called_with(('forward',), interrupt_object=True)
+        n.send_manual.assert_called_once_with(('forward',))
 
-    def test_manual_forward_stops_for_depth_obstacle(self):
+    def test_manual_forward_bypasses_depth_obstacle_gate(self):
         n = self.controller()
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
         n.depth[20:55, 20:80] = .55
         n.control_step()
-        n.send.assert_called_with(('stop',))
-        self.assertIsNone(n.manual_cmd)
-        self.assertIn('blocked', n.web_msg)
+        n.send_manual.assert_called_once_with(('forward',))
+        self.assertEqual(n.manual_cmd, 'forward')
+        self.assertIn('gates bypassed', n.web_msg)
+
+    def test_manual_forward_bypasses_stale_sensors_map_and_startup_guard(self):
+        n = self.controller()
+        n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
+        n.pose = n.lidar = n.depth = None
+        n.t_pose = n.t_scan = n.t_depth = n.t_map = 0.
+        n.map_trusted = False
+        n.pose_guard_start = time.time() + 10.
+        n.control_step()
+        n.send_manual.assert_called_once_with(('forward',))
+        n.send.assert_not_called()
 
     def test_manual_turn_is_allowed_when_only_forward_path_is_blocked(self):
         n = self.controller()
         n.manual_cmd, n.manual_until, n.paused = 'left', time.time() + .5, True
         n.depth[20:55, 20:80] = .55
         n.control_step()
-        n.send.assert_called_with(('spin', 1.0), interrupt_object=True)
+        n.send_manual.assert_called_once_with(('spin', 1.0))
 
     def test_autonomy_immediately_turns_away_from_front_obstacle(self):
         n = self.controller()
@@ -235,6 +253,33 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.phase, 'user_go')
         self.assertEqual(n.user_goal, (1., 0., 'desk', .75))
         n.send.assert_called_with(('spin', 1.0), interrupt_object=True)
+
+    def test_selected_route_turn_direction_overrides_wider_lidar_side(self):
+        n = self.controller()
+        n.phase = 'user_go'
+        n.path = [(0., 0.), (0., -1.)]
+        n.user_goal = (0., -1., 'door', 0.)
+        n.nav_goal = (0., -1.)
+        n.depth[20:55, 20:80] = .55
+        n.lidar['left'], n.lidar['right'] = 2., 1.
+        n.control_step()
+        self.assertEqual(n.state, AVOID)
+        self.assertEqual(n.avoid_dir, -1.)
+        n.send.assert_called_with(('spin', -1.0), interrupt_object=True)
+
+    def test_depth_sectors_choose_clearer_side_without_route_heading(self):
+        n = self.controller()
+        n.path = []
+        n.depth_sectors = {'left': .45, 'center': .45, 'right': 1.5}
+        n.lidar['left'], n.lidar['right'] = 2., 2.
+        self.assertEqual(n.open_side(n.lidar, n.pose), -1.)
+
+    def test_route_preference_does_not_turn_into_blocked_depth_side(self):
+        n = self.controller()
+        n.path = [(0., -1.)]
+        n.depth_sectors = {'left': 1.5, 'center': .45, 'right': .25}
+        n.lidar['left'], n.lidar['right'] = 2., 2.
+        self.assertEqual(n.open_side(n.lidar, n.pose), 1.)
 
     def test_too_close_front_obstacle_uses_clear_reverse_route(self):
         n = self.controller()
@@ -264,6 +309,7 @@ class MapperTests(unittest.TestCase):
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() - .1, True
         n.control_step()
         n.send.assert_called_with(('stop',))
+        n.send_manual.assert_not_called()
         self.assertIsNone(n.manual_cmd)
         self.assertIn('timed out', n.web_msg)
 
@@ -282,7 +328,7 @@ class MapperTests(unittest.TestCase):
     def test_web_speed_command_updates_both_limits(self):
         n = RoomMapper.__new__(RoomMapper)
         n.web_pending = [('speed', 125., 80.)]
-        n.speed_min_percent, n.speed_max_percent = 50., 150.
+        n.speed_min_percent, n.speed_max_percent = 50., 200.
         n.translation_speed_percent = n.rotation_speed_percent = 100.
         n.last_cmd, n.web_msg = ('forward',), ''
         n.handle_web()
@@ -505,6 +551,31 @@ class MapperTests(unittest.TestCase):
         self.assertFalse(n.map_trusted)
         self.assertIn('SLAM LOST', n.web_msg)
 
+    def test_covariance_stamped_visual_pose_is_accepted(self):
+        n = self.node
+        n.prev_pose, n.pose = None, None
+        n.pose_guard_start, n.map_trusted = 0., True
+        n.web_map_center, n.t_pose = None, 0.
+        nested = SimpleNamespace(
+            position=SimpleNamespace(x=1.25, y=-.75),
+            orientation=SimpleNamespace(x=0., y=0., z=0., w=1.))
+        msg = SimpleNamespace(pose=SimpleNamespace(pose=nested))
+        n.pose_callback(msg)
+        self.assertEqual(n.pose, (1.25, -.75, 0.))
+        self.assertEqual(n.web_map_center, (1.25, -.75))
+
+    def test_empty_reset_service_supports_rtabmap(self):
+        n = self.node
+        n.reset_service = '/visual_slam/rtabmap/reset'
+        n.reset_service_type = 'empty'
+        reset = Mock(return_value=SimpleNamespace())
+        with patch('room_mapper.rospy.wait_for_service') as wait, \
+                patch('room_mapper.rospy.ServiceProxy', return_value=reset) as proxy:
+            n.call_reset_service()
+        wait.assert_called_once_with('/visual_slam/rtabmap/reset', timeout=5.0)
+        proxy.assert_called_once_with('/visual_slam/rtabmap/reset', Empty)
+        reset.assert_called_once_with()
+
     def test_web_map_reset_stops_pauses_and_clears_local_state(self):
         n = RoomMapper.__new__(RoomMapper)
         n.paused, n.web_msg = False, ''
@@ -519,11 +590,9 @@ class MapperTests(unittest.TestCase):
         n.path, n.phase, n.phase_start = [(3., 4.)], 'go', 0.
         n.state, n.state_start = FAULT, 0.
         n.web_map_center = (0., 0.)
+        n.call_reset_service = Mock()
         n.clear_object_tracks = Mock()
-        response = SimpleNamespace(success=False, message='')
-        with patch('room_mapper.rospy.wait_for_service'), \
-                patch('room_mapper.rospy.ServiceProxy', return_value=Mock(return_value=response)), \
-                patch('room_mapper.time.time', return_value=100.):
+        with patch('room_mapper.time.time', return_value=100.):
             n.reset_mapping()
         self.assertTrue(n.paused)
         n.send.assert_called_once_with(('stop',))
@@ -534,6 +603,7 @@ class MapperTests(unittest.TestCase):
         self.assertTrue(n.map_trusted)
         self.assertEqual(n.motion_generation, 8)
         self.assertEqual(n.state, SEARCH)
+        n.call_reset_service.assert_called_once_with()
         n.clear_object_tracks.assert_called_once_with()
 
 

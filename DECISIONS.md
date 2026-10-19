@@ -368,3 +368,51 @@ cached gait command so a held manual direction picks up the new setting. All
 122 tests passed on the robot. Live endpoint checks successfully changed and
 read back both settings; an active browser then exercised the controls while
 autonomy remained paused.
+
+## Visual/depth navigation correction - 2026-10-19
+
+The robot lost power during diagnosis, so every change in this entry is local
+and pending robot-side validation.
+
+Four direct causes were identified. First, the configured 0.50 m depth
+exclusion discarded exactly the close elevated returns, floor bumps, and
+dropout/too-close alarms needed for small-obstacle protection. Second, depth
+was collapsed to one scalar, so it could stop translation but could not tell
+recovery which side was clear. Third, recovery always selected the wider LiDAR
+side and ignored the next route waypoint, explaining a left turn when a
+selected door route required right. Fourth, map clicks were converted using
+the newest robot pose even though the browser image could have been rendered
+against an older robot-centered viewport.
+
+Chosen controller changes: default close-depth exclusion is zero; retain
+left/center/right depth clearance; react immediately to new close depth while
+using history only to delay clearing; prefer the next route turn when that side
+has safe combined clearance; and fall back to combined directional depth and
+LiDAR. Chosen web change: stamp each map JPEG with its exact world center and
+scale, have the browser return that snapshot with the click, and remove the
+navigation confirmation dialog.
+
+Per operator request, manual held commands now bypass map trust, sensor
+freshness, collision, burst, settling, and turn-progress gates. Key release,
+window blur, and the 0.55 s server dead-man remain because they terminate a
+lost command rather than autonomously restricting an actively held command.
+The translation and rotation slider maxima are raised to 200%.
+
+Chosen visual SLAM path: add `visual_slam.launch` as an alternative to Hector,
+not a simultaneous sidecar. RTAB-Map receives registered RGB-D and LiDAR,
+uses visual odometry/loop closure with scan refinement, and publishes a 2-D
+grid projected from depth so low obstacles can enter the planner map. The
+controller now accepts `PoseWithCovarianceStamped`, configurable map frames,
+and Trigger/Empty reset services. The candidate wiring is `/visual_map`,
+`/visual_pose`, and `/visual_slam/rtabmap/reset`.
+
+Higher depth emphasis should improve the reported low-obstacle failure because
+it restores close live stops and makes low geometry available to the global
+planner. It cannot compensate for bad camera extrinsics, missing/reflective
+depth, incorrect ground segmentation, motion blur, or visual-odometry loss.
+Those are explicit dry-run and supervised hardware validation items.
+
+Validation: 128 tests pass locally with ROS message modules stubbed; Python
+syntax and launch XML parse checks pass. RTAB-Map topic names, TF ownership,
+camera calibration, resource load, map quality, and physical motion remain
+unverified until the robot returns.

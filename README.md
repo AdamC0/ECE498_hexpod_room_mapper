@@ -8,6 +8,30 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
+## Local update pending robot validation (2026-10-19)
+
+The robot powered off before this update could be deployed or physically
+validated. The repository now contains these candidate changes:
+
+- Close depth results are no longer discarded at 0.50 m. Native depth retains
+  left/center/right clearance and reacts to a new close return immediately.
+- Obstacle recovery prefers the next route waypoint when that side is clear;
+  otherwise it uses combined directional depth and LiDAR clearance.
+- Click navigation is converted using the exact center/scale of the rendered
+  map image, eliminating the race caused by a moving robot-centered viewport.
+  The navigation confirmation dialog is removed.
+- Manual keyboard/touch motion bypasses autonomous sensor, map, collision,
+  burst, and settle gates. Key release, browser blur, and the 0.55 s dead-man
+  still stop motion. Use manual mode only with direct sight of the robot.
+- Translation and rotation slider maxima are raised from 150% to 200%.
+- `visual_slam.launch` provides an experimental RTAB-Map alternative using
+  RGB-D visual odometry, LiDAR registration, visual loop closure, and a
+  depth-projected 2D occupancy grid so low obstacles can enter the planner map.
+
+These are not claims of deployed or physically safe behavior. Keep the first
+RTAB-Map and controller runs in dry-run mode and validate the camera transform,
+ground segmentation, map/pose topics, and CPU load before enabling motion.
+
 The dashboard includes a battery badge in the page header. It accepts
 `sensor_msgs/BatteryState` and common numeric voltage topics, estimates charge
 from verified 9.8 V alarm cutoff / 12.6 V full defaults, and visibly marks low,
@@ -97,6 +121,29 @@ python3 room_mapper.py
 python3 room_mapper.py _drive:=true _start_paused:=true
 ```
 
+### Experimental visual/depth SLAM startup
+
+`visual_slam.launch` replaces `hex_map.launch`; never run the two together.
+Start LiDAR with `publish_tf:=false`, then use:
+
+```bash
+roslaunch ~/room_mapper/visual_slam.launch
+
+cd ~/room_mapper
+python3 room_mapper.py \
+  _drive:=false _start_paused:=true \
+  _map_topic:=/visual_map \
+  _pose_topic:=/visual_pose \
+  _pose_type:=pose_with_covariance_stamped \
+  _reset_service:=/visual_slam/rtabmap/reset \
+  _reset_service_type:=empty
+```
+
+Before any supervised drive test, verify `/visual_map`, `/visual_pose`, and
+`/visual_slam/odom`, confirm the TF chain
+`map -> visual_odom -> jethexa/base_link`, and place several known low obstacles
+in view while checking that they appear occupied in `/visual_map`.
+
 After reboot, if `/scan` has a publisher but no messages:
 
 ```bash
@@ -132,11 +179,12 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
 - `hex_map.launch`: Hector and required TF bridges.
+- `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
 - `RUN_SHEET.txt`: operator checklist.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The current suite contains 122 robot-side tests and does not publish physical
+The updated suite contains 128 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -144,7 +192,9 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-After the latest speed-control deployment, all 122 tests passed on the robot. The mapper was
+The last deployed version passed 122 tests on the robot. The updated 128-test
+suite passed locally with ROS imports stubbed, but has not run on the robot.
+After the latest deployed speed-control update, the mapper was
 restored `AUTO PAUSED`; RGB, depth, LiDAR, Hector, `/voltage`, the battery JSON
 endpoint, and the web interface were live. The first verified dashboard sample
 reported 10.328 V and an estimated 18.9% charge.

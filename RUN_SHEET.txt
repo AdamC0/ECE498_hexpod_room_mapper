@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-12)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-19)
 =====================================================
 
 ROBOT:
@@ -8,6 +8,7 @@ ROBOT:
   Never store the SSH password in project files.
 
 PRE-RUN:
+  [ ] Robot was offline at the last checkpoint; begin as a cold reboot.
   [ ] Confirm the battery is charged; do not operate solely because its alarm is muted.
   [ ] Floor only; physically inspect 0.45 m around the 0.30 m-radius robot.
   [ ] Keep immediate access to PAUSE/STOP or Ctrl+C.
@@ -39,6 +40,29 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Current regression count: 122 tests. Tests do not publish robot movement.
+
+PENDING LOCAL UPDATE VALIDATION:
+  The repository contains 128 tests and an experimental visual/depth SLAM
+  path, but the robot powered off before deployment or validation. Do not treat
+  these settings as the current deployed calibration.
+
+  [ ] Pull the committed revision and run all 128 tests on the robot.
+  [ ] Start either Hector or RTAB-Map, never both.
+  [ ] For RTAB-Map, start in dry-run mode:
+      roslaunch ~/room_mapper/visual_slam.launch
+      cd ~/room_mapper
+      python3 room_mapper.py _drive:=false _start_paused:=true \
+        _map_topic:=/visual_map _pose_topic:=/visual_pose \
+        _pose_type:=pose_with_covariance_stamped \
+        _reset_service:=/visual_slam/rtabmap/reset \
+        _reset_service_type:=empty
+  [ ] Confirm /visual_map, /visual_pose, and /visual_slam/odom update.
+  [ ] Confirm TF map -> visual_odom -> jethexa/base_link and camera alignment.
+  [ ] Place low test objects at measured distances and confirm /visual_map marks
+      them occupied without turning floor texture into false obstacles.
+  [ ] Observe CPU/memory and frame rates for at least five stationary minutes.
+  [ ] Validate click coordinates while the rendered map follows a changing pose.
+  [ ] Only then start _drive:=true _start_paused:=true under direct supervision.
 
 CURRENT SAFETY CALIBRATION:
   Robot footprint radius:             0.30 m
@@ -97,6 +121,5 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  AUTO PAUSED; RGB, depth, LiDAR, Hector, map, /voltage, and web UI live.
-  Battery endpoint reported 10.328 V / 18.9%. Alarm node absent. All 122 tests
-  passed on the robot before services were restored.
+  ROBOT OFFLINE after loss of power. Last deployed robot suite: 122 passing.
+  Local candidate suite: 128 passing with ROS imports stubbed; not deployed.
