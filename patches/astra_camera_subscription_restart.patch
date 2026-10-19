@@ -1,0 +1,21 @@
+diff --git a/src/libuvc_camera/camera_driver.cpp b/src/libuvc_camera/camera_driver.cpp
+--- a/src/libuvc_camera/camera_driver.cpp
++++ b/src/libuvc_camera/camera_driver.cpp
+@@ -186,11 +186,15 @@ void CameraDriver::imageConnectCb() {
+   // return;
+   int sub_num = cam_pub_.getNumSubscribers();
+   ROS_WARN("sub num:%d", sub_num);
+-  if (sub_num == 1) {
+-    Stop();
++  // advertiseCamera installs this callback on both image and camera-info
++  // publishers. A single client subscribing to both can therefore invoke the
++  // callback twice while getNumSubscribers() still reports one. Restarting a
++  // running libuvc stream here can hang in uvc_exit() and exhaust Tegra XUSB
++  // transfer rings. Only transition at the actual stopped/running boundary.
++  if (sub_num > 0 && state_ == kInitial) {
+     Start();
+-  } else if (sub_num == 0) {
++  } else if (sub_num == 0 && state_ != kInitial) {
+     Stop();
+   }
+ }
