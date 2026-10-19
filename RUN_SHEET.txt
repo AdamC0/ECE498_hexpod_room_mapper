@@ -122,6 +122,9 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT ONLINE. Visual SLAM and one mapper are live in DRY RUN / AUTO PAUSED.
+  PT ONLINE, but visual SLAM and the mapper are stopped. A stationary retry
+  began with LiDAR/RGB/depth near 12.05/29.72/29.66 Hz. RGB then stalled with
+  its publisher still registered after visual SLAM started, so visual odometry
+  produced no synchronized output. Recharge and fully reboot before retrying.
   Native robot suite: 129 passing. Physical walking validation: not started.
-  Latest observed battery: 10.078 V (~9.9%); recharge before motion testing.
+  Latest observed battery: 9.852 V (~1.9%); do not motion-test at this charge.

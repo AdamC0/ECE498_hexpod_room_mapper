@@ -15,9 +15,12 @@ repository or documentation.
 
 PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
 manual-control, and speed changes are deployed. The native suite passes all
-129 tests. Visual SLAM and one mapper are live in DRY RUN / AUTO PAUSED; no
-physical walking validation has occurred. The latest observed battery was
-10.078 V (about 9.9%), so recharge before motion testing.
+129 tests, but no physical walking validation has occurred. A follow-up dry-run
+attempt ended with the visual stack and mapper stopped: RGB initially published
+near 29.7 Hz, then stalled while its publisher remained registered after the
+visual stack started. Registered depth and LiDAR remained live. The latest
+observed battery was 9.852 V (about 1.9%), so recharge and reboot before
+resuming validation.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -68,6 +71,12 @@ All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
 updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
 Measured obstacle alignment, five-minute load, clicked routing, and supervised
 physical motion remain pending.
+
+A later stationary attempt began with LiDAR near 12.05 Hz, RGB near 29.72 Hz,
+and depth near 29.66 Hz. RTAB-Map started without Hector, but RGB then stopped
+emitting and visual odometry could not produce synchronized output. RTAB-Map
+was stopped cleanly and no mapper was started. Recharge the battery and perform
+a full robot reboot, the established UVC recovery, before repeating this test.
 
 ## Important current calibration
 
