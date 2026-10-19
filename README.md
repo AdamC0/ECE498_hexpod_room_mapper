@@ -14,7 +14,8 @@ This update is deployed and passed the full 129-test suite on PT. RTAB-Map, TF
 pose, and the depth-aware grid were exercised without commanding motion. A tall
 box aligned with depth and mapped face cells at reported 1.00 m and 0.75 m
 placements; low-obstacle and walking validation remain pending. The web UI was
-unreachable on the latest continuation attempt, so verify current robot state.
+restored on the latest continuation attempt with one drive-disabled,
+auto-paused mapper and RTAB-Map; verify current robot state before each run.
 
 - Close depth results are no longer discarded at 0.50 m. Native depth retains
   left/center/right clearance and reacts to a new close return immediately.
@@ -201,7 +202,7 @@ python3 -m unittest discover -v
 
 The 129-test suite passed natively on PT. A visual-SLAM dry run was restored
 `AUTO PAUSED`; RGB, depth, LiDAR, RTAB-Map, TF pose, `/voltage`, the battery JSON
-endpoint, and the web interface were live. The latest measured tall-box check
-left one drive-disabled mapper and RTAB-Map running on the separate
-`/tmp/room_mapper_box_validation.db` database. The last sampled voltage was
-10.069 V, so recharge before any supervised motion test.
+endpoint, and the web interface were live. The current dry-run stack uses the
+fresh `/tmp/room_mapper_continue.db` database with exactly one drive-disabled
+mapper and no Hector process. The latest sampled voltage was 12.307 V; physical
+motion remains pending direct supervision.

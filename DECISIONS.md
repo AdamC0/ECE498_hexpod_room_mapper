@@ -491,3 +491,20 @@ endpoints could not connect from the development workstation. No command was
 sent to the robot. The tall-box checkpoint remains the last-known state, not a
 claim that those processes are still live; process, sensor, and battery state
 must be checked again before further validation.
+
+### Dry-run stack restored after SSH recovery - 2026-10-19
+
+SSH connectivity was restored. No mapper or SLAM process was initially
+running. RGB and depth were each near 30 Hz; `/scan` had a publisher but no
+messages until the documented `/start_scan` service call restored LiDAR near
+12 Hz. Battery telemetry was 12.411 V before the visual stack was started.
+
+The deployed controller, planner, web, object-mapping, and visual launch files
+matched the repository after normalizing line endings. RTAB-Map was started on
+the fresh `/tmp/room_mapper_continue.db` database, followed by exactly one
+mapper with `_drive:=false _start_paused:=true _reset_map:=false`. Hector was
+not running. Visual odometry, a 0.05 m occupancy grid, map-to-base TF, and RTAB
+graph updates near 1 Hz were live. The mapper reported AUTO PAUSED, localized,
+depth ready in upper-only mode, and 0.97 m LiDAR clearance. The external web UI
+and battery endpoint were reachable; the final battery sample was 12.307 V
+(about 89.5%). No movement command or physical motion occurred.

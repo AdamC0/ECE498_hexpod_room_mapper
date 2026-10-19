@@ -122,9 +122,10 @@ FAULTS:
     Start lidar.launch with publish_tf:=false; do not give laser_link two parents.
 
 LIVE STATUS AT DOCUMENTATION UPDATE:
-  PT WEB UI UNREACHABLE at the latest continuation check. Current process,
-  sensor, and battery state are unverified. Last known: RTAB-Map and one
-  drive-disabled, AUTO PAUSED mapper were left running after measured tall-box
-  checks using /tmp/room_mapper_box_validation.db. Recheck before any next step.
+  PT ONLINE. LiDAR was restored with /start_scan. RTAB-Map and exactly one
+  drive-disabled, AUTO PAUSED mapper are running using
+  /tmp/room_mapper_continue.db; Hector is not running. RGB/depth/LiDAR, visual
+  odometry, graph updates, TF, /visual_map, and the web UI are live. Depth is
+  ready in upper-only mode; floor-bump detection is unavailable.
   Native robot suite: 129 passing. Physical walking validation: not started.
-  Last observed battery: 10.069 V; recharge before motion testing.
+  Latest observed battery: 12.307 V (~89.5%). No motion was commanded.

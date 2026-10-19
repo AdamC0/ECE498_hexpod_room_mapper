@@ -4,10 +4,13 @@ Updated: 2026-10-19
 
 ## Live checkpoint
 
-On the latest continuation attempt (2026-10-19), read-only requests to
-`http://192.168.137.223:8000/status` and `/battery.json` could not connect.
-The robot's current process, sensor, and battery state therefore was not
-verified; do not assume the last-known processes are still running.
+The robot was reachable again on the latest continuation attempt (2026-10-19).
+LiDAR was restarted with `/start_scan`, and RGB, depth, LiDAR, RTAB-Map, TF,
+the occupancy grid, and the web UI were verified live. One mapper was restored
+with `_drive:=false _start_paused:=true`; no motion was commanded. Its status
+was localized and AUTO PAUSED with depth ready in upper-only mode, 0.97 m LiDAR
+clearance, and 12.307 V battery telemetry (about 89.5%). RTAB-Map graph updates
+were about 1 Hz. No Hector process was running.
 
 Last-known box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
 left running with `_drive:=false _start_paused:=true`, using the separate
@@ -17,8 +20,8 @@ The operator's 0.3683 m wide, 0.5588 m tall box was checked at 1.00 m and
 gave 0.757 m; mapped face cells were around 0.79-0.80 m. Old occupied cells
 remained at the previous position. See the newest DECISIONS.md entry for
 measurements and limitations. Low-obstacle and motion validation remain pending.
-This checkpoint superseded the stopped-process state recorded below, but must
-be rechecked now that the web UI is unreachable.
+The current dry-run stack uses `/tmp/room_mapper_continue.db`, not the earlier
+box-validation database.
 
 Robot: `hiwonder@192.168.137.223`
 
