@@ -4,6 +4,16 @@ Updated: 2026-10-19
 
 ## Live checkpoint
 
+Latest box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
+left running with `_drive:=false _start_paused:=true`, using the separate
+`/tmp/room_mapper_box_validation.db` database. Latest sampled voltage: 10.069 V.
+The operator's 0.3683 m wide, 0.5588 m tall box was checked at 1.00 m and
+0.75 m from body center. At 0.75 m, depth plus the configured camera offset
+gave 0.757 m; mapped face cells were around 0.79-0.80 m. Old occupied cells
+remained at the previous position. See the newest DECISIONS.md entry for
+measurements and limitations. Low-obstacle and motion validation remain pending.
+This checkpoint supersedes the stopped-process state recorded below.
+
 Robot: `hiwonder@192.168.137.223`
 
 Robot project: `/home/hiwonder/room_mapper`
@@ -15,10 +25,11 @@ repository or documentation.
 
 PT returned during the 2026-10-19 session. The visual/depth SLAM, navigation,
 manual-control, and speed changes are deployed. The native suite passes all
-129 tests. Visual SLAM and one mapper completed a DRY RUN / AUTO PAUSED check;
-they were then stopped to preserve the low battery. No physical walking
-validation has occurred. The latest observed battery was 10.016 V (about
-7.7%), so recharge before motion testing.
+129 tests, but no physical walking validation has occurred. After recharge and
+a full reboot, the visual stack and mapper completed more than five stationary
+minutes in DRY RUN / AUTO PAUSED without a controller fault. A later measured
+box-alignment check left one drive-disabled mapper and RTAB-Map running. The
+latest observed battery was 10.069 V; recharge before motion testing.
 
 The battery dashboard is deployed. `/voltage` is `std_msgs/Float32`; percentage
 is estimated between the vendor's 9.8 V alarm cutoff and 12.6 V full. The
@@ -67,8 +78,15 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 
 All 129 tests passed on the robot. Visual odometry ran near 3.1 Hz, RTAB graph
 updates near 0.9 Hz, and the grid service returned an 80 x 86 map at 0.05 m.
-Measured obstacle alignment, five-minute load, clicked routing, and supervised
-physical motion remain pending.
+Low-obstacle alignment, clicked routing, and supervised physical motion remain
+pending. The measured tall-box result is recorded in the live checkpoint above.
+
+After the UVC stall and low-battery stop, a full reboot and recharge restored
+RGB. A stationary retry kept RGB near 29.8 Hz, visual odometry near 2.4 Hz, and
+graph updates near 0.65 Hz under the full mapper load. Approximate CPU use was
+94% for visual odometry, 17% for RTAB-Map, and 66% for the mapper. The grid
+service contained 71 free and 76 occupied cells, TF remained localized, and
+the web server rendered a 9.6 KB map JPEG. No motion command occurred.
 
 The stack ran stationary for more than seven minutes. `rgbd_odometry` used
 about 100% of one CPU core and 189 MB RSS; RTAB-Map used about 16% and 221 MB;

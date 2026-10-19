@@ -73,16 +73,20 @@ mapping mode. Never run Hector and RTAB-Map together.
 No physical walking validation has occurred. The stationary stack produced
 visual odometry near 3.1 Hz, graph updates near 0.9 Hz, and a depth-aware
 occupancy grid. A seven-minute load check completed; reported pose moved about
-0.02 m and 0.1 degrees during the mapper's three-minute sample. Treat measured
-obstacle alignment, clicked-route behavior, and all physical motion as pending
-supervised tests. Recharge before motion; the last voltage was 10.016 V.
+0.02 m and 0.1 degrees during the mapper's three-minute sample. A later tall-box
+check aligned depth and mapped face cells at reported 1.00 m and 0.75 m
+placements. Treat low-obstacle alignment, clicked-route behavior, and all
+physical motion as pending supervised tests. Recharge before motion; the last
+voltage was 10.069 V.
 
 ## Latest validation
 
 PT was reachable on 2026-10-19. RGB/depth/LiDAR, visual odometry, RTAB graph,
 TF, and the occupancy-grid service were live during no-drive validation. The
 full native suite passed 129 tests. Visual SLAM and mapper were stopped after
-validation to preserve the battery; the last reading was 10.016 V.
+the initial validation, then restarted drive-disabled for measured tall-box
+checks. One mapper and RTAB-Map were left running on the separate
+`/tmp/room_mapper_box_validation.db` database; verify live state before work.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups
