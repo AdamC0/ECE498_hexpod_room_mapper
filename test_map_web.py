@@ -7,6 +7,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from unittest import mock
 from types import SimpleNamespace
 
 import numpy as np
@@ -90,6 +91,8 @@ class WebServerTests(unittest.TestCase):
             self.assertIn("id='translation-speed'", body)
             self.assertIn("id='rotation-speed'", body)
             self.assertIn("fetch('/speed.json')", body)
+            self.assertIn('RECOVER CAMERA', body)
+            self.assertIn("fetch('/recover-camera'", body)
             self.assertIn("max='200'", body)
             self.assertNotIn('Navigate to this map position?', body)
 
@@ -123,6 +126,20 @@ class WebServerTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request('/missing')
         self.assertEqual(raised.exception.code, 404)
+
+    def test_camera_recovery_requires_pause_and_reports_result(self):
+        self.node.paused = False
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request('/recover-camera', 'POST')
+        self.assertEqual(raised.exception.code, 409)
+        self.assertIn(b'Pause autonomy', raised.exception.read())
+
+        self.node.paused = True
+        with mock.patch('map_web.recover_camera',
+                        return_value=(True, 'RGB recovery succeeded', 200)) as recover:
+            with self.request('/recover-camera', 'POST') as response:
+                self.assertEqual(response.read(), b'RGB recovery succeeded')
+        recover.assert_called_once_with()
 
     def test_manual_drive_endpoint_validates_commands(self):
         for command in ('forward', 'back', 'left', 'right', 'stop'):

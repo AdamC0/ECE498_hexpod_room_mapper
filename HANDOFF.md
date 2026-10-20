@@ -16,7 +16,7 @@ from the camera. These cells expire after 30 s and never feed Hector. The
 persistent room map and localization therefore remain LiDAR-based while low
 objects can block planned routes.
 
-All 138 tests pass natively on the robot. One supervised 50% speed, 0.55 s
+All 139 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
 0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
@@ -162,7 +162,7 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Restored Hector as the production mapping/localization authority and added a
   separate, temporary registered-depth planner layer.
 
-The deployed suite passes all 138 tests on the robot.
+The deployed suite passes all 139 tests on the robot.
 
 ## Restart procedure
 
@@ -208,7 +208,8 @@ Only one mapper process should exist. Tests do not command the physical robot.
 - Hector has no useful odometry/loop closure in this installation and can
   drift or fold the map. Never treat SLAM coordinates alone as proof of motion.
 - RGB/UVC has stalled while its ROS publisher remained registered.
-  `recover_rgb_camera.sh` provides an in-place recovery: it restarts only
+  The web UI's `RECOVER CAMERA` button runs `recover_rgb_camera.sh` only while
+  autonomy is paused. The script provides an in-place recovery: it restarts only
   `/camera/uvc_color` and re-authorizes the Orbbec RGB USB function
   (`2bc5:0559`, requires sudo) while depth, Hector, and the mapper stay up. A
   live stalled-camera check restored RGB to about 29-31 Hz while depth stayed

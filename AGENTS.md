@@ -102,7 +102,7 @@ recharged; the latest value is recorded below.
 
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, and the web UI are live. The full native suite passes 138 tests. Exactly
+layer, and the web UI are live. The full native suite passes 139 tests. Exactly
 one drive-enabled mapper is `AUTO PAUSED`; the operator confirmed that two
 observed resumptions were caused by pressing `RESUME AUTO`. Native depth is
 upper-only, while the independent registered-depth planner overlay is active.
@@ -118,8 +118,9 @@ After a reboot, RGB/depth may recover but LiDAR may require:
 rosservice call /start_scan '{}'
 ```
 
-If RGB has a publisher but no frames, run `recover_rgb_camera.sh` while autonomy
-is paused, then verify actual RGB messages. This recovery has restored RGB
+If RGB has a publisher but no frames, use the web UI's `RECOVER CAMERA` button
+while autonomy is paused, or run `recover_rgb_camera.sh`, then verify actual RGB
+messages. This recovery has restored RGB
 without interrupting depth, Hector, or the mapper. If it fails, reboot the
 robot and restore LiDAR, Hector, and the mapper. If SLAM jumps or drifts while
 stationary, discard the map and start a fresh Hector frame.

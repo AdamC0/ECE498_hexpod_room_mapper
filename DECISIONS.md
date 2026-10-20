@@ -666,3 +666,19 @@ observed resumptions. The mapper was therefore restarted with `_drive:=true`,
 `_start_paused:=true`, and `_reset_map:=false`. Final checks showed exactly one
 drive-enabled mapper, Hector as the sole SLAM process, `AUTO PAUSED`, and
 command `stop`.
+
+The web interface now provides a `RECOVER CAMERA` control for the recurring
+registered RGB publisher-without-frames condition. The fixed `/recover-camera`
+endpoint requires the mapper to be `AUTO PAUSED`, permits only one recovery at
+a time, and runs the repository's `recover_rgb_camera.sh` with a 135-second
+limit. The browser disables the button while the request is active and reports
+the script's verified success or failure in the telemetry panel. The endpoint
+does not accept a command or path from the browser.
+
+The new endpoint was deployed and used to recover the current RGB failure. It
+re-authorized USB function `1-2.1.3`, started `/camera/uvc_color`, and verified
+a frame. Subsequent measurements reported RGB near 29.7 Hz, native depth near
+29.7 Hz, and registered depth near 29.6 Hz. The temporary planner layer resumed
+with 55 cells and the 30-second hold. The ROS-sourced native suite passes all
+139 tests. Exactly one drive-enabled mapper remains `AUTO PAUSED` with command
+`stop`; no movement command was issued during this recovery or validation.

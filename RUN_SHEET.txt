@@ -39,7 +39,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 138 tests. Tests do not publish robot movement.
+  Current regression count: 139 tests. Tests do not publish robot movement.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
@@ -103,6 +103,7 @@ FAULTS:
     merely because a publisher exists.
 
   RGB publisher but no frames / camera says waiting:
+    With autonomy paused, press RECOVER CAMERA on the web interface, or run:
     cd ~/room_mapper && ./recover_rgb_camera.sh
     Verify /camera/rgb/image_raw publishes frames. This recovery restarts only
     the RGB function; keep autonomy paused. If it fails, reboot the robot, then

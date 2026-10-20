@@ -108,7 +108,8 @@ planner cells and also projects YOLO detections into the map.
 ## Web interface
 
 The dashboard contains live RGB, a robot-centered SLAM map, telemetry,
-pause/resume, route cancellation, map clearing, and manual drive controls.
+pause/resume, camera recovery, route cancellation, map clearing, and manual
+drive controls.
 The Objects tab shows confirmed and pending landmarks. Map and object routes
 always use known-free, footprint-inflated planner space and remain subject to
 live sensor stops.
@@ -190,8 +191,9 @@ A reboot or Hector restart creates a fresh in-memory map.
 
 - `insufficient valid depth in upper band`: verify depth frame rate and valid
   coverage. A live publisher alone does not prove usable depth pixels.
-- RGB publisher present but no frames: while autonomy is paused, run
-  `./recover_rgb_camera.sh` and verify `/camera/rgb/image_raw`. It restarts only
+- RGB publisher present but no frames: while autonomy is paused, press
+  `RECOVER CAMERA` on the web interface, or run `./recover_rgb_camera.sh`, and
+  verify `/camera/rgb/image_raw`. The recovery restarts only
   the RGB node and USB function while preserving depth, Hector, and the mapper.
   If it produces no frame, reboot the robot, then restore LiDAR, Hector, and
   the mapper; call `/start_scan` if needed.
@@ -214,7 +216,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 138 tests and does not publish physical
+The updated suite contains 139 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -222,10 +224,10 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 138 tests passed natively on PT. The current live stack uses Hector, not
+All 139 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
-that two observed resumptions were caused by pressing `RESUME AUTO`. RGB, native and
-registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
+that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
+native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
 layer, battery telemetry, and the web interface are live. The supervising
 operator confirmed that the Hector pulse moved correctly and the map looked
 substantially better; dry-run mode was then disabled without resuming autonomy.
