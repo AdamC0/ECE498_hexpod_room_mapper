@@ -644,3 +644,13 @@ held about 28.7-30.4 Hz while depth remained about 26.3-31.6 Hz. Hector and the
 single drive-enabled mapper stayed live, the mapper remained `AUTO PAUSED`, the
 30-second depth layer continued updating, and battery voltage was 12.214 V. No
 movement command or physical motion occurred during recovery or verification.
+
+At the final post-push check, the mapper no longer reported `AUTO PAUSED`; it
+was in `object_focus` with a stop command after recording six turn scans and a
+SLAM heading near -21.4 degrees. This agent did not issue a resume command, and
+the resume source was not identified. A `/pause` request was sent immediately.
+The controller returned to `SEARCH/survey  AUTO PAUSED` with command `stop` and
+exactly one mapper process. By then SLAM had recorded eleven turn scans and a
+heading near -8.9 degrees. These are SLAM-reported changes only; no person
+reported observing physical motion. Treat the map frame as requiring operator
+inspection before the next autonomous run.

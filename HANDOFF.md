@@ -24,6 +24,12 @@ operator confirmed that it physically moved correctly and that the map looked
 much better. One drive-enabled mapper is left `AUTO PAUSED`; no autonomy-resume
 or additional movement command was sent.
 
+During the latest deployment check, the mapper was briefly found outside the
+paused state even though this agent had not sent a resume command. It was
+paused immediately and is again `AUTO PAUSED` with command `stop`. SLAM logged
+turn scans and changing headings during that interval, but no physical observer
+confirmed motion. Inspect the robot and map frame before resuming autonomy.
+
 Last-known box-validation checkpoint (2026-10-19): RTAB-Map and one mapper were
 left running with `_drive:=false _start_paused:=true`, using the separate
 `/tmp/room_mapper_box_validation.db` database. Latest sampled voltage: 10.069 V.
