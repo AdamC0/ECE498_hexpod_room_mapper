@@ -730,3 +730,15 @@ Regression coverage verifies seamless renewal without another gait command and
 the mandatory stop at the three-second limit. All 143 native tests pass. The
 change was deployed with autonomy paused; smoothness still requires supervised
 physical observation.
+
+## Continuous path following (2026-10-19)
+
+Active frontier and clicked routes now send continuous gait commands without
+the three-second translation stop or half-second turn stop. Direction changes
+are applied on the next controller tick. Turn progress is sampled every
+half-second, with the existing three-failure SLAM guard. Obstacle and freshness
+checks still precede path commands. Recovery remains bounded. YOLO detections
+do not start object focus while a route is active; stationary endpoint surveys
+remain available for mapping landmarks. This reduces opportunities for object
+observations during travel. All 145 native tests pass; physical fluidity has
+not been validated by an agent-commanded motion trial.

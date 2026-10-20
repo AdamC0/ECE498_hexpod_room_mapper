@@ -777,7 +777,7 @@ class RoomMapper:
         focus_id = getattr(self, "object_focus_id", None)
         if focus_id is None:
             if (getattr(self, "paused", True) or
-                    getattr(self, "phase", "") in ("user_go", "goal_reached",
+                    getattr(self, "phase", "") in ("go", "user_go", "goal_reached",
                                                     "goal_stopped", "goal_cancelled")):
                 return
             minimum = getattr(self.object_tracker, "min_observations", 2)
@@ -1276,6 +1276,37 @@ class RoomMapper:
         self.send_actual(cmd)
         self.set_motion(cmd[0] != "stop")
 
+    def send_path(self, cmd):
+        """Follow a sensor-checked route continuously, monitoring turn progress."""
+        now = time.time()
+        if now < self.settle_until and not self.commanded_moving:
+            return
+        previous = self.last_cmd
+        if (previous is not None and previous[0] == "spin" and
+                self.commanded_moving and now >= self.motion_until):
+            start = getattr(self, "pending_spin_yaw", None)
+            progress = (abs(math.atan2(math.sin(self.pose[2] - start),
+                                      math.cos(self.pose[2] - start)))
+                        if start is not None and self.pose is not None else 0.)
+            self.spin_stall_count = (getattr(self, "spin_stall_count", 0) + 1
+                                     if progress < self.min_spin_progress else 0)
+            if self.spin_stall_count >= self.max_spin_stalls:
+                self.send(("stop",))
+                self.map_trusted = False
+                self.clear_object_tracks()
+                self.web_msg = "SLAM LOST: repeated turns made insufficient heading progress"
+                return
+            self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
+            self.motion_until = now + self.spin_burst
+        if cmd != previous or not self.commanded_moving:
+            self.pending_spin_yaw = (self.pose[2] if cmd[0] == "spin" and
+                                     self.pose is not None else None)
+            self.motion_until = now + self.spin_burst
+            # A direction change invalidates any pending stationary observation.
+            self.motion_generation = getattr(self, "motion_generation", 0) + 1
+        self.send_actual(cmd)
+        self.set_motion(True)
+
     def set_state(self, state, reason=""):
         if reason:
             self.state_reason = reason
@@ -1659,7 +1690,7 @@ class RoomMapper:
                 else:
                     self.phase = "plan"
             else:
-                self.send(cmd, interrupt_object=self.phase == "user_go")
+                self.send_path(cmd)
         else:  # fallback wander
             self.send(("forward",))
             if now - self.phase_start > 5:

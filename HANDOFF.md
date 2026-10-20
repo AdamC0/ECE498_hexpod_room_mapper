@@ -16,7 +16,7 @@ from the camera. These cells expire after 30 s and never feed Hector. The
 persistent room map and localization therefore remain LiDAR-based while low
 objects can block planned routes.
 
-All 143 tests pass natively on the robot. One supervised 50% speed, 0.55 s
+All 145 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
 0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
@@ -70,9 +70,8 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   it does not alter Hector pose or `/map`.
 - Frontier and clicked routes use a 0.30 m circular footprint plus 0.03 m
   planning margin.
-- Matching translation commands run smoothly for at most three seconds before
-  a 0.65 s observation stop. Rotation retains 0.50 s bounded bursts and turn
-  progress checks.
+- Active paths use continuous translation and turning, with heading progress
+  checked during turns. Recovery retains bounded motion and settling.
 - Depth is the forward primary signal; LiDAR is an independent 0.45 m
   emergency fallback and supplies rear/rotation clearance.
 - Web UI provides robot-following zoomable/pannable map, click navigation,
@@ -81,11 +80,10 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   autonomous gait output without changing any sensor or planning threshold.
 - The web UI includes a header battery percentage badge with voltage and
   charging details plus clear stale/unavailable states.
-- YOLO landmarks require two distinct observations. Autonomous exploration
+- YOLO landmarks require two distinct observations. Stationary exploration surveys
   holds in `object_focus` until confirmation, two misses, or a 15 s timeout.
-- Slow empty-scene YOLO inference no longer holds every exploration burst.
-  The inference hold applies after a detection is visible so object depth/TF
-  observations are still captured while stationary.
+- Active paths do not wait for YOLO or enter object focus. Object mapping still
+  requires stationary observations; obstacles are handled by depth and LiDAR.
 
 ## Depth/navigation update
 
@@ -170,7 +168,7 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Restored Hector as the production mapping/localization authority and added a
   separate, temporary registered-depth planner layer.
 
-The deployed suite passes all 143 tests on the robot.
+The deployed suite passes all 145 tests on the robot.
 
 ## Restart procedure
 

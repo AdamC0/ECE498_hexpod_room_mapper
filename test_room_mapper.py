@@ -66,7 +66,37 @@ class MapperTests(unittest.TestCase):
         n.spin_stride = 0.0
         n.waypoint_tolerance = .12
         n.handle_web, n.send, n.send_manual = Mock(), Mock(), Mock()
+        n.send_path = Mock()
         return n
+
+    def test_path_motion_continues_and_changes_direction_without_timed_stop(self):
+        n = self.node
+        n.drive, n.commanded_moving = True, True
+        n.last_cmd, n.settle_until = ('forward',), 0.
+        n.pose, n.motion_until = (0., 0., 0.), 1.
+        n.spin_burst = .5
+        n.send_actual, n.set_motion = Mock(), Mock()
+        n.object_processing, n.object_detections = True, [{'label': 'chair'}]
+        with patch('room_mapper.time.time', return_value=100.):
+            n.send_path(('forward',))
+            n.send_actual.assert_called_with(('forward',))
+            n.send_path(('spin', 1.))
+        self.assertEqual(n.send_actual.call_args_list,
+                         [unittest.mock.call(('forward',)), unittest.mock.call(('spin', 1.))])
+
+    def test_continuous_path_turn_faults_after_repeated_no_progress(self):
+        n = self.node
+        n.commanded_moving, n.last_cmd = True, ('spin', 1.)
+        n.settle_until, n.motion_until = 0., 0.
+        n.pending_spin_yaw, n.pose = 0., (0., 0., 0.)
+        n.spin_burst, n.min_spin_progress, n.max_spin_stalls = .5, .05, 3
+        n.send_actual, n.set_motion, n.send = Mock(), Mock(), Mock()
+        n.clear_object_tracks = Mock()
+        for now in (1., 2., 3.):
+            with patch('room_mapper.time.time', return_value=now):
+                n.send_path(('spin', 1.))
+        n.send.assert_called_once_with(('stop',))
+        self.assertFalse(n.map_trusted)
 
     def test_floor_and_body_bob_are_clear(self):
         self.calibrate()

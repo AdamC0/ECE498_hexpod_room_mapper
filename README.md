@@ -51,10 +51,9 @@ medium, charging, stale, and unavailable telemetry.
 ## Current deployed behavior (2026-10-19)
 
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
-- Matching forward or reverse commands join into smooth translation for up to
-  three seconds, then stop for the existing 0.65 s observation interval.
-  Rotation remains bounded to 0.50 s bursts. Stationary surveys require five
-  fresh scans over six seconds.
+- Active paths use continuous translation and turning without timed observation
+  stops. Heading progress is checked during turns. Recovery retains bounded
+  motion; stationary surveys at route endpoints require five scans over six seconds.
 - Routing models the robot as a 0.30 m radius circle. The planner adds a 0.03 m
   margin, so mapped obstacles require 0.33 m clearance.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
@@ -77,12 +76,11 @@ medium, charging, stale, and unavailable telemetry.
   restart and do not alter collision distances, footprint, or dead-man timing.
 - Detected objects are listed in the Objects tab and may be navigated to,
   renamed, or removed. Two distinct observations confirm a landmark.
-- During autonomous mapping, a new tentative object starts `object_focus`:
+- During stationary surveys, a new tentative object starts `object_focus`:
   motion stops until it is confirmed, missed twice, or times out after 15 s.
   Mapping then replans and continues. Rejected candidates may be detected again.
-- Empty-scene YOLO inference does not delay the next exploration burst. Once a
-  YOLO detection is visible, the controller holds for a settled depth/TF
-  observation before continuing or entering `object_focus`.
+- YOLO inference and detections do not interrupt active paths. Object mapping
+  uses stationary observations at stops; depth and LiDAR still block obstacles.
 - RGB failure does not disable depth/LiDAR-protected manual driving. On this
   robot a stalled RGB/UVC stream has required a full robot reboot.
 
@@ -223,7 +221,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 143 tests and does not publish physical
+The updated suite contains 145 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -231,7 +229,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 143 tests passed natively on PT. The current live stack uses Hector, not
+All 145 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
 that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner

@@ -70,7 +70,7 @@ class ObjectPipelineTests(unittest.TestCase):
     def test_auto_mapping_focuses_until_candidate_is_confirmed(self):
         n = self.node
         n.object_tracker = ObjectTracker(min_observations=2)
-        n.paused, n.phase, n.path = False, 'go', [(2., 3.)]
+        n.paused, n.phase, n.path = False, 'survey', [(2., 3.)]
         n.phase_start = 90.
         n.object_focus_seconds, n.object_focus_max_misses = 15., 2
         n.object_focus_id = n.object_focus_label = None
@@ -88,7 +88,7 @@ class ObjectPipelineTests(unittest.TestCase):
     def test_auto_mapping_excludes_candidate_after_distinct_misses(self):
         n = self.node
         n.object_tracker = ObjectTracker(min_observations=2)
-        n.paused, n.phase, n.path = False, 'go', [(2., 3.)]
+        n.paused, n.phase, n.path = False, 'survey', [(2., 3.)]
         n.phase_start = 90.
         n.object_focus_seconds, n.object_focus_max_misses = 15., 2
         n.object_focus_id = n.object_focus_label = None
