@@ -264,7 +264,7 @@ class SurveyMotionTests(unittest.TestCase):
             n.send(('forward',))
             n.send_actual.assert_called_once_with(('forward',))
 
-    def test_motion_waits_for_in_flight_object_inference(self):
+    def test_motion_waits_for_inference_when_object_is_in_view(self):
         n = RoomMapper.__new__(RoomMapper)
         n.drive = n.use_map = True
         n.commanded_moving = False
@@ -275,6 +275,7 @@ class SurveyMotionTests(unittest.TestCase):
         n.survey.observe(1.)
         n.survey.localize(1.)
         n.object_processing = True
+        n.object_detections = [{'label': 'chair'}]
         n.send_actual, n.set_motion = Mock(), Mock()
         n.move_burst, n.spin_burst = .45, .35
         with patch('room_mapper.time.time', return_value=2.):
@@ -283,6 +284,23 @@ class SurveyMotionTests(unittest.TestCase):
             n.object_processing = False
             n.send(('forward',))
             n.send_actual.assert_called_once_with(('forward',))
+
+    def test_motion_continues_through_empty_scene_inference(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.drive = n.use_map = True
+        n.commanded_moving = False
+        n.data_lock = threading.Lock()
+        n.settle_until = 0.
+        n.survey = StationarySurvey(1., 1)
+        n.survey.reset(0.)
+        n.object_processing = True
+        n.object_detections = []
+        n.send_actual, n.set_motion = Mock(), Mock()
+        n.move_burst, n.spin_burst = .45, .35
+        with patch('room_mapper.time.time', return_value=2.):
+            n.send(('forward',))
+        n.send_actual.assert_called_once_with(('forward',))
+        n.set_motion.assert_called_once_with(True)
 
     def test_repeated_missing_heading_progress_faults_after_retries(self):
         n = RoomMapper.__new__(RoomMapper)

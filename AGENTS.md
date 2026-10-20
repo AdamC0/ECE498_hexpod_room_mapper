@@ -58,6 +58,8 @@ one mapper process exists.
 - Map pose jump: 0.25 m / 20 degrees.
 - Turn progress: three consecutive bursts below 3 degrees invalidate SLAM.
 - Object focus: 15 s maximum, two misses, then replan.
+- Empty-scene YOLO inference does not hold exploration motion; an in-flight
+  inference holds motion only after a YOLO detection is already in view.
 
 Depth still cannot guarantee detection of reflective, transparent, out-of-view,
 or invalid geometry. Do not describe the system as fully safe.
@@ -102,7 +104,7 @@ recharged; the latest value is recorded below.
 
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, and the web UI are live. The full native suite passes 139 tests. Exactly
+layer, and the web UI are live. The full native suite passes 140 tests. Exactly
 one drive-enabled mapper is `AUTO PAUSED`; the operator confirmed that two
 observed resumptions were caused by pressing `RESUME AUTO`. Native depth is
 upper-only, while the independent registered-depth planner overlay is active.

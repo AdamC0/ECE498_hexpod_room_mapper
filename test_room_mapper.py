@@ -515,6 +515,7 @@ class MapperTests(unittest.TestCase):
         n.stride, n.step_height, n.step_time = 40., 20., .5
         n.spin_stride, n.spin_rate = 0., .35
         n.motion_generation, n.object_processing = 3, True
+        n.object_detections = [{'label': 'chair'}]
         n.motion_pub = Mock()
         n.robot = SimpleNamespace(traveling=Mock())
 

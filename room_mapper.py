@@ -1220,9 +1220,14 @@ class RoomMapper:
                                     (math.degrees(progress), self.spin_stall_count, limit))
                 return
             self.spin_stall_count = 0
-        # CPU inference is slow on this robot.  Do not invalidate an image and
-        # transform captured at this waypoint by moving just before it commits.
-        if getattr(self, "object_processing", False) and not interrupt_object:
+        # CPU inference is slow on this robot. Keep exploring through an
+        # empty-scene inference; if that inference finds something, its boxes
+        # remain visible and the next settled observation is allowed to finish
+        # before motion resumes. This avoids multi-second pauses between every
+        # gait burst while preserving stable depth/TF observations for objects.
+        object_in_view = bool(getattr(self, "object_detections", []))
+        if (getattr(self, "object_processing", False) and object_in_view and
+                not interrupt_object):
             return
         if cmd[0] == "spin":
             with self.data_lock:

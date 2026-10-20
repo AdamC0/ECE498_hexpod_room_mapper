@@ -682,3 +682,20 @@ a frame. Subsequent measurements reported RGB near 29.7 Hz, native depth near
 with 55 cells and the 30-second hold. The ROS-sourced native suite passes all
 139 tests. Exactly one drive-enabled mapper remains `AUTO PAUSED` with command
 `stop`; no movement command was issued during this recovery or validation.
+
+## Empty-scene YOLO no longer delays exploration (2026-10-19)
+
+Autonomous `send()` previously waited for every in-flight CPU YOLO inference
+before starting the next bounded gait burst. Since inference takes multiple
+seconds on PT, this created a long pause between exploration movements even
+when the view contained no object. Exploration now proceeds through an
+in-flight inference while the last YOLO result has no detections. If an
+inference finds an object, its visible detection causes the next settled
+observation to hold motion until depth/TF mapping completes; tentative objects
+then retain the existing two-observation, two-miss, and 15-second focus rules.
+The 0.65-second post-motion scan-settle interval is unchanged.
+
+Robot-native regression coverage now verifies both branches: an empty-scene
+inference permits the next burst, while an in-flight inference with a visible
+object still holds motion. All 140 tests pass. Deployment was performed with
+autonomy paused; no physical movement was requested for this change.

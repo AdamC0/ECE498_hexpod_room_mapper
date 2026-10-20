@@ -76,6 +76,9 @@ medium, charging, stale, and unavailable telemetry.
 - During autonomous mapping, a new tentative object starts `object_focus`:
   motion stops until it is confirmed, missed twice, or times out after 15 s.
   Mapping then replans and continues. Rejected candidates may be detected again.
+- Empty-scene YOLO inference does not delay the next exploration burst. Once a
+  YOLO detection is visible, the controller holds for a settled depth/TF
+  observation before continuing or entering `object_focus`.
 - RGB failure does not disable depth/LiDAR-protected manual driving. On this
   robot a stalled RGB/UVC stream has required a full robot reboot.
 
@@ -216,7 +219,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 139 tests and does not publish physical
+The updated suite contains 140 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -224,7 +227,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 139 tests passed natively on PT. The current live stack uses Hector, not
+All 140 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
 that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner

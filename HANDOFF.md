@@ -16,7 +16,7 @@ from the camera. These cells expire after 30 s and never feed Hector. The
 persistent room map and localization therefore remain LiDAR-based while low
 objects can block planned routes.
 
-All 139 tests pass natively on the robot. One supervised 50% speed, 0.55 s
+All 140 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
 0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
@@ -81,6 +81,9 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   charging details plus clear stale/unavailable states.
 - YOLO landmarks require two distinct observations. Autonomous exploration
   holds in `object_focus` until confirmation, two misses, or a 15 s timeout.
+- Slow empty-scene YOLO inference no longer holds every exploration burst.
+  The inference hold applies after a detection is visible so object depth/TF
+  observations are still captured while stationary.
 
 ## Depth/navigation update
 
@@ -162,7 +165,7 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Restored Hector as the production mapping/localization authority and added a
   separate, temporary registered-depth planner layer.
 
-The deployed suite passes all 139 tests on the robot.
+The deployed suite passes all 140 tests on the robot.
 
 ## Restart procedure
 
