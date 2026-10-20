@@ -712,3 +712,21 @@ LiDAR clearance of at least 0.65 m. It remains disabled when depth reports a
 floor bump or dropout/too-close condition because the rear has no depth view.
 Regression coverage verifies both escalation with clear rear space and refusal
 to reverse when rear clearance is insufficient. All 142 native tests pass.
+
+## Translation joins bounded bursts for smoother gait (2026-10-19)
+
+Autonomous translation previously stopped after every one-second gait command
+and waited 0.65 seconds before restarting, producing a pronounced stop/start
+cadence. When the planner continues requesting the same forward or reverse
+command, the controller now renews the translation window without issuing a
+gait stop, up to a three-second continuous limit. It then performs the existing
+0.65-second stationary interval for clean SLAM scans and YOLO/depth/TF
+observations. Rotation remains limited to 0.50-second bursts so measured turn
+progress is still checked after each burst. Sensor, pose, map, obstacle, web
+pause, and route logic continue running at the 10 Hz controller rate and can
+still issue an immediate stop.
+
+Regression coverage verifies seamless renewal without another gait command and
+the mandatory stop at the three-second limit. All 143 native tests pass. The
+change was deployed with autonomy paused; smoothness still requires supervised
+physical observation.

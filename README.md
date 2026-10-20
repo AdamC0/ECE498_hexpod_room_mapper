@@ -51,8 +51,10 @@ medium, charging, stale, and unavailable telemetry.
 ## Current deployed behavior (2026-10-19)
 
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
-- Translation and rotation use bounded bursts separated by a 0.65 s settling
-  interval. Stationary surveys require five fresh scans over six seconds.
+- Matching forward or reverse commands join into smooth translation for up to
+  three seconds, then stop for the existing 0.65 s observation interval.
+  Rotation remains bounded to 0.50 s bursts. Stationary surveys require five
+  fresh scans over six seconds.
 - Routing models the robot as a 0.30 m radius circle. The planner adds a 0.03 m
   margin, so mapped obstacles require 0.33 m clearance.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
@@ -221,7 +223,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 142 tests and does not publish physical
+The updated suite contains 143 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -229,7 +231,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 142 tests passed natively on PT. The current live stack uses Hector, not
+All 143 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
 that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner

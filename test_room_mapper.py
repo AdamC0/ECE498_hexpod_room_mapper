@@ -505,6 +505,7 @@ class MapperTests(unittest.TestCase):
         n.commanded_moving, n.motion_until = False, 0
         n.settle_until, n.scan_settle = 0, .65
         n.move_burst, n.spin_burst = .45, .35
+        n.max_continuous_translation = 1.0
         n.stride, n.step_height, n.step_time = 40., 20., .5
         n.spin_stride, n.spin_rate = 0., .35
         n.motion_pub = Mock()
@@ -512,10 +513,41 @@ class MapperTests(unittest.TestCase):
         n.send(('forward',))
         self.assertTrue(n.commanded_moving)
         n.motion_until = time.time() - .01
+        n.continuous_translation_start = time.time() - 1.01
         n.send(('forward',))
         self.assertFalse(n.commanded_moving)
         self.assertEqual(n.last_cmd, ('stop',))
         n.send(('forward',))
+        self.assertEqual(n.last_cmd, ('stop',))
+
+    def test_matching_translation_renews_smoothly_until_continuous_limit(self):
+        n = self.node
+        n.drive, n.last_cmd = True, None
+        n.commanded_moving, n.motion_until = False, 0.
+        n.settle_until, n.scan_settle = 0., .65
+        n.move_burst, n.spin_burst = 1., .5
+        n.max_continuous_translation = 3.
+        n.stride, n.step_height, n.step_time = 40., 20., .5
+        n.spin_stride, n.spin_rate = 0., .35
+        n.object_processing, n.object_detections = False, []
+        n.motion_pub = Mock()
+        n.robot = SimpleNamespace(traveling=Mock())
+        with patch('room_mapper.time.time', return_value=10.):
+            n.send(('forward',))
+        self.assertTrue(n.commanded_moving)
+        self.assertEqual(n.continuous_translation_start, 10.)
+
+        n.motion_until = 11.
+        with patch('room_mapper.time.time', return_value=11.1):
+            n.send(('forward',))
+        self.assertTrue(n.commanded_moving)
+        self.assertAlmostEqual(n.motion_until, 12.1)
+        self.assertEqual(n.robot.traveling.call_count, 1)
+
+        n.motion_until = 13.
+        with patch('room_mapper.time.time', return_value=13.1):
+            n.send(('forward',))
+        self.assertFalse(n.commanded_moving)
         self.assertEqual(n.last_cmd, ('stop',))
 
     def test_speed_percentages_scale_translation_and_rotation(self):

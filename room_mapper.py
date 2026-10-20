@@ -166,6 +166,11 @@ class RoomMapper:
         # complete a step, which previously produced commands with no travel.
         self.move_burst = float(rospy.get_param("~move_burst", 1.0))
         self.spin_burst = float(rospy.get_param("~spin_burst", 0.50))
+        self.max_continuous_translation = float(rospy.get_param(
+            "~max_continuous_translation", 3.0))
+        if (not math.isfinite(self.max_continuous_translation) or
+                not 1.0 <= self.max_continuous_translation <= 10.0):
+            raise ValueError("max_continuous_translation must be between 1 and 10 seconds")
         self.min_spin_progress = math.radians(float(rospy.get_param(
             "~min_spin_progress_deg", 3.0)))
         self.max_spin_stalls = int(rospy.get_param("~max_spin_stalls", 3))
@@ -323,6 +328,7 @@ class RoomMapper:
         self.avoid_dir = 1.0
         self.last_cmd = None
         self.motion_until = 0.0
+        self.continuous_translation_start = 0.0
         self.last_scan_stamp = 0.0
         self.stable_stationary_scans = 0
         self.stable_turn_scans = 0
@@ -1178,6 +1184,7 @@ class RoomMapper:
         if cmd[0] == "stop":
             was_moving = self.commanded_moving
             self.motion_until = 0.0
+            self.continuous_translation_start = 0.0
             self.send_actual(cmd)
             self.set_motion(False)
             if was_moving:
@@ -1188,8 +1195,21 @@ class RoomMapper:
             return
         if self.commanded_moving:
             if now >= self.motion_until:
+                object_hold = (getattr(self, "object_processing", False) and
+                               bool(getattr(self, "object_detections", [])) and
+                               not interrupt_object)
+                translation_start = getattr(self, "continuous_translation_start", now)
+                continuous_limit = getattr(self, "max_continuous_translation", 3.0)
+                can_continue = (cmd == self.last_cmd and cmd[0] in ("forward", "back") and
+                                not object_hold and
+                                now - translation_start < continuous_limit)
+                if can_continue:
+                    remaining = continuous_limit - (now - translation_start)
+                    self.motion_until = now + min(self.move_burst, remaining)
+                    return
                 self.send_actual(("stop",))
                 self.set_motion(False)
+                self.continuous_translation_start = 0.0
                 self.settle_until = time.time() + self.scan_settle
                 if hasattr(self, "survey"):
                     with self.data_lock:
@@ -1239,6 +1259,7 @@ class RoomMapper:
                 self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
         self.send_actual(cmd)
         self.set_motion(True)
+        self.continuous_translation_start = (now if cmd[0] in ("forward", "back") else 0.0)
         self.motion_until = now + (self.spin_burst if cmd[0] == "spin" else self.move_burst)
 
     def send_manual(self, cmd):
@@ -1250,6 +1271,7 @@ class RoomMapper:
         lost browser event still issues a stop.
         """
         self.motion_until = 0.0
+        self.continuous_translation_start = 0.0
         self.pending_spin_yaw = None
         self.send_actual(cmd)
         self.set_motion(cmd[0] != "stop")
