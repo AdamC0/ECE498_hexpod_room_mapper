@@ -129,4 +129,6 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   One 50% speed, 0.55 s forward pulse completed and dead-man stopped; Hector
   reported about 0.027 m translation and 0.9 degrees rotation. The operator
   confirmed correct physical movement and a substantially improved map. Dry
-  run was then disabled; autonomy remains paused. Battery was about 88%.
+  run is disabled and autonomy remains paused. The operator confirmed that two
+  observed resumptions were caused by pressing RESUME AUTO. Inspect the robot
+  and map before the next autonomous run. Battery was about 88%.

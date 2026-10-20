@@ -103,9 +103,9 @@ recharged; the latest value is recorded below.
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
 layer, and the web UI are live. The full native suite passes 138 tests. Exactly
-one drive-enabled mapper is `AUTO PAUSED`. Native depth is upper-only, while
-the independent registered-depth planner overlay is active. Dry run is disabled,
-but autonomy has not been resumed.
+one drive-enabled mapper is `AUTO PAUSED`; the operator confirmed that two
+observed resumptions were caused by pressing `RESUME AUTO`. Native depth is
+upper-only, while the independent registered-depth planner overlay is active.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

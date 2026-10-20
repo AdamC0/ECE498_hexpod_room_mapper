@@ -647,10 +647,22 @@ movement command or physical motion occurred during recovery or verification.
 
 At the final post-push check, the mapper no longer reported `AUTO PAUSED`; it
 was in `object_focus` with a stop command after recording six turn scans and a
-SLAM heading near -21.4 degrees. This agent did not issue a resume command, and
-the resume source was not identified. A `/pause` request was sent immediately.
+SLAM heading near -21.4 degrees. This agent did not issue a resume command. A
+`/pause` request was sent immediately.
 The controller returned to `SEARCH/survey  AUTO PAUSED` with command `stop` and
 exactly one mapper process. By then SLAM had recorded eleven turn scans and a
 heading near -8.9 degrees. These are SLAM-reported changes only; no person
-reported observing physical motion. Treat the map frame as requiring operator
-inspection before the next autonomous run.
+reported observing physical motion. The operator later confirmed this was the
+first of two times they pressed `RESUME AUTO`. Treat the map frame as requiring
+operator inspection before the next autonomous run.
+
+A later check found the mapper outside the paused state again, now in
+`SEARCH/go` with command `forward`. SLAM reported pose near `(0.60, -0.01)` m;
+an immediate pause returned command `stop`, by which time SLAM reported about
+`(0.74, 0.01)` m and -41.6 degrees with 28 turn scans. No physical observer was
+present, so these remain SLAM-reported changes rather than confirmed physical
+motion. The operator later confirmed pressing `RESUME AUTO` before both
+observed resumptions. The mapper was therefore restarted with `_drive:=true`,
+`_start_paused:=true`, and `_reset_map:=false`. Final checks showed exactly one
+drive-enabled mapper, Hector as the sole SLAM process, `AUTO PAUSED`, and
+command `stop`.
