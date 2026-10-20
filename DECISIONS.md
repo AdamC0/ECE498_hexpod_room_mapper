@@ -699,3 +699,16 @@ Robot-native regression coverage now verifies both branches: an empty-scene
 inference permits the next burst, while an in-flight inference with a visible
 object still holds motion. All 140 tests pass. Deployment was performed with
 autonomy paused; no physical movement was requested for this change.
+
+## Persistent corner blockage escalates to reverse (2026-10-19)
+
+The existing recovery selected reverse immediately when the circular rotation
+footprint was occupied, but selected turning without a time limit whenever
+rotation was geometrically possible. This could leave the robot repeatedly
+turning in a corner while its forward path remained blocked. A spin recovery
+that remains front-blocked for 2.5 seconds now escalates to the existing
+one-second reverse escape. The reverse still requires both rear and near-rear
+LiDAR clearance of at least 0.65 m. It remains disabled when depth reports a
+floor bump or dropout/too-close condition because the rear has no depth view.
+Regression coverage verifies both escalation with clear rear space and refusal
+to reverse when rear clearance is insufficient. All 142 native tests pass.

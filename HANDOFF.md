@@ -16,7 +16,7 @@ from the camera. These cells expire after 30 s and never feed Hector. The
 persistent room map and localization therefore remain LiDAR-based while low
 objects can block planned routes.
 
-All 140 tests pass natively on the robot. One supervised 50% speed, 0.55 s
+All 142 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
 0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
@@ -91,6 +91,9 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   left/center/right depth clearance.
 - Recovery follows the selected route's turn direction when that side remains
   clear, then falls back to combined depth/LiDAR side clearance.
+- A front obstacle that persists through 2.5 seconds of turning now escalates
+  to a one-second reverse escape when rear LiDAR clearance is at least 0.65 m.
+  Floor-bump and depth-dropout alarms still prohibit autonomous reversing.
 - Map JPEG responses carry their rendered center/scale; browser clicks return
   that snapshot, preventing pose drift between render and click conversion.
 - Removed the click-to-navigate confirmation dialog.
@@ -165,7 +168,7 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Restored Hector as the production mapping/localization authority and added a
   separate, temporary registered-depth planner layer.
 
-The deployed suite passes all 140 tests on the robot.
+The deployed suite passes all 142 tests on the robot.
 
 ## Restart procedure
 

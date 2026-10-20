@@ -60,6 +60,8 @@ medium, charging, stale, and unavailable telemetry.
 - A blocked autonomous route may rotate toward an open side or reverse when
   rotation is constrained and rear LiDAR clearance is available. This applies
   to mapping and clicked/object routes. Cancel Route stops and pauses a route.
+- If the front remains blocked after 2.5 seconds of turning, corner recovery
+  escalates to the same guarded reverse escape when rear LiDAR is clear.
 - One weak turn no longer invalidates SLAM. Three consecutive turn bursts with
   less than 3 degrees of measured heading progress latch `SLAM LOST`.
 - Pose updates larger than 0.25 m or 20 degrees still invalidate the map.
@@ -219,7 +221,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 140 tests and does not publish physical
+The updated suite contains 142 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -227,7 +229,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 140 tests passed natively on PT. The current live stack uses Hector, not
+All 142 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
 that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner

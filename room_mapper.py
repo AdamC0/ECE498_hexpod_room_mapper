@@ -155,8 +155,13 @@ class RoomMapper:
         self.hold_seconds = float(rospy.get_param("~hold_seconds", 2.0))
         self.avoid_seconds = float(rospy.get_param("~avoid_seconds", 2.0))
         self.reverse_seconds = float(rospy.get_param("~reverse_seconds", 1.0))
-        if not math.isfinite(self.reverse_seconds) or not 0.3 <= self.reverse_seconds <= 3.0:
-            raise ValueError("reverse_seconds must be between 0.3 and 3.0 seconds")
+        self.reverse_after_turn_seconds = float(rospy.get_param(
+            "~reverse_after_turn_seconds", 2.5))
+        if (not math.isfinite(self.reverse_seconds) or
+                not 0.3 <= self.reverse_seconds <= 3.0 or
+                not math.isfinite(self.reverse_after_turn_seconds) or
+                not 1.0 <= self.reverse_after_turn_seconds <= 10.0):
+            raise ValueError("reverse timing is outside the supported range")
         # One gait cycle is 0.50 s.  A shorter burst can stop before the feet
         # complete a step, which previously produced commands with no travel.
         self.move_burst = float(rospy.get_param("~move_burst", 1.0))
@@ -1530,6 +1535,15 @@ class RoomMapper:
                 else:
                     self.send(("stop",))
                     self.set_state(HOLD, "rotation and reverse paths occupied")
+                return
+            if (blocked and rear_clear and self.recovery_action == "spin" and
+                    now - self.recovery_start >= getattr(
+                        self, "reverse_after_turn_seconds", 2.5)):
+                self.recovery_action = "back"
+                self.recovery_start = now
+                self.web_msg = ("Recovery: front remained blocked after turning; "
+                                "reversing to escape corner")
+                self.send(("back",), interrupt_object=True)
                 return
             if (blocked and self.commanded_moving and self.last_cmd is not None and
                     self.last_cmd[0] == "forward"):

@@ -59,6 +59,7 @@ class MapperTests(unittest.TestCase):
         n.manual_cmd, n.manual_until, n.manual_deadman = None, 0., .55
         n.depth_stop, n.lidar_stop, n.body_radius = 0.60, 0.40, 0.25
         n.reverse_seconds = 1.0
+        n.reverse_after_turn_seconds = 2.5
         n.slam_stale, n.map_trusted = 2.5, True
         n.drive, n.pose_guard_start = False, 0.
         n.commanded_moving, n.last_cmd = False, None
@@ -305,6 +306,30 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.recovery_action, 'back')
         self.assertEqual(n.user_goal, (1., 0., 'desk', .75))
         n.send.assert_called_with(('back',), interrupt_object=True)
+
+    def test_persistent_corner_block_escalates_turn_to_reverse(self):
+        n = self.controller()
+        n.depth[20:55, 20:80] = .55
+        n.state = AVOID
+        n.recovery_action = 'spin'
+        n.avoid_dir = 1.0
+        n.recovery_start = time.time() - 3.
+        n.control_step()
+        self.assertEqual(n.recovery_action, 'back')
+        self.assertIn('escape corner', n.web_msg)
+        n.send.assert_called_with(('back',), interrupt_object=True)
+
+    def test_corner_escape_does_not_reverse_without_rear_clearance(self):
+        n = self.controller()
+        n.depth[20:55, 20:80] = .55
+        n.lidar['back'] = n.lidar['near_back'] = .45
+        n.state = AVOID
+        n.recovery_action = 'spin'
+        n.avoid_dir = -1.0
+        n.recovery_start = time.time() - 3.
+        n.control_step()
+        self.assertEqual(n.recovery_action, 'spin')
+        n.send.assert_called_with(('spin', n.avoid_dir), interrupt_object=True)
 
     def test_manual_deadman_stops_expired_command(self):
         n = self.controller()

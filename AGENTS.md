@@ -60,6 +60,9 @@ one mapper process exists.
 - Object focus: 15 s maximum, two misses, then replan.
 - Empty-scene YOLO inference does not hold exploration motion; an in-flight
   inference holds motion only after a YOLO detection is already in view.
+- Persistent front blockage escalates from turning to a one-second reverse
+  after 2.5 s only with at least 0.65 m rear LiDAR clearance; floor-bump and
+  depth-dropout alarms prohibit reverse.
 
 Depth still cannot guarantee detection of reflective, transparent, out-of-view,
 or invalid geometry. Do not describe the system as fully safe.
@@ -104,7 +107,7 @@ recharged; the latest value is recorded below.
 
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, and the web UI are live. The full native suite passes 140 tests. Exactly
+layer, and the web UI are live. The full native suite passes 142 tests. Exactly
 one drive-enabled mapper is `AUTO PAUSED`; the operator confirmed that two
 observed resumptions were caused by pressing `RESUME AUTO`. Native depth is
 upper-only, while the independent registered-depth planner overlay is active.
