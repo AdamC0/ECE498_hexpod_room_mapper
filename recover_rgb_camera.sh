@@ -6,6 +6,15 @@ set -euo pipefail
 RGB_VENDOR="2bc5"
 RGB_PRODUCT="0559"
 SYS_USB="/sys/bus/usb/devices"
+JETHEXA_SETUP="${JETHEXA_SETUP:-$HOME/jethexa/devel/setup.bash}"
+
+if [[ ! -f "$JETHEXA_SETUP" ]]; then
+  echo "ROS workspace setup not found: $JETHEXA_SETUP" >&2
+  exit 1
+fi
+set +u
+source "$JETHEXA_SETUP"
+set -u
 
 matches=()
 for device in "$SYS_USB"/*; do
@@ -50,7 +59,18 @@ camera_pid=$!
 disown "$camera_pid" 2>/dev/null || true
 
 echo "Started /camera/uvc_color as PID $camera_pid; checking RGB frames..."
-if timeout 10 rostopic hz -w 8 /camera/rgb/image_raw 2>&1 | grep -q "average rate"; then
+node_ready=false
+deadline=$((SECONDS + 30))
+while (( SECONDS < deadline )); do
+  if rosnode ping -c 1 /camera/uvc_color >/dev/null 2>&1; then
+    node_ready=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$node_ready" == true ]] &&
+   timeout 90 rostopic echo -n 1 /camera/rgb/image_raw >/dev/null 2>&1; then
   echo "RGB recovery succeeded"
 else
   echo "RGB recovery failed; inspect $log and dmesg" >&2

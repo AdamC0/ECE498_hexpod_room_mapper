@@ -118,9 +118,11 @@ After a reboot, RGB/depth may recover but LiDAR may require:
 rosservice call /start_scan '{}'
 ```
 
-If RGB has a publisher but no frames, a full robot reboot has been the reliable
-recovery. After reboot restore LiDAR, Hector, and the mapper. If SLAM jumps or
-drifts while stationary, discard the map and start a fresh Hector frame.
+If RGB has a publisher but no frames, run `recover_rgb_camera.sh` while autonomy
+is paused, then verify actual RGB messages. This recovery has restored RGB
+without interrupting depth, Hector, or the mapper. If it fails, reboot the
+robot and restore LiDAR, Hector, and the mapper. If SLAM jumps or drifts while
+stationary, discard the map and start a fresh Hector frame.
 
 Always separate unit-test success, no-drive live evidence, SLAM-reported motion,
 and physically observed robot motion in reports.

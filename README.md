@@ -187,8 +187,11 @@ A reboot or Hector restart creates a fresh in-memory map.
 
 - `insufficient valid depth in upper band`: verify depth frame rate and valid
   coverage. A live publisher alone does not prove usable depth pixels.
-- RGB publisher present but no frames: reboot the robot, then restore LiDAR,
-  Hector, and the mapper; call `/start_scan` if needed.
+- RGB publisher present but no frames: while autonomy is paused, run
+  `./recover_rgb_camera.sh` and verify `/camera/rgb/image_raw`. It restarts only
+  the RGB node and USB function while preserving depth, Hector, and the mapper.
+  If it produces no frame, reboot the robot, then restore LiDAR, Hector, and
+  the mapper; call `/start_scan` if needed.
 - `SLAM LOST` or stationary pose drift: stop the mapper, reset/restart Hector,
   and start a fresh map. Do not continue routing on the invalid grid.
 - TF timeout: verify

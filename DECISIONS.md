@@ -575,3 +575,36 @@ preserving the current Hector frame. Final live checks showed one mapper, one
 Hector process, no RTAB process, localized stationary survey, approximately 4%
 known map coverage, an updating depth layer, 1.11 m front LiDAR clearance, and
 12.265 V (about 88%) battery telemetry. No resume or movement command was sent.
+
+## In-place RGB/UVC recovery validation - 2026-10-19
+
+The registered `/camera/uvc_color` node again stopped emitting RGB frames while
+depth continued near 30 Hz. With Hector and exactly one drive-enabled mapper
+running and `AUTO PAUSED`, `recover_rgb_camera.sh` stopped only the stale RGB
+node, re-authorized the Orbbec `2bc5:0559` USB function, and launched a fresh
+RGB node. Kernel logs briefly reported XUSB ring-expansion and URB allocation
+errors, but RGB resumed at about 29-31 Hz. Depth, Hector, the mapper, the map,
+and the temporary depth layer remained live. Battery voltage after recovery was
+12.121 V. No movement command or physical motion occurred.
+
+The recovery itself succeeded, but the script printed a false failure. Its
+`rostopic hz | grep -q` validation ran under `set -o pipefail`; after `grep -q`
+found the first rate line and closed the pipe, the producer's SIGPIPE status
+could make the whole pipeline fail. The replacement check waits up to 30
+seconds for the relaunched node, then holds one `rostopic echo` subscription
+open for up to 90 seconds for an actual RGB message. This avoids both the
+registration race and repeated subscriber churn while allowing for the delayed
+USB recovery observed live. The script also sources the JetHexa workspace setup
+itself; without that, a non-login SSH invocation could re-authorize USB but fail
+to run `rosrun` or the validation commands. The final check directly verifies
+the condition needed by downstream consumers. A full reboot remains the
+fallback if the in-place recovery produces no frame. The separate vendor-driver
+subscription patch remains undeployed and unvalidated.
+
+During correction testing, short validation deadlines twice expired while the
+XUSB driver was still reporting ring-expansion and URB allocation errors. RGB
+subsequently recovered without a reboot and stabilized around 29-30 Hz; depth
+remained around 29-34 Hz, Hector and exactly one drive-enabled mapper stayed
+live, the mapper remained `AUTO PAUSED`, and battery voltage was 12.198 V. No
+movement command or physical motion occurred. The longer single-subscription
+check reflects that measured delayed-recovery behavior.

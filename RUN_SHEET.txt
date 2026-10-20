@@ -102,7 +102,10 @@ FAULTS:
     merely because a publisher exists.
 
   RGB publisher but no frames / camera says waiting:
-    Reboot the robot. Restore /start_scan, Hector, and mapper afterward.
+    cd ~/room_mapper && ./recover_rgb_camera.sh
+    Verify /camera/rgb/image_raw publishes frames. This recovery restarts only
+    the RGB function; keep autonomy paused. If it fails, reboot the robot, then
+    restore /start_scan, Hector, and the mapper.
 
   SLAM LOST / pose jump / sustained stationary drift:
     Stop. Reset or restart Hector and begin a fresh map. Never reuse the

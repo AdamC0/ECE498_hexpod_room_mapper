@@ -198,15 +198,24 @@ Only one mapper process should exist. Tests do not command the physical robot.
 
 - Hector has no useful odometry/loop closure in this installation and can
   drift or fold the map. Never treat SLAM coordinates alone as proof of motion.
-- RGB/UVC has stalled while its ROS publisher remained registered. A full
-  robot reboot restored it when in-process restarts did not.
-  `recover_rgb_camera.sh` attempts an in-place recovery: it restarts only
+- RGB/UVC has stalled while its ROS publisher remained registered.
+  `recover_rgb_camera.sh` provides an in-place recovery: it restarts only
   `/camera/uvc_color` and re-authorizes the Orbbec RGB USB function
-  (`2bc5:0559`, requires sudo) while depth, Hector, and the mapper stay up.
+  (`2bc5:0559`, requires sudo) while depth, Hector, and the mapper stay up. A
+  live stalled-camera check restored RGB to about 29-31 Hz while depth stayed
+  near 30 Hz, Hector stayed live, and one drive-enabled mapper remained
+  `AUTO PAUSED`. No movement was commanded. The script now verifies recovery
+  by waiting up to 30 seconds for the relaunched node and then holding one
+  subscription open for up to 90 seconds for an actual RGB message. This
+  tolerates delayed USB recovery without repeatedly adding and removing camera
+  subscribers. It also initializes the JetHexa ROS workspace itself so it
+  works from a non-login SSH command. Its former `rostopic hz | grep -q`
+  pipeline could report failure after finding a rate because `pipefail`
+  propagated the producer's SIGPIPE status. A full reboot remains the fallback
+  if in-place recovery produces no frame.
   `patches/astra_camera_subscription_restart.patch` changes the vendor
   `libuvc_camera` driver so a duplicate subscriber callback no longer restarts
-  a running stream. Neither is recorded as deployed or validated yet; a reboot
-  remains the known-good recovery.
+  a running stream. That driver patch is not recorded as deployed or validated.
 - Native-depth floor calibration often falls back to upper-only mode, so its
   floor-bump alarm may be unavailable. The registered-depth planner overlay is
   independent, but has not yet been validated with a measured low object.
