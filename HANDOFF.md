@@ -12,11 +12,11 @@ sole authority for `/slam_out_pose`, `/map`, and the robot marker.
 
 Registered depth is now projected through timestamped TF into short-lived
 planner cells for clustered geometry 0.025-0.50 m above the floor and 0.15-2 m
-from the camera. These cells expire after 2.5 s and never feed Hector. The
+from the camera. These cells expire after 30 s and never feed Hector. The
 persistent room map and localization therefore remain LiDAR-based while low
 objects can block planned routes.
 
-All 136 tests pass natively on the robot. One supervised 50% speed, 0.55 s
+All 138 tests pass natively on the robot. One supervised 50% speed, 0.55 s
 forward pulse on the hybrid stack completed and dead-man stopped. Hector pose
 changed coherently from about `(0.000, 0.006)` to `(0.027, 0.004)` m with about
 0.9 degrees heading change; `/map` stayed active at roughly 4% known. The
@@ -87,9 +87,10 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   autonomous sensing/planning/burst restrictions. Release/blur and the 0.55 s
   server dead-man remain active.
 - Slider range is 50-200% locally.
-- Added a Hector-frame registered-depth obstacle layer with 2.5 s expiry. This
+- Added a Hector-frame registered-depth obstacle layer with 30 s expiry. This
   retains the original LiDAR mapping behavior while making clustered low
-  geometry available to route inflation.
+  geometry available to route inflation. The web map renders depth-only cells
+  in magenta and LiDAR occupancy in black.
 - `visual_slam.launch` remains for non-production experiments only. Never run
   it together with Hector.
 
@@ -122,7 +123,7 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - close-depth exclusion is disabled (`0.00 m`)
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
-- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 2.5 s TTL
+- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL
 - object confirmation: 2 observations
 - object focus: 15 s or 2 distinct misses
 - weak turn tolerance: fault after 3 consecutive bursts below 3 degrees
@@ -153,7 +154,7 @@ invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
 - Restored Hector as the production mapping/localization authority and added a
   separate, temporary registered-depth planner layer.
 
-The deployed suite passes all 136 tests on the robot.
+The deployed suite passes all 138 tests on the robot.
 
 ## Restart procedure
 

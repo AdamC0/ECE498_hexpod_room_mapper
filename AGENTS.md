@@ -52,7 +52,7 @@ one mapper process exists.
 - Depth stop: 0.60 m.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
-- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 2.5 s TTL.
+- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL.
 - Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
   or no previous valid result still faults.
 - Map pose jump: 0.25 m / 20 degrees.
@@ -70,7 +70,7 @@ mapper. Hector is restored as the production localization and mapping path.
 Registered depth is projected through timestamped TF into temporary planner
 cells for low geometry, without modifying Hector's map or pose.
 
-All 136 robot-native tests pass. A supervised 50% speed, 0.55 s forward pulse
+All 138 robot-native tests pass. A supervised 50% speed, 0.55 s forward pulse
 on the hybrid stack dead-man stopped normally; Hector reported about 0.027 m
 translation and 0.9 degrees rotation while `/map` remained live. The operator
 confirmed correct motion and a substantially improved map.
@@ -102,7 +102,7 @@ recharged; the latest value is recorded below.
 
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, and the web UI are live. The full native suite passes 136 tests. Exactly
+layer, and the web UI are live. The full native suite passes 138 tests. Exactly
 one drive-enabled mapper is `AUTO PAUSED`. Native depth is upper-only, while
 the independent registered-depth planner overlay is active. Dry run is disabled,
 but autonomy has not been resumed.

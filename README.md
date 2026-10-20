@@ -13,11 +13,12 @@ offline web dashboard at `http://192.168.137.223:8000`.
 Hector is again authoritative for robot pose and the persistent LiDAR room map.
 Registered depth is projected through timestamped TF into a temporary planner
 layer for geometry 0.025-0.50 m above the floor and 0.15-2.0 m from the camera.
-Depth cells expire after 2.5 s, so moved objects do not become permanent walls.
+Depth cells expire after 30 s, retaining low obstacles through the camera's
+close-range blind area without making moved objects permanent walls.
 The depth layer does not feed Hector and therefore cannot move the robot marker
 or distort the LiDAR map.
 
-The hybrid passed all 136 robot-native tests. During a supervised 50% speed,
+The hybrid passed all 138 robot-native tests. During a supervised 50% speed,
 0.55 s forward pulse, Hector reported a coherent change from approximately
 `(0.000, 0.006)` to `(0.027, 0.004)` m and about 0.9 degrees. The dead-man stop,
 LiDAR map, and depth planner layer remained active. Physical confirmation of
@@ -100,7 +101,9 @@ planner cells and also projects YOLO detections into the map.
   reported `upper-only` mode; floor-bump detection is then unavailable.
 - The registered-depth planner layer is independent of that per-row floor
   calibration. It rejects points below 0.025 m as floor and above 0.50 m, keeps
-  only clustered cells, and expires observations after 2.5 s.
+  only clustered cells, and expires observations after 30 s. Each new
+  observation refreshes the cell's hold. On the web map, LiDAR walls are black
+  and depth-only obstacles are magenta; cells confirmed by both remain black.
 
 ## Web interface
 
@@ -211,7 +214,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 136 tests and does not publish physical
+The updated suite contains 138 tests and does not publish physical
 movement during test execution:
 
 ```bash
@@ -219,7 +222,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 136 tests passed natively on PT. The current live stack uses Hector, not
+All 138 tests passed natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. RGB, native and
 registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
 layer, battery telemetry, and the web interface are live. The supervising

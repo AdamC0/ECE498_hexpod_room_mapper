@@ -608,3 +608,39 @@ remained around 29-34 Hz, Hector and exactly one drive-enabled mapper stayed
 live, the mapper remained `AUTO PAUSED`, and battery voltage was 12.198 V. No
 movement command or physical motion occurred. The longer single-subscription
 check reflects that measured delayed-recovery behavior.
+
+## Retain and distinguish low depth obstacles - 2026-10-19
+
+The operator reported that the registered-depth obstacle layer works, but its
+2.5-second cells disappeared after low objects entered the camera's close-range
+blind area. Autonomous planning could then treat the cleared cell as traversable
+and approach the object. The default `_depth_map_ttl` is increased to 30
+seconds. Repeated observations refresh each cell independently. This retains a
+low obstacle across many movement, settling, and replanning cycles while still
+allowing moved objects to clear without modifying Hector's persistent map.
+
+The planner now exposes a separate live depth-cell mask to the web renderer.
+LiDAR occupancy remains black, depth-only occupied cells render magenta, and a
+cell occupied by both sources remains black. This is a display distinction
+only: both sources use the same occupied state, footprint inflation, and route
+blocking behavior. The page includes the color key. Automated coverage checks
+the 30-second expiry boundary, depth-mask expiry, magenta rendering, and LiDAR
+color precedence. Physical low-object approach and removal/expiry validation
+remain supervised follow-up work.
+
+Deployment validation passed all 138 native tests without publishing movement.
+The mapper was restarted with `_drive:=true _start_paused:=true` while retaining
+the current Hector frame. Exactly one mapper and one Hector process were live,
+with no RTAB-Map process. Live status reported 34 temporary obstacle cells and
+the configured 30-second hold. The served map JPEG contained 768 magenta-like
+pixels from the live depth layer. Depth remained ready in upper-only mode, the
+mapper stayed `AUTO PAUSED`, and battery telemetry was 12.220 V. No movement
+command or physical motion occurred. The longer expiry behavior with a placed
+low object still requires direct supervised timing and approach validation.
+
+RGB stalled after this deployment. The corrected `recover_rgb_camera.sh`
+completed successfully and verified an actual frame before returning. RGB then
+held about 28.7-30.4 Hz while depth remained about 26.3-31.6 Hz. Hector and the
+single drive-enabled mapper stayed live, the mapper remained `AUTO PAUSED`, the
+30-second depth layer continued updating, and battery voltage was 12.214 V. No
+movement command or physical motion occurred during recovery or verification.

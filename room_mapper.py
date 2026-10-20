@@ -193,8 +193,9 @@ class RoomMapper:
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info")
         # Hector remains authoritative for pose and the persistent LiDAR map.
-        # Registered depth contributes only a short-lived planner obstacle
-        # layer for objects below the laser plane.
+        # Registered depth contributes a retained planner obstacle layer for
+        # objects below the laser plane. The hold covers the camera blind area
+        # after the robot approaches, while remaining finite for moved objects.
         self.use_depth_map = bool(rospy.get_param("~use_depth_map", True))
         self.depth_map_camera_info_topic = rospy.get_param(
             "~depth_map_camera_info_topic", "/camera/depth_registered/camera_info")
@@ -205,7 +206,7 @@ class RoomMapper:
         self.depth_map_height_min = float(rospy.get_param("~depth_map_height_min", 0.025))
         self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
         self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
-        self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 2.5))
+        self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 30.0))
         if (not math.isfinite(self.depth_map_hz) or self.depth_map_hz <= 0 or
                 not 1 <= self.depth_map_decimation <= 32 or
                 not 0 < self.depth_map_range_min < self.depth_map_range_max or
@@ -568,7 +569,8 @@ class RoomMapper:
                 count = self.explorer.depth_obstacle_count(now)
             self.t_depth_map = now
             self.depth_map_frame = frame
-            self.depth_map_status = "%d temporary obstacle cells" % count
+            self.depth_map_status = "%d temporary obstacle cells (%.0f s hold)" % (
+                count, self.depth_map_ttl)
         except (KeyError, ValueError) as exc:
             self.depth_map_status = "projection unavailable: %s" % exc
             rospy.logwarn_throttle(5, "Depth obstacle map unavailable: %s", exc)

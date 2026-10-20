@@ -33,7 +33,7 @@ PAGE = """<!doctype html><html><head><meta charset='utf-8'>
 @media(max-width:800px){.shell{width:min(100% - 20px,680px);padding-top:18px}.grid{grid-template-columns:1fr}.map{max-width:none}.topbar{align-items:flex-start}.controls{bottom:8px}.clear{margin-left:0}.object-row{grid-template-columns:1fr auto}.object-actions{grid-column:1/-1}}@media(max-width:600px){.manual{grid-template-columns:1fr}.manual-copy{text-align:center}.speed-grid{grid-template-columns:1fr}}@media(max-width:480px){.live{padding:7px 9px;font-size:.68rem}.controls button{flex:1;padding:0 12px}.clear{flex-basis:100%!important}.console{padding:14px}#status{font-size:.78rem}.tabs{width:100%}.tab{flex:1}.object-intro{flex-direction:column}.object-row{grid-template-columns:1fr}.object-actions,.object-state{grid-column:1}.object-actions button{flex:1}}
 </style></head><body><main class='shell'><header class='topbar'><div class='brand'><div class='mark'>JH</div><div><h1>JetHexa Room Mapper</h1><p class='eyebrow'>Autonomous spatial intelligence</p></div></div><div class='system-pills'><div class='battery' id='battery' title='Waiting for battery telemetry'>BATTERY --%</div><div class='live'>SYSTEM LIVE</div></div></header><nav class='tabs' aria-label='Views'><button class='tab active' data-tab='dashboard'>DASHBOARD</button><button class='tab' data-tab='objects'>OBJECTS</button></nav><section class='pane' id='dashboard'>
 <section class='grid'><article class='card cam'><div class='card-head'><h2>Camera + YOLO detections</h2><span class='tag'>RGB / LIVE</span></div><div class='frame'><img id='cam' src='/cam.jpg' alt='Live robot camera'></div></article>
-<article class='card map'><div class='card-head'><h2>SLAM + landmarks</h2><span class='tag' id='map-mode'>ROBOT-CENTERED / 100%</span></div><div class='frame'><img id='map' src='/map.jpg' alt='Robot-centered clickable SLAM occupancy map'><div class='map-tools'><button class='zoom' id='zoom-out' aria-label='Zoom out'>−</button><button id='center-map'>CENTER</button><button class='zoom' id='zoom-in' aria-label='Zoom in'>+</button></div></div><div class='map-hint'>Scroll or use +/− to zoom. Drag to pan, Center to follow the robot, or click to navigate safely.</div></article></section>
+<article class='card map'><div class='card-head'><h2>SLAM + landmarks</h2><span class='tag' id='map-mode'>ROBOT-CENTERED / 100%</span></div><div class='frame'><img id='map' src='/map.jpg' alt='Robot-centered clickable SLAM occupancy map'><div class='map-tools'><button class='zoom' id='zoom-out' aria-label='Zoom out'>−</button><button id='center-map'>CENTER</button><button class='zoom' id='zoom-in' aria-label='Zoom in'>+</button></div></div><div class='map-hint'>Black walls are LiDAR; magenta walls are temporary depth obstacles. Scroll or use +/− to zoom, drag to pan, Center to follow, or click to navigate.</div></article></section>
 <section class='console'><div class='console-head'><span>Telemetry</span><span>● streaming</span></div><pre id='status'>connecting...</pre></section>
 <section class='card speed-panel'><h2>Movement speed</h2><div class='speed-grid'><div class='speed-control'><label for='translation-speed'>Translation</label><output id='translation-value'>100%</output><input id='translation-speed' type='range' min='50' max='200' step='5' value='100'></div><div class='speed-control'><label for='rotation-speed'>Rotation</label><output id='rotation-value'>100%</output><input id='rotation-speed' type='range' min='50' max='200' step='5' value='100'></div></div></section>
 <section class='card manual'><div class='manual-copy'><h2>Manual drive</h2><p>Available while autonomy is paused. Manual commands bypass map and obstacle gating; maintain direct sight of the robot. Releasing a key stops immediately. Keyboard: W/A/S/D or arrow keys.</p></div><div class='drive-pad' aria-label='Manual drive controls'><button class='drive forward' data-drive='forward' aria-label='Move forward'>▲<span class='key'>W / ↑</span></button><button class='drive left' data-drive='left' aria-label='Rotate left'>↶<span class='key'>A / ←</span></button><button class='drive drive-stop' data-stop aria-label='Stop'>■<span class='key'>STOP</span></button><button class='drive right' data-drive='right' aria-label='Rotate right'>↷<span class='key'>D / →</span></button><button class='drive back' data-drive='back' aria-label='Move backward'>▼<span class='key'>S / ↓</span></button></div></section>
@@ -73,6 +73,7 @@ const driveKeys={w:'forward',arrowup:'forward',s:'back',arrowdown:'back',a:'left
 setInterval(()=>fetch('/status').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.text()}).then(show).catch(e=>show('Web server unavailable: '+e.message)),1000);</script></main></body></html>"""
 
 MAP_SIZE, MAP_SCALE = 420, 50.0
+DEPTH_OBSTACLE_COLOR = (180, 0, 220)  # BGR: magenta in the encoded map
 
 
 def jpeg(img, quality=75):
@@ -151,7 +152,11 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     else:
         cx, cy = float(center[0]), float(center[1])
     with node.map_lock:
+        depth_mask_fn = getattr(e, 'depth_obstacle_mask', None)
+        depth_mask = (depth_mask_fn() if callable(depth_mask_fn)
+                      else np.zeros_like(e.state, dtype=bool))
         state = e.state.copy()
+        slam_state = getattr(e, 'slam_state', state).copy()
         path = list(node.path)
     yy, xx = np.indices((MAP_SIZE, MAP_SIZE))
     wx = cx + (MAP_SIZE/2 - yy)/scale
@@ -164,6 +169,8 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     img = np.full((MAP_SIZE, MAP_SIZE, 3), 90, np.uint8)
     img[inside & (state[r,c] == 1)] = (255,255,255)
     img[inside & (state[r,c] == 2)] = (0,0,0)
+    depth_only = inside & depth_mask[r,c] & (slam_state[r,c] != 2)
+    img[depth_only] = DEPTH_OBSTACLE_COLOR
     if path:
         pts = np.array([to_screen(x,y,cx,cy,scale) for x,y in path], np.int32)
         cv2.polylines(img, [pts], False, (230,140,40), 2)

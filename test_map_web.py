@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 
 import map_web
+from map_explore import FREE, OCCUPIED
 
 
 class ObjectTrackerStub:
@@ -184,6 +185,22 @@ class WebServerTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request('/map.jpg?scale=500')
         self.assertEqual(raised.exception.code, 400)
+
+    def test_depth_only_obstacles_use_distinct_map_color(self):
+        n = FakeNode()
+        n.explorer.state[5, 5] = OCCUPIED
+        n.explorer.slam_state = np.full_like(n.explorer.state, FREE)
+        depth_mask = np.zeros_like(n.explorer.state, dtype=bool)
+        depth_mask[5, 5] = True
+        n.explorer.depth_obstacle_mask = lambda: depth_mask
+        image = map_web.draw_map(n)
+        matches = np.all(image == map_web.DEPTH_OBSTACLE_COLOR, axis=2)
+        self.assertTrue(matches.any())
+        self.assertEqual(tuple(image[207, 207]), map_web.DEPTH_OBSTACLE_COLOR)
+
+        n.explorer.slam_state[5, 5] = OCCUPIED
+        image = map_web.draw_map(n)
+        self.assertEqual(tuple(image[207, 207]), (0, 0, 0))
 
     def test_navigation_endpoints_reject_invalid_input(self):
         for path in ('/navigate?px=-1&py=20', '/navigate?px=nope&py=20',

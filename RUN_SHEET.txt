@@ -39,13 +39,13 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 136 tests. Tests do not publish robot movement.
+  Current regression count: 138 tests. Tests do not publish robot movement.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
   only temporary planner obstacles and never feeds localization.
 
-  [x] Deploy the revision and pass all 136 robot-native tests.
+  [x] Deploy the revision and pass all 138 robot-native tests.
   [x] Confirm Hector pose near 12 Hz and a 512 x 512 /map at 0.05 m.
   [x] Confirm the status reports live temporary depth obstacle cells.
   [x] Run one supervised 50% speed, 0.55 s forward pulse with dead-man stop.
@@ -53,7 +53,7 @@ HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   [x] Operator confirmed correct movement and substantially improved map.
   [ ] Place a measured low object in view and confirm the depth planner count
       rises at the correct map location without marking clear floor occupied.
-  [ ] Move the object and confirm its planner cells clear after the 2.5 s TTL.
+  [ ] Move the object and confirm its planner cells clear after the 30 s TTL.
 
   RTAB-Map is non-production after its first motion test failed the expected
   LiDAR map/robot-position behavior. Never run it alongside Hector and keep it
@@ -68,7 +68,7 @@ CURRENT SAFETY CALIBRATION:
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
   Depth planner range / height:        0.15-2.0 m / 0.025-0.50 m
-  Depth planner obstacle lifetime:     2.5 s
+  Depth planner obstacle lifetime:     30 s
   Manual dead-man:                     0.55 s
 
   Close depth is no longer excluded; invalid/dropout regions remain stop inputs.
@@ -82,6 +82,7 @@ WEB CONTROLS:
   W/A/S/D or arrows: manual translation/rotation while paused; release stops.
   Translation/rotation sliders: independent 50-200% gait scaling; 100% default.
   Map click: routes through known, 0.33 m-clear space.
+  Map wall colors: black = LiDAR; magenta = temporary depth-only obstacle.
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.
 
@@ -124,7 +125,7 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native depth
   is upper-only; its floor-bump alarm is unavailable, but the independent
-  registered-depth planner layer is active. Native robot suite: 136 passing.
+  registered-depth planner layer is active. Native robot suite: 138 passing.
   One 50% speed, 0.55 s forward pulse completed and dead-man stopped; Hector
   reported about 0.027 m translation and 0.9 degrees rotation. The operator
   confirmed correct physical movement and a substantially improved map. Dry

@@ -31,7 +31,7 @@ class ExploreMap:
         self.state = np.full((self.n, self.n), UNKNOWN, np.uint8)
         self.slam_state = self.state.copy()
         self.depth_obstacles = {}
-        self.depth_obstacle_ttl = 2.5
+        self.depth_obstacle_ttl = 30.0
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -78,7 +78,7 @@ class ExploreMap:
         self._apply_depth_obstacles(rebase=False)
         self.have_map = True
 
-    def update_depth_obstacles(self, world_cells, now=None, ttl=2.5):
+    def update_depth_obstacles(self, world_cells, now=None, ttl=30.0):
         """Overlay temporary depth obstacles without changing the LiDAR map.
 
         Cells are expressed in the same world-aligned grid as ``self.cell``.
@@ -113,6 +113,15 @@ class ExploreMap:
     def depth_obstacle_count(self, now=None):
         self._apply_depth_obstacles(now)
         return len(self.depth_obstacles)
+
+    def depth_obstacle_mask(self, now=None):
+        """Return current depth-sourced cells separately from LiDAR state."""
+        self._apply_depth_obstacles(now)
+        mask = np.zeros_like(self.state, dtype=bool)
+        if self.depth_obstacles:
+            rows, cols = zip(*self.depth_obstacles)
+            mask[rows, cols] = True
+        return mask
 
     def obstacle_distance(self):
         self._apply_depth_obstacles()
