@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-19)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-20)
 =====================================================
 
 ROBOT:
@@ -39,7 +39,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 145 tests. Tests do not publish robot movement.
+  Current regression count: 150 tests. Tests do not publish robot movement.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
@@ -79,12 +79,28 @@ WEB CONTROLS:
   RESUME AUTO: continues frontier mapping.
   CANCEL ROUTE: stops a clicked/object route and leaves autonomy paused.
   CLEAR MAP: stops and pauses; clears Hector, planner, and object landmarks.
-  W/A/S/D or arrows: manual translation/rotation while paused; release stops.
+  W/S: forward/reverse. A/D: strafe. Q/E or left/right arrows: rotate.
+  Manual commands require direct sight; release/blur/dead-man stops motion.
   Translation/rotation sliders: independent 50-200% gait scaling; 100% default.
   Map click: routes through known, 0.33 m-clear space.
   Map wall colors: black = LiDAR; magenta = temporary depth-only obstacle.
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.
+
+OMNIDIRECTIONAL MOTION VALIDATION (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
+  [ ] Pull the new revision on PT and pass all 150 robot-native tests paused.
+  [ ] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
+  [ ] At 50% translation, hold A then D separately for one dead-man interval;
+      physically confirm lateral motion with no unintended yaw or forward step.
+  [ ] Use Q/E and confirm they rotate without lateral translation.
+  [ ] Run a clear-space clicked route with a 20-45 degree bearing change and
+      confirm continuous diagonal travel without a stop/turn/start cycle.
+  [ ] Confirm a route beyond 45 degrees still turns first and that three weak
+      turn samples retain the existing SLAM LOST latch.
+  [ ] Place a LiDAR-visible obstacle along a diagonal route and confirm the
+      directional clearance gate stops/replans before approach.
+  [ ] Keep low obstacles in the forward depth view. Lateral/manual travel is
+      not protected against unseen low, reflective, or transparent geometry.
 
 AUTONOMOUS OBJECT HANDLING:
   A new tentative object stops mapping in object_focus. It is added after two

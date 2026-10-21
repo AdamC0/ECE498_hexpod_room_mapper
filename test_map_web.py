@@ -142,12 +142,14 @@ class WebServerTests(unittest.TestCase):
         recover.assert_called_once_with()
 
     def test_manual_drive_endpoint_validates_commands(self):
-        for command in ('forward', 'back', 'left', 'right', 'stop'):
+        commands = ('forward', 'back', 'strafe_left', 'strafe_right',
+                    'left', 'right', 'stop')
+        for command in commands:
             with self.request('/manual?command=' + command, 'POST') as response:
                 self.assertEqual(response.status, 200)
-        self.assertEqual(self.node.commands[-5:],
+        self.assertEqual(self.node.commands[-len(commands):],
                          [('manual', command) for command in
-                          ('forward', 'back', 'left', 'right', 'stop')])
+                          commands])
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request('/manual?command=launch', 'POST')
         self.assertEqual(raised.exception.code, 400)

@@ -38,11 +38,12 @@ one mapper process exists.
   drive-disabled if used for research comparison. Never run both SLAM stacks.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
   0.03 m margin.
-- `room_mapper.py` handles bounded gait bursts, recovery, sensor safety,
-  manual control, clicked routes, and autonomous object focus.
+- `room_mapper.py` handles continuous path gait commands, bounded recovery,
+  sensor safety, omnidirectional manual control, clicked routes, and autonomous
+  object focus.
 - `map_web.py` provides RGB, a robot-following zoomable map, click navigation,
-  Cancel Route, manual W/A/S/D, independent 50-200% translation/rotation
-  sliders, object management, and a battery badge.
+  Cancel Route, manual W/S drive, A/D strafe, Q/E rotation, independent 50-200%
+  translation/rotation sliders, object management, and a battery badge.
 - Object mapping uses YOLO, synchronized registered depth, camera intrinsics,
   and timestamped TF. Two observations confirm a landmark.
 

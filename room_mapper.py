@@ -143,6 +143,22 @@ class RoomMapper:
         # The former 0.35 rate outran Hector and produced false translation.
         self.spin_rate = float(rospy.get_param("~spin_rate", 0.10))
         self.spin_stride = float(rospy.get_param("~spin_stride", 0.0))
+        # JetHexa can translate in any body-relative direction.  Keep
+        # autonomous crab steering inside the forward depth camera's useful
+        # envelope; larger corrections still turn in place before translating.
+        self.max_crab_angle = math.radians(float(rospy.get_param(
+            "~max_crab_angle_deg", 45.0)))
+        self.crab_angle_step = math.radians(float(rospy.get_param(
+            "~crab_angle_step_deg", 5.0)))
+        self.crab_deadband = math.radians(float(rospy.get_param(
+            "~crab_deadband_deg", 5.0)))
+        if (not math.isfinite(self.max_crab_angle) or
+                not math.radians(15.0) <= self.max_crab_angle <= math.radians(60.0) or
+                not math.isfinite(self.crab_angle_step) or
+                not math.radians(1.0) <= self.crab_angle_step <= math.radians(15.0) or
+                not math.isfinite(self.crab_deadband) or
+                not 0.0 <= self.crab_deadband <= self.crab_angle_step):
+            raise ValueError("crab steering angles are outside the supported range")
         self.translation_speed_percent = 100.0
         self.rotation_speed_percent = 100.0
         self.speed_min_percent = 50.0
@@ -1140,15 +1156,15 @@ class RoomMapper:
             rotation_scale = getattr(self, "rotation_speed_percent", 100.0) / 100.0
             if cmd[0] == "stop":
                 self.robot.traveling(gait=0)
-            elif cmd[0] == "forward":
+            elif cmd[0] in ("forward", "back", "translate", "strafe_left",
+                            "strafe_right"):
+                direction = {"forward": 0.0, "back": math.pi,
+                             "strafe_left": math.pi / 2.0,
+                             "strafe_right": -math.pi / 2.0}.get(
+                                 cmd[0], cmd[1] if len(cmd) > 1 else 0.0)
                 self.robot.traveling(gait=1, stride=self.stride * translation_scale,
                                      height=self.step_height,
-                                     direction=0.0, rotation=0.0, time=self.step_time,
-                                     steps=0, interrupt=True, relative_height=False)
-            elif cmd[0] == "back":
-                self.robot.traveling(gait=1, stride=self.stride * translation_scale,
-                                     height=self.step_height,
-                                     direction=math.pi, rotation=0.0, time=self.step_time,
+                                     direction=direction, rotation=0.0, time=self.step_time,
                                      steps=0, interrupt=True, relative_height=False)
             elif cmd[0] == "spin":
                 self.robot.traveling(gait=1, stride=self.spin_stride, height=self.step_height,
@@ -1200,7 +1216,8 @@ class RoomMapper:
                                not interrupt_object)
                 translation_start = getattr(self, "continuous_translation_start", now)
                 continuous_limit = getattr(self, "max_continuous_translation", 3.0)
-                can_continue = (cmd == self.last_cmd and cmd[0] in ("forward", "back") and
+                can_continue = (cmd == self.last_cmd and cmd[0] in
+                                ("forward", "back", "translate") and
                                 not object_hold and
                                 now - translation_start < continuous_limit)
                 if can_continue:
@@ -1259,7 +1276,8 @@ class RoomMapper:
                 self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
         self.send_actual(cmd)
         self.set_motion(True)
-        self.continuous_translation_start = (now if cmd[0] in ("forward", "back") else 0.0)
+        self.continuous_translation_start = (now if cmd[0] in
+                                             ("forward", "back", "translate") else 0.0)
         self.motion_until = now + (self.spin_burst if cmd[0] == "spin" else self.move_burst)
 
     def send_manual(self, cmd):
@@ -1429,7 +1447,33 @@ class RoomMapper:
         wx, wy = self.path[0]
         err = math.atan2(math.sin(math.atan2(wy-y, wx-x) - yaw),
                          math.cos(math.atan2(wy-y, wx-x) - yaw))
-        return ("spin", 1.0 if err > 0 else -1.0) if abs(err) > math.radians(25) else ("forward",)
+        max_crab = getattr(self, "max_crab_angle", math.radians(45.0))
+        if abs(err) > max_crab:
+            return "spin", 1.0 if err > 0 else -1.0
+        deadband = getattr(self, "crab_deadband", math.radians(5.0))
+        if abs(err) <= deadband:
+            return ("forward",)
+        step = getattr(self, "crab_angle_step", math.radians(5.0))
+        direction = max(-max_crab, min(max_crab, round(err / step) * step))
+        return "translate", direction
+
+    @staticmethod
+    def command_lidar_clearance(lidar, cmd):
+        """Return swept-body LiDAR clearance along a translation command."""
+        if cmd is None or cmd[0] not in ("forward", "back", "translate",
+                                         "strafe_left", "strafe_right"):
+            return float("inf")
+        direction = {"forward": 0.0, "back": math.pi,
+                     "strafe_left": math.pi / 2.0,
+                     "strafe_right": -math.pi / 2.0}.get(
+                         cmd[0], cmd[1] if len(cmd) > 1 else 0.0)
+        heads = np.asarray(lidar.get("heads", ()), dtype=np.float64)
+        free = np.asarray(lidar.get("free", ()), dtype=np.float64)
+        if not len(heads) or len(heads) != len(free):
+            return float("inf")
+        error = np.abs(np.arctan2(np.sin(heads - direction),
+                                  np.cos(heads - direction)))
+        return float(free[int(np.argmin(error))])
 
     def safe_step(self, _event):
         with self.control_lock:
@@ -1459,6 +1503,8 @@ class RoomMapper:
             return
         if manual_cmd is not None:
             command = ({"forward": ("forward",), "back": ("back",),
+                        "strafe_left": ("strafe_left",),
+                        "strafe_right": ("strafe_right",),
                         "left": ("spin", 1.0), "right": ("spin", -1.0)}
                        [manual_cmd])
             self.web_msg = ("Manual override: hold %s; map and obstacle gates bypassed; "
@@ -1664,6 +1710,7 @@ class RoomMapper:
                 self.start_look(now)
         elif self.phase in ("go", "user_go"):
             cmd = self.follow_path(pose)
+            route_clearance = self.command_lidar_clearance(lidar, cmd)
             if cmd is None:
                 if self.phase == "user_go":
                     label = self.user_goal[2] if self.user_goal else "selected goal"
@@ -1679,6 +1726,12 @@ class RoomMapper:
                 self.path = []
                 self.set_state(HOLD, "planned path blocked (%s)" % reason)
                 self.phase = "plan"
+            elif route_clearance < self.lidar_stop:
+                self.send(("stop",))
+                self.path = []
+                self.phase = "plan"
+                self.set_state(HOLD, "planned travel direction blocked by LiDAR %.2f m" %
+                               route_clearance)
             elif now - self.phase_start > 45:
                 if self.phase == "user_go":
                     self.send(("stop",))
@@ -1779,7 +1832,8 @@ class RoomMapper:
                 action = cmd[1]
                 if action == "stop":
                     self.stop_manual()
-                elif action in ("forward", "back", "left", "right"):
+                elif action in ("forward", "back", "strafe_left", "strafe_right",
+                                "left", "right"):
                     if not self.drive:
                         self.stop_manual("Manual drive unavailable in dry-run mode")
                     else:

@@ -742,3 +742,36 @@ do not start object focus while a route is active; stationary endpoint surveys
 remain available for mapping landmarks. This reduces opportunities for object
 observations during travel. All 145 native tests pass; physical fluidity has
 not been validated by an agent-commanded motion trial.
+
+## Conservative omnidirectional path following (2026-10-20)
+
+Vendor documentation and the official JetHexa source confirm that the six-leg
+gait controller accepts a body-relative translation direction in radians: 0
+is forward, pi/2 is left strafe, pi is reverse, and 3*pi/2 (equivalent to
+-pi/2) is right strafe. The previous mapper exposed only forward, reverse, and
+in-place rotation, so diagonal planner segments became turn-then-forward
+sequences despite the hardware's holonomic gait capability.
+
+References: the vendor's [standard motion control lesson](https://docs.hiwonder.com/projects/JetHexa/en/latest/docs/7_Standard_Motion_Control_Lesson.html),
+[left/right example](https://github.com/Hiwonder/JetHexa/blob/jetson_nano/jethexa_tutorial/scripts/simple_control_05_move_left_right.py),
+and [diagonal example](https://github.com/Hiwonder/JetHexa/blob/jetson_nano/jethexa_tutorial/scripts/simple_control_06_diagonally.py).
+
+Chosen: make arbitrary-direction translation a controller command. Active
+routes quantize heading error in 5 degree increments and crab-steer without a
+stop up to 45 degrees left or right. Larger errors retain the calibrated
+zero-stride turn and its half-second heading-progress sampling. Each crab
+command also checks the LiDAR swept-body clearance in its actual travel
+direction. The limit is intentionally conservative because registered/native
+depth face forward and cannot guarantee blind-side low-obstacle detection.
+
+Manual control exposes full lateral movement: A/D and on-screen buttons strafe
+left/right; Q/E and the left/right arrow keys rotate. Manual motion retains the
+existing explicit warning, browser release/blur handling, and 0.55-second
+server dead-man, but still bypasses autonomous obstacle gates and requires
+direct supervision.
+
+Five regression cases cover diagonal command selection, the 45-degree turn
+boundary, directional LiDAR clearance, vendor direction values, and manual
+strafe dispatch. The suite now contains 150 tests. This Windows host lacks ROS,
+and noninteractive SSH authentication to PT was unavailable, so robot-native
+execution, deployment, and physical motion validation are still pending.

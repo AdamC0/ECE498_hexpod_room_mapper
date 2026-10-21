@@ -69,7 +69,8 @@ medium, charging, stale, and unavailable telemetry.
 - The web map follows the robot by default. It supports wheel/button zoom,
   drag-to-pan, and a Center button that restores 100% robot-centered view.
   Click navigation uses the displayed pan/zoom transform.
-- Manual W/A/S/D, arrow-key, and button controls work while autonomy is paused.
+- Manual W/A/S/D, arrow-key, and button controls work while autonomy is paused
+  in the last deployed revision.
   A 0.55 s browser dead-man stops motion when commands stop arriving.
 - Independent translation and rotation sliders adjust both manual and
   autonomous gait commands from 50% to 200%. They start at 100% after a mapper
@@ -115,6 +116,25 @@ planner cells and also projects YOLO detections into the map.
 The dashboard contains live RGB, a robot-centered SLAM map, telemetry,
 pause/resume, camera recovery, route cancellation, map clearing, and manual
 drive controls.
+
+## Omnidirectional motion update (pending robot validation)
+
+The repository controller now uses JetHexa's body-relative travel direction
+instead of reducing every route segment to turn-then-forward motion. Route
+following crab-steers continuously in 5 degree increments up to 45 degrees
+left or right; larger errors retain the measured in-place turn and heading
+progress guard. Directional swept-body LiDAR clearance is checked before a
+crab command. The 45 degree limit deliberately keeps autonomous translation
+near the forward depth camera's view rather than claiming blind-side low-object
+coverage.
+
+The paused manual drive pad exposes full left/right strafe, with Q/E and the
+left/right arrow keys reserved for rotation. Manual driving still bypasses
+autonomous obstacle gates and therefore requires direct sight, key-release/
+browser-blur stop handling, and the 0.55 second server dead-man.
+
+This revision has not yet been deployed or physically observed on PT. The last
+robot-native baseline remains the 145-test Hector/depth build described below.
 The Objects tab shows confirmed and pending landmarks. Map and object routes
 always use known-free, footprint-inflated planner space and remain subject to
 live sensor stops.
@@ -221,8 +241,9 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 145 tests and does not publish physical
-movement during test execution:
+The updated suite contains 150 tests and does not publish physical movement
+during test execution. The five new omnidirectional regressions still require
+a robot-native run because the Windows development host does not provide ROS:
 
 ```bash
 cd ~/room_mapper

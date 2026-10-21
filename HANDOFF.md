@@ -1,8 +1,19 @@
 # JetHexa Room Mapper - Agent Handoff
 
-Updated: 2026-10-19
+Updated: 2026-10-20
 
 ## Live checkpoint
+
+Repository-only update on 2026-10-20: active paths now use the vendor's
+body-relative direction command for continuous crab steering in a conservative
+±45 degree forward envelope. Manual control adds true lateral strafe on A/D
+and keeps rotation on Q/E or the arrow keys. Directional swept-body LiDAR is
+checked for crab commands. Five regression cases were added, bringing the
+suite to 150. This workstation lacks ROS and noninteractive SSH credentials,
+so only ROS-free tests and syntax checks can be run here; PT deployment,
+robot-native tests, and physical motion validation remain pending. The live
+checkpoint below is the last verified robot state, not evidence that this new
+revision is deployed.
 
 The production stack is now Hector plus a registered-depth planner overlay.
 The first RTAB-Map motion pulse physically moved forward correctly, but the
@@ -72,6 +83,8 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   planning margin.
 - Active paths use continuous translation and turning, with heading progress
   checked during turns. Recovery retains bounded motion and settling.
+- The repository can crab-steer active paths up to 45 degrees and provides
+  supervised manual left/right strafe; this item is pending deployment.
 - Depth is the forward primary signal; LiDAR is an independent 0.45 m
   emergency fallback and supplies rear/rotation clearance.
 - Web UI provides robot-following zoomable/pannable map, click navigation,

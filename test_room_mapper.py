@@ -266,6 +266,12 @@ class MapperTests(unittest.TestCase):
         n.control_step()
         n.send_manual.assert_called_once_with(('spin', 1.0))
 
+    def test_manual_strafe_reaches_omnidirectional_gait_command(self):
+        n = self.controller()
+        n.manual_cmd, n.manual_until, n.paused = 'strafe_left', time.time() + .5, True
+        n.control_step()
+        n.send_manual.assert_called_once_with(('strafe_left',))
+
     def test_autonomy_immediately_turns_away_from_front_obstacle(self):
         n = self.controller()
         n.depth[20:55, 20:80] = .55
@@ -416,6 +422,31 @@ class MapperTests(unittest.TestCase):
         n.waypoint_tolerance = .12
         self.assertEqual(n.follow_path((0., 0., 0.)), ('forward',))
         self.assertEqual(n.path[0], (.20, 0.))
+
+    def test_path_follower_crab_steers_without_unnecessary_turn(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.path = [(1., 1.)]
+        n.waypoint_tolerance = .12
+        n.max_crab_angle = np.radians(45.)
+        n.crab_angle_step = n.crab_deadband = np.radians(5.)
+        command = n.follow_path((0., 0., np.radians(15.)))
+        self.assertEqual(command[0], 'translate')
+        self.assertAlmostEqual(command[1], np.radians(30.))
+
+    def test_path_follower_turns_outside_depth_safe_crab_envelope(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.path = [(0., 1.)]
+        n.waypoint_tolerance = .12
+        n.max_crab_angle = np.radians(45.)
+        self.assertEqual(n.follow_path((0., 0., 0.)), ('spin', 1.))
+
+    def test_crab_command_uses_directional_swept_lidar_clearance(self):
+        heads = np.radians(np.arange(-180., 180., 10.))
+        free = np.full(len(heads), 2.)
+        free[np.argmin(np.abs(heads - np.radians(40.)))] = .35
+        lidar = {'heads': heads, 'free': free}
+        self.assertAlmostEqual(
+            RoomMapper.command_lidar_clearance(lidar, ('translate', np.radians(42.))), .35)
 
     def test_unreachable_navigation_goal_stays_paused(self):
         n = RoomMapper.__new__(RoomMapper)
@@ -592,6 +623,22 @@ class MapperTests(unittest.TestCase):
         n.last_cmd = None
         n.send_actual(('spin', 1.))
         self.assertAlmostEqual(n.robot.traveling.call_args[1]['rotation'], .15)
+
+    def test_translation_command_uses_vendor_body_relative_direction(self):
+        n = self.node
+        n.drive, n.last_cmd = True, None
+        n.stride, n.step_height, n.step_time = 40., 20., .5
+        n.translation_speed_percent = n.rotation_speed_percent = 100.
+        n.robot = SimpleNamespace(traveling=Mock())
+        n.send_actual(('translate', np.radians(35.)))
+        self.assertAlmostEqual(n.robot.traveling.call_args[1]['direction'],
+                               np.radians(35.))
+        n.last_cmd = None
+        n.send_actual(('strafe_left',))
+        self.assertAlmostEqual(n.robot.traveling.call_args[1]['direction'], np.pi / 2.)
+        n.last_cmd = None
+        n.send_actual(('strafe_right',))
+        self.assertAlmostEqual(n.robot.traveling.call_args[1]['direction'], -np.pi / 2.)
 
     def test_manual_motion_interrupts_slow_object_inference(self):
         n = self.node
