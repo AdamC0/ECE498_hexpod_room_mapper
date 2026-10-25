@@ -45,7 +45,7 @@ one mapper process exists.
   Cancel Route, manual W/S drive, A/D strafe, Q/E rotation, independent 50-200%
   translation/rotation sliders, object management, and a battery badge.
 - Object mapping uses YOLO, synchronized registered depth, camera intrinsics,
-  and timestamped TF. The pending repository revision requires three distinct
+  and timestamped TF. The deployed revision requires three distinct
   settled captures and prefers the Objects365 classroom model with automatic
   fallback to the retained COCO YOLOv5n model.
 
@@ -115,20 +115,20 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
-The 2026-10-24 repository update adds information-gain frontier goals, two-
-second/three-scan endpoint surveys, asynchronous object inference completion,
-and a reversible Objects365 model profile. It has 160 tests; 49 ROS-free tests
-pass directly, 111 controller tests pass under the checked-in import-only ROS
-message shim runner, and syntax checks pass on the Windows host. Robot-native execution, detector
-timing/quality, deployment, and physical motion remain pending. Do not present
-these repository-only results as live evidence.
+The 2026-10-24 update was deployed on 2026-10-25. All 160 tests pass both under
+the checked-in Windows shim runner and natively on PT. Exactly one
+drive-enabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
+SLAM stack, using a fresh post-reboot map. RGB, native/registered depth, LiDAR,
+TF, `/slam_out_pose`, `/map`, the temporary depth planner layer, battery
+telemetry, and the web UI are live. No motion command or physical movement
+occurred during this deployment validation.
 
-PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
-RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, and the web UI are live. The full native suite passes 145 tests. Exactly
-one drive-enabled mapper is `AUTO PAUSED`; the operator confirmed that two
-observed resumptions were caused by pressing `RESUME AUTO`. Native depth is
-upper-only, while the independent registered-depth planner overlay is active.
+The preferred 365-label YOLO26 artifact is installed, but PT's OpenCV 4.5.5
+rejects its warm-up forward pass. Automatic rollback is active on the retained
+YOLOv5n model, measured at about 8-10.3 s per stationary inference. Objects365
+quality, physical strafe/diagonal motion, longer frontier motion, and endpoint
+timing remain pending supervised tests. Native depth is upper-only, while the
+independent registered-depth planner overlay is active.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

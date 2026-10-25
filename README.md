@@ -8,7 +8,7 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Smooth routing and classroom detection update (pending robot validation)
+## Smooth routing and classroom detection update (deployed; motion pending)
 
 The repository now attacks the observed move-for-seconds/wait-for-about-20-
 seconds cadence at its two causes. Frontier selection considers reachable
@@ -42,9 +42,12 @@ python3 -m pip install ultralytics
 python3 prepare_yolo_model.py
 ```
 
-The full update is repository-only as of 2026-10-24. It has syntax and ROS-free
-test coverage but still needs paused robot-native tests, detector timing on the
-target OpenCV build, no-drive observation, and directly supervised motion.
+The full update was deployed on 2026-10-25 and all 160 tests pass both through
+the workstation shim runner and natively on PT. The target OpenCV 4.5.5 build
+rejects the preferred YOLO26 ONNX graph during warm-up, so automatic rollback
+keeps the retained COCO YOLOv5n model active; no-drive inference measured
+about 8-10.3 s. The Objects365 artifacts remain installed but are not active.
+Directly supervised motion and detector-quality validation remain pending.
 LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
 changed.
 
@@ -163,7 +166,7 @@ The dashboard contains live RGB, a robot-centered SLAM map, telemetry,
 pause/resume, camera recovery, route cancellation, map clearing, and manual
 drive controls.
 
-## Omnidirectional motion update (pending robot validation)
+## Omnidirectional motion update (deployed; physical validation pending)
 
 The repository controller now uses JetHexa's body-relative travel direction
 instead of reducing every route segment to turn-then-forward motion. Route
@@ -179,8 +182,8 @@ left/right arrow keys reserved for rotation. Manual driving still bypasses
 autonomous obstacle gates and therefore requires direct sight, key-release/
 browser-blur stop handling, and the 0.55 second server dead-man.
 
-This revision has not yet been deployed or physically observed on PT. The last
-robot-native baseline remains the 145-test Hector/depth build described below.
+This revision is deployed and included in the 160-test native pass, but its
+strafe and diagonal gait behavior has not yet been physically observed on PT.
 The Objects tab shows confirmed and pending landmarks. Map and object routes
 always use known-free, footprint-inflated planner space and remain subject to
 live sensor stops.
@@ -304,10 +307,10 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 145 tests passed natively on PT. The current live stack uses Hector, not
-RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper. The operator confirmed
-that two observed resumptions were caused by pressing `RESUME AUTO`. RGB,
-native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary depth planner
-layer, battery telemetry, and the web interface are live. The supervising
-operator confirmed that the Hector pulse moved correctly and the map looked
-substantially better; dry-run mode was then disabled without resuming autonomy.
+All 160 tests pass natively on PT. The current live stack uses Hector, not
+RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and command `stop`. RGB,
+native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
+depth planner layer, battery telemetry, and the web interface are live. The
+preferred Objects365 model is installed but rejected by target OpenCV warm-up,
+so the retained YOLOv5n fallback is active. This deployment used no physical
+movement; supervised motion validation remains separate and pending.

@@ -4,6 +4,31 @@ Updated: 2026-10-25
 
 ## Live checkpoint
 
+Deployed 2026-10-25: PT now runs the 160-test smooth-routing,
+omnidirectional-control, nonblocking-object, and map-percentage-removal
+revision. A Python 3.6-compatible detector-startup assertion and repository LF
+export policy were added during the native release gate. All 160 tests pass on
+the Windows host and natively on PT. Exactly one drive-enabled mapper is
+`AUTO PAUSED` with command `stop`; Hector is the only SLAM stack and is using a
+fresh post-reboot frame. No physical movement was requested or observed.
+
+The first post-deployment boot had USB enumeration error `-71`, no LiDAR
+device, and no RGB/depth frames. The documented in-place RGB recovery could
+not find the USB function, so PT was rebooted with no mapper or SLAM process
+running. After reboot and `/start_scan`, LiDAR was about 12 Hz, Hector pose
+about 10 Hz, RGB about 29-30 Hz, native depth about 31-36 Hz, and registered
+depth about 29-31 Hz. Native depth is again upper-only; the independent
+registered-depth planner overlay is live. Battery was about 11.90 V / 75%.
+
+The paired 365-label `yolo26n-objv1-150.onnx` artifact was prepared at 640 px,
+opset 12 and copied beside the retained fallback. PT's OpenCV 4.5.5 rejects its
+forward-pass warm-up with a DNN shape assertion, so the tested automatic
+rollback selects `yolov5n.onnx`. The fallback measured about 8-10.3 s per
+stationary inference in the no-drive check. The preferred artifacts remain on
+PT for later compatibility work, but the Objects365 vocabulary is not active.
+Detector quality, physical strafe/diagonal motion, longer frontier motion, and
+two-second endpoint timing still require direct supervised validation.
+
 Repository-only update on 2026-10-24: removed the fixed-grid map-known
 percentage from web status, planner logs, and navigation validation. The room's
 total extent is unknown, so the fraction was not a valid completion measure.
@@ -159,8 +184,8 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   planning margin.
 - Active paths use continuous translation and turning, with heading progress
   checked during turns. Recovery retains bounded motion and settling.
-- The repository can crab-steer active paths up to 45 degrees and provides
-  supervised manual left/right strafe; this item is pending deployment.
+- The deployed controller can crab-steer active paths up to 45 degrees and
+  provides supervised manual left/right strafe; physical validation is pending.
 - Depth is the forward primary signal; LiDAR is an independent 0.45 m
   emergency fallback and supplies rear/rotation clearance.
 - Web UI provides robot-following zoomable/pannable map, click navigation,
@@ -169,7 +194,7 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   autonomous gait output without changing any sensor or planning threshold.
 - The web UI includes a header battery percentage badge with voltage and
   charging details plus clear stale/unavailable states.
-- The pending repository update requires three distinct settled captures for a
+- The deployed update requires three distinct settled captures for a
   landmark. Inference finishes asynchronously and does not enter blocking
   `object_focus` unless the legacy mode is explicitly enabled.
 - Object capture remains stationary; inference completion may occur during the

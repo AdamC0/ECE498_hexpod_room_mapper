@@ -895,3 +895,30 @@ architecture changes. A larger model or unconditional high-resolution pass may
 increase the existing delay, and lower thresholds may undo the observed lack of
 false detections. Future comparisons must report recognition quality and
 end-to-end latency separately from the already successful landmark placement.
+
+## Deploy offline-tested routing/object revision - 2026-10-25
+
+The 160-test revision was deployed to PT with a fresh Hector frame and one
+drive-enabled mapper started with `_start_paused:=true`. The first native run
+found one Python 3.6-only test incompatibility: `unittest.mock` call objects on
+PT do not expose `.args` as on the workstation. The assertion now uses the
+portable tuple form, and a repository `.gitattributes` policy forces LF text
+exports so Windows-generated release archives keep robot shell scripts
+executable. All 160 tests then passed both on the host and natively on PT.
+
+The initial robot state had no `/dev/lidar` and no camera frames, with repeated
+USB enumeration error `-71`. The documented RGB recovery could not find the
+camera USB function. PT was rebooted while mapper and SLAM were stopped; after
+boot and `/start_scan`, LiDAR ran near 12 Hz, Hector pose near 10 Hz, RGB near
+29-30 Hz, native depth near 31-36 Hz, and registered depth near 29-31 Hz.
+Exactly one mapper was left `AUTO PAUSED` with command `stop`, Hector was the
+only SLAM process, the registered-depth overlay was live, and battery telemetry
+was about 11.90 V / 75%. No motion command or physical movement occurred.
+
+The preferred 365-label YOLO26 ONNX/sidecar pair was prepared at 640 pixels and
+opset 12, checksum-verified, and installed without replacing `yolov5n.onnx`.
+OpenCV 4.5.5 fails its blank warm-up forward pass with a DNN shape assertion,
+so the designed startup rollback selects YOLOv5n. The fallback measured about
+8-10.3 seconds per stationary inference. Objects365 recognition is therefore not
+active; physical motion, detector quality, and endpoint timing remain pending
+supervised tests.

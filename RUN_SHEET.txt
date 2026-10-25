@@ -41,15 +41,15 @@ VERIFY:
 
   Current regression count: 160 tests. Tests do not publish robot movement.
 
-SMOOTH ROUTING + CLASSROOM YOLO (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
-  [ ] Before copying models, keep models/yolov5n.onnx in place for rollback.
-  [ ] On a workstation, run prepare_yolo_model.py; copy the generated ONNX and
+SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
+  [x] Before copying models, keep models/yolov5n.onnx in place for rollback.
+  [x] On a workstation, run prepare_yolo_model.py; copy the generated ONNX and
       .names files together to /home/hiwonder/room_mapper/models/.
-  [ ] Start dry-run/AUTO PAUSED and confirm status names yolo26n-objv1-150.onnx
-      (cpu or cuda_fp16), not "startup failed". A fallback warning is safe but
-      means the classroom model is not active.
-  [ ] Run all 160 robot-native tests while AUTO PAUSED.
-  [ ] Record idle/moving CPU, inference seconds, RGB/depth rates, and controller
+  [x] Start AUTO PAUSED and check detector warm-up. PT OpenCV 4.5.5 rejects
+      the preferred graph, and the intended fallback selects yolov5n.onnx;
+      the classroom model is therefore installed but not active.
+  [x] Run all 160 robot-native tests while no mapper is running/AUTO PAUSED.
+  [x] Record no-drive CPU, inference seconds, RGB/depth rates, and controller
       status. If sensor/control rates degrade, select the fallback explicitly:
       _yolo_model:=~/room_mapper/models/yolov5n.onnx
   [ ] In no-drive mode, place a chair, desk, book/backpack, and projector or
@@ -112,9 +112,9 @@ WEB CONTROLS:
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.
 
-OMNIDIRECTIONAL MOTION VALIDATION (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
-  [ ] Pull the new revision on PT and pass all 160 robot-native tests paused.
-  [ ] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
+OMNIDIRECTIONAL MOTION VALIDATION (DEPLOYED; NOT PHYSICALLY VALIDATED):
+  [x] Deploy the new revision on PT and pass all 160 robot-native tests paused.
+  [x] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
   [ ] At 50% translation, hold A then D separately for one dead-man interval;
       physically confirm lateral motion with no unintended yaw or forward step.
   [ ] Use Q/E and confirm they rotate without lateral translation.
@@ -168,10 +168,8 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native depth
   is upper-only; its floor-bump alarm is unavailable, but the independent
-  registered-depth planner layer is active. Native robot suite: 138 passing.
-  One 50% speed, 0.55 s forward pulse completed and dead-man stopped; Hector
-  reported about 0.027 m translation and 0.9 degrees rotation. The operator
-  confirmed correct physical movement and a substantially improved map. Dry
-  run is disabled and autonomy remains paused. The operator confirmed that two
-  observed resumptions were caused by pressing RESUME AUTO. Inspect the robot
-  and map before the next autonomous run. Battery was about 88%.
+  registered-depth planner layer is active. Native robot suite: 160 passing.
+  The preferred Objects365 ONNX is installed but rejected by OpenCV 4.5.5
+  warm-up, so YOLOv5n fallback is active at about 8-10.3 s per inference. No
+  movement was commanded during this deployment; autonomy remains paused.
+  Latest battery sample was about 79% / 12.02 V.
