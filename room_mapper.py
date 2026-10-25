@@ -1521,9 +1521,9 @@ class RoomMapper:
         if path:
             self.path = path
             self.phase, self.phase_start = "go", now
-            rospy.loginfo("%s goal (%.1f, %.1f), %d waypoints, map %.0f%% known",
+            rospy.loginfo("%s goal (%.1f, %.1f), %d waypoints",
                           self.explorer.last_plan_kind or "mapping", goal[0], goal[1],
-                          len(path), 100 * self.explorer.coverage())
+                          len(path))
             return True
         return False
 
@@ -1687,8 +1687,7 @@ class RoomMapper:
                   if depth_blocked else "LiDAR fallback %.2f m" % front)
         self.view = {"front": front, "nearest": lidar["nearest"], "blocked": blocked,
                      "depth": depth_near, "depth_limit": depth_limit, "depth_source": self.depth_source,
-                     "depth_primary": True, "lidar_emergency": lidar_emergency,
-                     "coverage": self.explorer.coverage() if self.explorer.have_map else 0.0}
+                     "depth_primary": True, "lidar_emergency": lidar_emergency}
 
         if self.state == HOLD:
             self.send(("stop",))
@@ -1976,8 +1975,6 @@ class RoomMapper:
         front = self.view.get("front", float("inf"))
         if lidar is not None:
             front = min(lidar["front"], lidar["free"][len(lidar["free"]) // 2])
-        with self.map_lock:
-            coverage = self.explorer.coverage() if self.explorer.have_map else 0.0
         depth = self.view.get("depth", 99.0)
         depth_line = "Depth: %.2f m (%s), limit %.2f" % (
             depth, self.view.get("depth_source", "clear"), self.view.get("depth_limit", self.depth_stop)) if depth < 99 else "Depth: clear"
@@ -2002,11 +1999,10 @@ class RoomMapper:
         mode = "  MANUAL: %s" % manual_cmd.upper() if manual_cmd else ("  AUTO PAUSED" if self.paused else "")
         depth_map_line = ("Depth planner layer: " + self.depth_map_status
                           if self.use_depth_map else "Depth planner layer: disabled")
-        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nMap known: %.0f%%\nObjects: %s\n%s\nLast: %s" % (
+        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nObjects: %s\n%s\nLast: %s" % (
             self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
             scan_line, self.translation_speed_percent, self.rotation_speed_percent,
             depth_line, depth_map_line, front, self.lidar_stop,
-            100 * coverage,
             self.object_status, survey_line, self.web_msg)
 
     def web_battery(self):

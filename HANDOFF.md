@@ -4,6 +4,12 @@ Updated: 2026-10-24
 
 ## Live checkpoint
 
+Repository-only update on 2026-10-24: removed the fixed-grid map-known
+percentage from web status, planner logs, and navigation validation. The room's
+total extent is unknown, so the fraction was not a valid completion measure.
+Frontier planning and occupancy data are unchanged. Test count remains 156;
+robot-native validation remains pending.
+
 Repository-only update on 2026-10-24: autonomous frontier routes now prefer
 information-rich goals 1.5-3.0 m away, endpoint surveys default to two seconds
 and three settled scans, and YOLO completion no longer blocks the next route.

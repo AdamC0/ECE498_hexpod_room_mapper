@@ -16,13 +16,12 @@ def angle_delta(a, b):
     return math.atan2(math.sin(a - b), math.cos(a - b))
 
 
-def analyze(poses, transitions, coverage=0.0, settle_seconds=1.0,
+def analyze(poses, transitions, settle_seconds=1.0,
             max_step_m=0.25, max_still_m=0.10, max_still_deg=5.0):
     """Analyze ``(time, x, y, yaw, moving)`` samples without importing ROS."""
     result = {
         'pose_samples': len(poses),
         'motion_bursts': sum(1 for _, moving in transitions if moving),
-        'map_known_percent': round(100.0 * coverage, 2),
         'physical_confirmation_required': True,
     }
     failures = []
@@ -99,13 +98,12 @@ def main():
         from urllib2 import Request, urlopen
     import rospy
     from geometry_msgs.msg import PoseStamped
-    from nav_msgs.msg import OccupancyGrid
     from std_msgs.msg import Bool
 
     rospy.init_node('bounded_navigation_validation', anonymous=True)
     lock = threading.Lock()
     poses, transitions = [], []
-    state = {'moving': False, 'coverage': 0.0}
+    state = {'moving': False}
 
     def pose_callback(msg):
         q = msg.pose.orientation
@@ -120,15 +118,9 @@ def main():
             state['moving'] = bool(msg.data)
             transitions.append((time.time(), state['moving']))
 
-    def map_callback(msg):
-        with lock:
-            state['coverage'] = (float(sum(v >= 0 for v in msg.data)) / len(msg.data)
-                                 if msg.data else 0.0)
-
     subscribers = [
         rospy.Subscriber('/slam_out_pose', PoseStamped, pose_callback, queue_size=100),
         rospy.Subscriber('/room_mapper/moving', Bool, motion_callback, queue_size=20),
-        rospy.Subscriber('/map', OccupancyGrid, map_callback, queue_size=2),
     ]
     time.sleep(2.0)
     resume = Request('http://127.0.0.1:8000/resume', data=b'', method='POST')
@@ -142,7 +134,7 @@ def main():
         for subscriber in subscribers:
             subscriber.unregister()
     with lock:
-        print(json.dumps(analyze(list(poses), list(transitions), state['coverage']),
+        print(json.dumps(analyze(list(poses), list(transitions)),
                          indent=2, sort_keys=True))
 
 

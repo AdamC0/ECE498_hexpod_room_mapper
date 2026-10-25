@@ -837,3 +837,17 @@ controller tests pass under import-only ROS message shims, and Python
 compilation passes on the Windows host. Native ROS tests, target inference
 timing, detection quality, no-drive behavior, and supervised motion remain
 pending on PT.
+
+## Remove fixed-grid map completion percentage - 2026-10-24
+
+The mapper reported the fraction of known cells in its configured 25.6 m
+planning grid as a map-known percentage. Because the room boundary and true
+total area are not known in advance, this number changes with the arbitrary
+grid extent and is not a valid completion measure.
+
+Chosen: remove the percentage from web status, autonomous planner logs, and the
+bounded navigation-validation JSON. Remove the unused `ExploreMap.coverage()`
+calculation and the validation script's `/map` subscription. Frontier selection,
+known-free routing, occupancy rendering, and all LiDAR/depth behavior remain
+unchanged. Historical percentages in earlier decision records remain only as
+records of what prior builds displayed, not claims of room completion.

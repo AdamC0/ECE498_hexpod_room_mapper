@@ -317,7 +317,3 @@ class ExploreMap:
         path = [self.to_world(r, c) for r, c in cells[::2]]
         path.append(self.to_world(*found))
         return path, self.to_world(*found)
-
-    def coverage(self):
-        known = self.state != UNKNOWN
-        return float(known.sum()) / max(1, known.size)

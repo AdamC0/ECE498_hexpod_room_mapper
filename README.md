@@ -48,6 +48,12 @@ target OpenCV build, no-drive observation, and directly supervised motion.
 LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
 changed.
 
+The UI, planner logs, and navigation-validation report intentionally do not
+show a map-completion percentage. The occupancy grid covers a configured
+working area rather than a known room boundary, so its known-cell fraction is
+not a meaningful measure of room completion. Exploration continues to use
+reachable frontiers and known-free space directly.
+
 ## Hector/depth hybrid deployed and motion-checked (2026-10-19)
 
 Hector is again authoritative for robot pose and the persistent LiDAR room map.

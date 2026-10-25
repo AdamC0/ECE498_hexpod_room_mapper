@@ -70,6 +70,9 @@ one mapper process exists.
   depth-dropout alarms prohibit reverse.
 - Active paths use continuous translation and turning with live heading-progress
   checks; YOLO does not interrupt paths. Recovery retains bounded bursts.
+- Do not report a map completion/known percentage. The configured occupancy
+  grid is not the unknown room boundary; use frontier availability and direct
+  map evidence instead.
 
 Depth still cannot guarantee detection of reflective, transparent, out-of-view,
 or invalid geometry. Do not describe the system as fully safe.

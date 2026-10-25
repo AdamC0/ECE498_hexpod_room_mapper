@@ -13,9 +13,10 @@ class NavigationValidationTests(unittest.TestCase):
             moving = 2. <= t < 3.
             x = .08 if t >= 3. else (.04 if moving else 0.)
             poses.append((t, x, 0., math.radians(8 if t >= 3 else 0), moving))
-        result = analyze(poses, transitions, .1)
+        result = analyze(poses, transitions)
         self.assertTrue(result['slam_consistency_pass'])
         self.assertTrue(result['physical_confirmation_required'])
+        self.assertNotIn('map_known_percent', result)
         self.assertIn('awaiting physical confirmation', result['verdict'])
 
     def test_pose_jump_and_settled_drift_fail(self):

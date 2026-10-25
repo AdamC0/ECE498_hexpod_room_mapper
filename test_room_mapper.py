@@ -53,7 +53,7 @@ class MapperTests(unittest.TestCase):
         n.t_map_heartbeat = 0.
         n.map_heartbeat_topic, n.map_stale = '', 5.
         n.use_map = n.use_depth = True
-        n.explorer = SimpleNamespace(have_map=True, coverage=lambda: 0.1)
+        n.explorer = SimpleNamespace(have_map=True)
         n.state, n.phase, n.phase_start = SEARCH, 'go', time.time()
         n.path, n.view, n.paused = [(1, 0)], {}, False
         n.manual_cmd, n.manual_until, n.manual_deadman = None, 0., .55
