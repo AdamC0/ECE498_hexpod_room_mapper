@@ -923,3 +923,26 @@ so the designed startup rollback selects YOLOv5n. The fallback measured about
 correctly exceeded the processing-age guard and were shown but not mapped.
 Objects365 recognition is therefore not active; physical motion, detector
 quality, and endpoint timing remain pending supervised tests.
+
+## Make Objects365 export compatible with target OpenCV - 2026-10-25
+
+PT's OpenCV 4.5.5 loaded the simplified YOLO26 graph but failed its final
+forward pass. Layer probing isolated the failure to the final box-scale
+multiply: ONNX broadcasts `[1,4,8400] * [1,8400]`, while this OpenCV version
+mishandles the rank difference. Lowering opset did not help, and disabling
+simplification failed earlier on a broadcast Add.
+
+Chosen: keep the official default grid output and opset 12, but have
+`prepare_yolo_model.py` materialize the scale constant as `[1,4,8400]`. This
+removes the unsupported broadcast and adds only about 100 KB. Randomized ONNX
+Runtime comparison produced bit-identical output before and after rewriting.
+`validate_yolo_model.py` now exercises the exact lightweight target runner and
+can probe individual OpenCV layers. Three regressions cover the rewrite shape,
+nonmatching shapes, and numeric label ordering; the suite now has 163 tests.
+
+The patched artifact passed PT OpenCV warm-up and blank inference, then the
+paused mapper reported `yolo26n-objv1-150.onnx (cpu)` with 5.8-6.9-second live
+inference. Repeated stationary captures mapped six tracks and confirmed two
+after three observations while LiDAR, RGB, and depth rates stayed live. This
+validates model loading and the mapping pipeline, not recognition accuracy.
+No movement command or physical motion occurred.

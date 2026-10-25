@@ -115,7 +115,7 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
-The 2026-10-24 update was deployed on 2026-10-25. All 160 tests pass both under
+The 2026-10-24 update was deployed on 2026-10-25. All 163 tests pass both under
 the checked-in Windows shim runner and natively on PT. Exactly one
 drive-enabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
 SLAM stack, using a fresh post-reboot map. RGB, native/registered depth, LiDAR,
@@ -123,14 +123,14 @@ TF, `/slam_out_pose`, `/map`, the temporary depth planner layer, battery
 telemetry, and the web UI are live. No motion command or physical movement
 occurred during this deployment validation.
 
-The preferred 365-label YOLO26 artifact is installed, but PT's OpenCV 4.5.5
-rejects its warm-up forward pass. Automatic rollback is active on the retained
-YOLOv5n model, measured at about 8-12.4 s per stationary inference. Results
-finishing near 12 s correctly exceeded the processing-age guard and were not
-mapped.
-Objects365 quality, physical strafe/diagonal motion, longer frontier motion,
-and endpoint timing remain pending supervised tests. Native depth is upper-only,
-while the independent registered-depth planner overlay is active.
+The Objects365 exporter now materializes a final broadcast constant for PT's
+legacy OpenCV 4.5.5 DNN implementation. The patched preferred model is active
+on CPU and measured about 5.8-6.9 s per stationary inference. Repeated paused
+captures mapped six tracks and confirmed two after three observations; this is
+pipeline evidence, not detector-quality validation. Physical strafe/diagonal
+motion, longer frontier motion, endpoint timing, and labeled-scene detector
+quality remain pending supervised tests. Native depth is upper-only, while the
+independent registered-depth planner overlay is active.
 
 `/voltage` is `std_msgs/Float32`. The dedicated vendor `battery_low_alarm` node
 is persistently excluded from both controller launch variants; launch backups

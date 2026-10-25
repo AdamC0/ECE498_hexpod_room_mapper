@@ -4,10 +4,10 @@ Updated: 2026-10-25
 
 ## Live checkpoint
 
-Deployed 2026-10-25: PT now runs the 160-test smooth-routing,
+Deployed 2026-10-25: PT now runs the 163-test smooth-routing,
 omnidirectional-control, nonblocking-object, and map-percentage-removal
 revision. A Python 3.6-compatible detector-startup assertion and repository LF
-export policy were added during the native release gate. All 160 tests pass on
+export policy were added during the native release gate. All 163 tests pass on
 the Windows host and natively on PT. Exactly one drive-enabled mapper is
 `AUTO PAUSED` with command `stop`; Hector is the only SLAM stack and is using a
 fresh post-reboot frame. No physical movement was requested or observed.
@@ -20,16 +20,14 @@ about 10 Hz, RGB about 29-30 Hz, native depth about 31-36 Hz, and registered
 depth about 29-31 Hz. Native depth is again upper-only; the independent
 registered-depth planner overlay is live. Battery was about 11.90 V / 75%.
 
-The paired 365-label `yolo26n-objv1-150.onnx` artifact was prepared at 640 px,
-opset 12 and copied beside the retained fallback. PT's OpenCV 4.5.5 rejects its
-forward-pass warm-up with a DNN shape assertion, so the tested automatic
-rollback selects `yolov5n.onnx`. The fallback measured about 8-12.4 s per
-stationary inference in the no-drive check; results finishing near 12 s
-correctly exceeded the processing-age guard and were shown but not mapped. The
-preferred artifacts remain on PT for later compatibility work, but the
-Objects365 vocabulary is not active.
-Detector quality, physical strafe/diagonal motion, longer frontier motion, and
-two-second endpoint timing still require direct supervised validation.
+The exporter now materializes YOLO26's final `[1,4,8400]` scale tensor instead
+of relying on broadcasting that PT's OpenCV 4.5.5 mishandles. ONNX Runtime
+produces bit-identical output before and after the rewrite. The preferred
+365-label model now passes target warm-up, is reported by live status as active
+on CPU, and measured about 5.8-6.9 s per stationary inference. Repeated paused
+captures mapped six tracks and confirmed two after three observations. Treat
+that as pipeline evidence, not a detector-quality judgment. Physical motion,
+labeled-scene quality, and two-second endpoint timing remain pending.
 
 Repository-only update on 2026-10-24: removed the fixed-grid map-known
 percentage from web status, planner logs, and navigation validation. The room's

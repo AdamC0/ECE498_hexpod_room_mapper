@@ -42,12 +42,14 @@ python3 -m pip install ultralytics
 python3 prepare_yolo_model.py
 ```
 
-The full update was deployed on 2026-10-25 and all 160 tests pass both through
-the workstation shim runner and natively on PT. The target OpenCV 4.5.5 build
-rejects the preferred YOLO26 ONNX graph during warm-up, so automatic rollback
-keeps the retained COCO YOLOv5n model active; no-drive inference measured
-about 8-12.4 s, with one result correctly rejected by the 12 s age guard. The
-Objects365 artifacts remain installed but are not active.
+The exporter materializes a final broadcast constant so the generated model
+runs on PT's legacy OpenCV 4.5.5 DNN implementation without changing ONNX
+Runtime output. Use `validate_yolo_model.py` on the target before activation.
+
+The full update was deployed on 2026-10-25 and all 163 tests pass both through
+the workstation shim runner and natively on PT. The patched Objects365 model is
+active on CPU; no-drive inference measured about 5.8-6.9 s. Repeated stationary
+captures exercised synchronized mapping and three-observation confirmation.
 Directly supervised motion and detector-quality validation remain pending.
 LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
 changed.
@@ -285,6 +287,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
 - `prepare_yolo_model.py`: workstation-only ONNX export and label-sidecar tool.
+- `validate_yolo_model.py`: target OpenCV warm-up and timing check.
 - `depth_mapping.py`: registered-depth projection for temporary planner cells.
 - `hex_map.launch`: Hector and required TF bridges.
 - `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
@@ -292,7 +295,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 160 tests and does not publish physical movement
+The updated suite contains 163 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -308,10 +311,10 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 160 tests pass natively on PT. The current live stack uses Hector, not
+All 163 tests pass natively on PT. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and command `stop`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
 depth planner layer, battery telemetry, and the web interface are live. The
-preferred Objects365 model is installed but rejected by target OpenCV warm-up,
-so the retained YOLOv5n fallback is active. This deployment used no physical
+preferred Objects365 model is active on CPU after its legacy-OpenCV broadcast
+rewrite. This deployment used no physical
 movement; supervised motion validation remains separate and pending.

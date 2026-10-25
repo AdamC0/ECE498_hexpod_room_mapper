@@ -39,16 +39,15 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 160 tests. Tests do not publish robot movement.
+  Current regression count: 163 tests. Tests do not publish robot movement.
 
 SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   [x] Before copying models, keep models/yolov5n.onnx in place for rollback.
   [x] On a workstation, run prepare_yolo_model.py; copy the generated ONNX and
       .names files together to /home/hiwonder/room_mapper/models/.
-  [x] Start AUTO PAUSED and check detector warm-up. PT OpenCV 4.5.5 rejects
-      the preferred graph, and the intended fallback selects yolov5n.onnx;
-      the classroom model is therefore installed but not active.
-  [x] Run all 160 robot-native tests while no mapper is running/AUTO PAUSED.
+  [x] Start AUTO PAUSED and check detector warm-up. The exporter materializes
+      the legacy-OpenCV broadcast; status must report the preferred model on CPU.
+  [x] Run all 163 robot-native tests while no mapper is running/AUTO PAUSED.
   [x] Record no-drive CPU, inference seconds, RGB/depth rates, and controller
       status. If sensor/control rates degrade, select the fallback explicitly:
       _yolo_model:=~/room_mapper/models/yolov5n.onnx
@@ -168,10 +167,9 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native depth
   is upper-only; its floor-bump alarm is unavailable, but the independent
-  registered-depth planner layer is active. Native robot suite: 160 passing.
-  The preferred Objects365 ONNX is installed but rejected by OpenCV 4.5.5
-  warm-up, so YOLOv5n fallback is active at about 8-12.4 s per inference.
-  Results finishing near 12 s correctly exceeded the age guard and were not
-  mapped. No movement was commanded during this deployment; autonomy remains
-  paused.
+  registered-depth planner layer is active. Native robot suite: 163 passing.
+  The preferred Objects365 ONNX is active on CPU at about 5.8-6.9 s per
+  inference. Repeated paused captures mapped six tracks and confirmed two;
+  labeled-scene quality is still pending. No movement was commanded during
+  this deployment; autonomy remains paused.
   Latest battery sample was about 79% / 12.02 V.

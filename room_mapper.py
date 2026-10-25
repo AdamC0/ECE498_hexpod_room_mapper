@@ -426,6 +426,8 @@ class RoomMapper:
         self.last_object_stamps = (0.0, 0.0)
         self.object_status = "disabled"
         self.detector = None
+        self.active_yolo_model = ""
+        self.active_yolo_backend = ""
         self.object_processing = False
         self.object_focus_id = None
         self.object_focus_label = None
@@ -1999,11 +2001,16 @@ class RoomMapper:
         mode = "  MANUAL: %s" % manual_cmd.upper() if manual_cmd else ("  AUTO PAUSED" if self.paused else "")
         depth_map_line = ("Depth planner layer: " + self.depth_map_status
                           if self.use_depth_map else "Depth planner layer: disabled")
-        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\nObjects: %s\n%s\nLast: %s" % (
+        active_model = getattr(self, "active_yolo_model", "")
+        detector_line = ("Detector: %s (%s)" %
+                         (os.path.basename(active_model),
+                          getattr(self, "active_yolo_backend", "unknown"))
+                         if active_model else "Detector: disabled")
+        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\n%s\nObjects: %s\n%s\nLast: %s" % (
             self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
             scan_line, self.translation_speed_percent, self.rotation_speed_percent,
             depth_line, depth_map_line, front, self.lidar_stop,
-            self.object_status, survey_line, self.web_msg)
+            detector_line, self.object_status, survey_line, self.web_msg)
 
     def web_battery(self):
         with self.data_lock:
