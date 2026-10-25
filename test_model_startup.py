@@ -82,7 +82,7 @@ class ModelStartupTests(unittest.TestCase):
         with patch("room_mapper.os.path.isfile",
                    side_effect=lambda path: path.endswith(".onnx")):
             n.start_object_detection()
-        self.assertEqual([item.args[0] for item in detector_type.call_args_list],
+        self.assertEqual([item[0][0] for item in detector_type.call_args_list],
                          [n.yolo_model, n.yolo_fallback_model])
         self.assertIs(n.detector, fallback)
         self.assertEqual(n.active_yolo_model, n.yolo_fallback_model)
