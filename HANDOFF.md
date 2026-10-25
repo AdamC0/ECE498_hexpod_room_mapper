@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-Updated: 2026-10-24
+Updated: 2026-10-25
 
 ## Live checkpoint
 
@@ -34,6 +34,43 @@ keeps overlapping classes. Startup warm-up validates the model/backend and
 automatically falls back to CPU and then the unchanged `yolov5n.onnx`. The
 model artifacts are not committed and must be prepared with
 `prepare_yolo_model.py`, then copied beside the fallback model.
+
+The operator reports that the previously tested object-mapping revision placed
+landmarks nearly perfectly and did not produce duplicate landmarks or false
+detections. Its observed weaknesses were missed objects and slow inference.
+Do not change depth projection, landmark association, or confirmation solely in
+response to that report. First test the pending Objects365/nonblocking revision
+on PT; its target OpenCV behavior and detection quality are still unknown.
+
+If the next robot tests still show missed objects or unacceptable inference
+delay, the following are optional directions for investigation, not required or
+approved changes:
+
+- Benchmark the preferred and fallback models on labeled images from the robot,
+  recording per-class precision/recall and end-to-end inference time.
+- Tune per-class confidence thresholds from those results while preserving the
+  previously observed absence of false detections.
+- Fine-tune a small model on actual classroom-camera images, especially missed,
+  small, distant, occluded, podium, and lectern examples.
+- Compare CPU, CUDA FP16, and, if compatible with PT, TensorRT FP16 execution
+  before considering a larger model. Measure camera, ROS, and controller rates
+  as well as detector latency.
+- During the settled survey, choose the sharpest of a small set of candidate
+  frames for one inference. Keep any pending-work queue bounded to the newest
+  useful settled observation so slow inference cannot accumulate stale work.
+- Consider a selective high-resolution or tiled second pass only for views in
+  which the normal 640-pixel pass finds nothing. This may improve small-object
+  recall but can increase latency.
+- If misses are caused by camera coverage rather than classification, consider
+  aiming endpoint captures toward unexplored space or taking additional bounded
+  views. Any new body rotation requires the normal supervised motion validation.
+- Restrict the enabled production vocabulary to useful classroom landmarks if
+  that makes lower class-specific thresholds acceptable without adding clutter.
+
+These possibilities intentionally leave the currently successful map-point and
+deduplication behavior unchanged unless new evidence identifies a regression in
+those areas. None should be described as necessary until robot measurements
+support it.
 
 Ten regressions were added (160 total). All 49 directly runnable ROS-free tests
 pass, the remaining 111 controller tests pass under import-only ROS message

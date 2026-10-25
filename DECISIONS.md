@@ -869,3 +869,29 @@ missing disabling detection cleanly. The suite now has 160 tests: 49 run
 directly without ROS and all 160 pass through the workstation shim runner.
 Python compilation also passes. Native ROS execution, target OpenCV inference,
 sensor behavior, and supervised motion remain robot-only validation gates.
+
+## Conditional object-detector follow-ups recorded - 2026-10-25
+
+The operator reports that the previously tested object-mapping revision placed
+landmarks nearly perfectly and produced neither duplicate landmarks nor false
+detections. Missed objects and inference delay were the observed problems. The
+robot is currently unavailable, so no detector, projection, tracking, or survey
+change has been selected or implemented from this report.
+
+Chosen: preserve the current map projection, association, and confirmation
+behavior while the pending Objects365/nonblocking revision awaits robot testing.
+If those tests still reproduce missed detections or unacceptable delay, possible
+evidence-driven follow-ups include: benchmark preferred and fallback models on
+labeled robot-camera images; calibrate per-class thresholds; fine-tune a small
+model on classroom images and missing classes; compare CPU, CUDA FP16, and
+compatible TensorRT FP16 execution; select the sharpest settled survey frame;
+bound queued inference work to the newest useful observation; use a selective
+high-resolution or tiled second pass for otherwise empty views; improve endpoint
+camera coverage; or narrow the production vocabulary before lowering selected
+thresholds.
+
+These are optional investigation paths, not requirements or approved
+architecture changes. A larger model or unconditional high-resolution pass may
+increase the existing delay, and lower thresholds may undo the observed lack of
+false detections. Future comparisons must report recognition quality and
+end-to-end latency separately from the already successful landmark placement.
