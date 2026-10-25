@@ -50,6 +50,14 @@ depth camera is facing its old position and measures clear space.
   outside the camera frustum, beyond the configured 2.0 m depth-map range, or
   behind the measured surface. Occupied evidence wins if a cell appears in
   both sets in one update.
+- Add a protected near-field zone around the registered-depth camera. Cells
+  inside it remain magenta even when currently in view and a ray appears clear,
+  because geometry close to or beneath the camera may be poorly observed. Use
+  the existing 0.60 m depth-stop distance from the camera as the initial minimum
+  protected range; increase it if target measurements show a larger camera
+  blind/uncertain region. Express the test in the camera origin's map frame and
+  account for the camera-to-robot transform rather than measuring from the map
+  viewport center. The 30 s expiry remains available for eventual cleanup.
 - Require two consecutive valid clear observations by default before deleting
   a live depth-only cell. New occupied evidence resets its clear count.
 - Apply clearing only to the temporary registered-depth overlay. It must never
@@ -65,6 +73,9 @@ depth camera is facing its old position and measures clear space.
   observations when its former cells are in view.
 - A present, partly occluded, out-of-view, or invalid-depth obstacle is not
   cleared early.
+- A pink cell in the protected near-field zone remains present across repeated
+  apparently clear observations while the robot faces it; cells beyond that
+  zone may clear after the required valid observations.
 - Simultaneous occupied evidence prevents clearing.
 - LiDAR-black cells remain occupied when overlapping magenta cells clear.
 - Planner inflation/path tests show the route opens only after the temporary
@@ -179,15 +190,21 @@ tests. After all host tests pass:
 5. Record unit tests, no-drive evidence, SLAM telemetry, and operator-observed
    physical behavior as separate evidence.
 
-## Operator decisions requested before implementation
+## Operator decisions recorded before implementation
 
-The proposed defaults are:
+The operator has accepted the current object-capture and landmark-confirmation
+proposals. The depth-clearing proposal is refined by the near-field protection
+rule above. Current design defaults are:
 
 - Clear a magenta cell after two consecutive valid depth observations disprove
-  it, while retaining the 30 s TTL when no valid view exists.
+  it only when it lies outside the protected near-field zone; retain the 30 s
+  TTL when no valid view exists.
 - Keep three distinct observations for landmark confirmation.
 - Allow up to 1.0 s of extra endpoint dwell only to obtain a synchronized
   snapshot; never wait there for YOLO inference.
 
-Implementation should not begin until the operator accepts these defaults or
-selects alternatives.
+The operator specified that pink cells remain when they are near or beneath the
+camera view, even while the robot faces them. The existing 0.60 m depth-stop
+distance is the initial minimum near-field protection distance, subject to
+measured camera geometry. The plan is approved for implementation planning;
+implementation awaits further operator instruction.
