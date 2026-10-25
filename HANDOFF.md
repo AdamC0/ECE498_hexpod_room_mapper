@@ -19,6 +19,37 @@ later route activity the operator intentionally moved both speed sliders to
 the active route and left the mapper `AUTO PAUSED` with command `stop`. Do not
 infer completion of the still-pending beyond-45-degree or obstacle-gate trials.
 
+## Approved next work - implementation not started
+
+The operator reported three issues: mapped object markers do not follow map
+zoom, old magenta registered-depth obstacles remain after an object is moved,
+and fast exploration can leave too few settled object captures for confirmed
+landmarks. The reviewed implementation sequence is recorded in
+`RELIABILITY_FIX_PLAN.md` and has been pushed. No code or robot deployment for
+these fixes has started.
+
+Implement in this order:
+
+1. Add conservative free-space evidence to the temporary registered-depth
+   planner layer. Clear a magenta cell only after two consecutive valid depth
+   observations disprove it. Preserve all cells within at least 0.60 m of the
+   registered-depth camera because close geometry may be beneath its useful
+   view, even while the robot faces the cell. Determine distance from the
+   timestamped camera-to-map transform. Invalid, occluded, out-of-view, and
+   behind-surface cells continue to rely on the 30 s TTL. Never clear Hector's
+   LiDAR occupancy or the native-depth collision state.
+2. Capture one immutable synchronized RGB/depth/intrinsics/TF snapshot as each
+   stationary survey becomes ready, then process it asynchronously. The
+   operator accepted one active inference plus the newest pending snapshot,
+   three distinct observations for confirmation, and up to 1.0 s of endpoint
+   grace to acquire synchronized data. Exploration must not wait for inference.
+3. Pass the active map scale to object and goal world-to-screen conversions so
+   markers retain the correct position through zoom and pan.
+
+Keep each change separately reviewable and follow the plan's host, no-drive,
+native, and supervised validation gates. The near-field depth protection is a
+safety requirement, not an optional tuning suggestion.
+
 The first post-deployment boot had USB enumeration error `-71`, no LiDAR
 device, and no RGB/depth frames. The documented in-place RGB recovery could
 not find the USB function, so PT was rebooted with no mapper or SLAM process
