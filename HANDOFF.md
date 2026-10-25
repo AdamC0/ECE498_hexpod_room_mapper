@@ -10,7 +10,14 @@ revision. A Python 3.6-compatible detector-startup assertion and repository LF
 export policy were added during the native release gate. All 163 tests pass on
 the Windows host and natively on PT. Exactly one drive-enabled mapper is
 `AUTO PAUSED` with command `stop`; Hector is the only SLAM stack and is using a
-fresh post-reboot frame. No physical movement was requested or observed.
+fresh post-reboot frame. On 2026-10-25, directly supervised 50% tests physically
+confirmed clean left/right strafe, clean in-place Q/E rotation, and continuous
+diagonal travel on a short clicked route about 31 degrees off heading. The
+operator reported that all movement was correct and matched the map. During
+later route activity the operator intentionally moved both speed sliders to
+200%; these were not unexplained controller changes. The agent then cancelled
+the active route and left the mapper `AUTO PAUSED` with command `stop`. Do not
+infer completion of the still-pending beyond-45-degree or obstacle-gate trials.
 
 The first post-deployment boot had USB enumeration error `-71`, no LiDAR
 device, and no RGB/depth frames. The documented in-place RGB recovery could
@@ -26,8 +33,9 @@ produces bit-identical output before and after the rewrite. The preferred
 365-label model now passes target warm-up, is reported by live status as active
 on CPU, and measured about 5.8-6.9 s per stationary inference. Repeated paused
 captures mapped six tracks and confirmed two after three observations. Treat
-that as pipeline evidence, not a detector-quality judgment. Physical motion,
-labeled-scene quality, and two-second endpoint timing remain pending.
+that as pipeline evidence, not a detector-quality judgment. Labeled-scene
+quality and a measured two-second endpoint-timing check remain pending; the
+initial omnidirectional motion cases are recorded above.
 
 Repository-only update on 2026-10-24: removed the fixed-grid map-known
 percentage from web status, planner logs, and navigation validation. The room's
@@ -185,7 +193,9 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 - Active paths use continuous translation and turning, with heading progress
   checked during turns. Recovery retains bounded motion and settling.
 - The deployed controller can crab-steer active paths up to 45 degrees and
-  provides supervised manual left/right strafe; physical validation is pending.
+  provides supervised manual left/right strafe. Left/right strafe, Q/E rotation,
+  and a 31-degree clicked route have been physically validated; larger-bearing
+  and obstacle-gate cases remain pending.
 - Depth is the forward primary signal; LiDAR is an independent 0.45 m
   emergency fallback and supplies rear/rotation clearance.
 - Web UI provides robot-following zoomable/pannable map, click navigation,

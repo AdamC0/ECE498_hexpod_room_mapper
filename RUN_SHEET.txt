@@ -111,14 +111,16 @@ WEB CONTROLS:
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.
 
-OMNIDIRECTIONAL MOTION VALIDATION (DEPLOYED; NOT PHYSICALLY VALIDATED):
-  [x] Deploy the new revision on PT and pass all 160 robot-native tests paused.
+OMNIDIRECTIONAL MOTION VALIDATION (DEPLOYED; PARTIALLY PHYSICALLY VALIDATED):
+  [x] Deploy the new revision on PT and pass all 163 robot-native tests paused.
   [x] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
-  [ ] At 50% translation, hold A then D separately for one dead-man interval;
+  [x] At 50% translation, hold A then D separately for one dead-man interval;
       physically confirm lateral motion with no unintended yaw or forward step.
-  [ ] Use Q/E and confirm they rotate without lateral translation.
-  [ ] Run a clear-space clicked route with a 20-45 degree bearing change and
+  [x] Use Q/E and confirm they rotate without lateral translation.
+  [x] Run a clear-space clicked route with a 20-45 degree bearing change and
       confirm continuous diagonal travel without a stop/turn/start cycle.
+      2026-10-25: operator confirmed all three checks and that motion matched
+      the map. The clicked route was approximately 0.47 m at a 31 degree bearing.
   [ ] Confirm a route beyond 45 degrees still turns first and that three weak
       turn samples retain the existing SLAM LOST latch.
   [ ] Place a LiDAR-visible obstacle along a diagonal route and confirm the

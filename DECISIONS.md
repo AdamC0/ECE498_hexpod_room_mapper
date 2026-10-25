@@ -946,3 +946,29 @@ inference. Repeated stationary captures mapped six tracks and confirmed two
 after three observations while LiDAR, RGB, and depth rates stayed live. This
 validates model loading and the mapping pipeline, not recognition accuracy.
 No movement command or physical motion occurred.
+
+## Validate initial omnidirectional movement cases - 2026-10-25
+
+With Hector as the only SLAM stack, exactly one drive-enabled mapper, autonomy
+initially paused, and translation/rotation set to 50%, four directly supervised
+manual dead-man pulses were performed. The operator confirmed that A strafed
+left correctly without noticeable yaw, D strafed right without noticeable
+forward motion or yaw, and Q/E rotated in place without lateral translation.
+These are physical observations, separate from controller and Hector telemetry.
+
+A known-free clicked target approximately 0.47 m away at a 31-degree bearing
+was then requested; the planner selected a safe endpoint near `(0.35, 0.25)` m.
+The operator confirmed continuous, entirely correct movement that matched the
+map, satisfying the run sheet's 20-45-degree diagonal-route check. During later
+route activity the operator intentionally moved both translation and rotation
+sliders to 200%, explaining the observed slider changes. The active route was
+subsequently cancelled and the mapper was left `AUTO PAUSED` with command
+`stop`. No additional movement is authorized by this record.
+
+Chosen: mark the left/right strafe, Q/E in-place rotation, and 20-45-degree
+clicked-route checks complete. Keep the beyond-45-degree turn-first/SLAM-latch
+test and diagonal LiDAR-obstacle gate test pending. These results do not validate
+manual collision protection (manual movement bypasses autonomous obstacle
+gates), low/reflective/transparent obstacles, or the upper-only depth system as
+fully safe. The existing 163-test host and robot-native results are unchanged;
+no code changed and tests were not rerun for this documentation-only update.

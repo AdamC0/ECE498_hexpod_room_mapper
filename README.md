@@ -8,7 +8,7 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Smooth routing and classroom detection update (deployed; motion pending)
+## Smooth routing and classroom detection update (deployed; partially motion-validated)
 
 The repository now attacks the observed move-for-seconds/wait-for-about-20-
 seconds cadence at its two causes. Frontier selection considers reachable
@@ -50,8 +50,10 @@ The full update was deployed on 2026-10-25 and all 163 tests pass both through
 the workstation shim runner and natively on PT. The patched Objects365 model is
 active on CPU; no-drive inference measured about 5.8-6.9 s. Repeated stationary
 captures exercised synchronized mapping and three-observation confirmation.
-Directly supervised motion and detector-quality validation remain pending.
-LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
+Directly supervised 50% manual strafe/rotation and a short 31-degree clicked
+route were subsequently confirmed physically correct by the operator. Tests of
+the beyond-45-degree turn-first behavior, diagonal obstacle gate, and detector
+quality remain pending. LiDAR/depth fusion and collision thresholds were not
 changed.
 
 The UI, planner logs, and navigation-validation report intentionally do not
@@ -105,7 +107,7 @@ medium, charging, stale, and unavailable telemetry.
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
 - Active paths use continuous translation and turning without timed observation
   stops. Heading progress is checked during turns. Recovery retains bounded
-  motion; stationary surveys at route endpoints require five scans over six seconds.
+  motion; stationary surveys at route endpoints require three scans over two seconds.
 - Routing models the robot as a 0.30 m radius circle. The planner adds a 0.03 m
   margin, so mapped obstacles require 0.33 m clearance.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
@@ -128,10 +130,10 @@ medium, charging, stale, and unavailable telemetry.
   autonomous gait commands from 50% to 200%. They start at 100% after a mapper
   restart and do not alter collision distances, footprint, or dead-man timing.
 - Detected objects are listed in the Objects tab and may be navigated to,
-  renamed, or removed. Two distinct observations confirm a landmark.
-- During stationary surveys, a new tentative object starts `object_focus`:
-  motion stops until it is confirmed, missed twice, or times out after 15 s.
-  Mapping then replans and continues. Rejected candidates may be detected again.
+  renamed, or removed. Three distinct settled observations confirm a landmark.
+- During stationary surveys, tentative objects remain nonblocking by default.
+  The legacy `object_focus` behavior is opt-in; when enabled, motion stops until
+  the object is confirmed, missed twice, or the 15-second limit expires.
 - YOLO inference and detections do not interrupt active paths. Object mapping
   uses stationary observations at stops; depth and LiDAR still block obstacles.
 - RGB failure does not disable depth/LiDAR-protected manual driving. On this
@@ -169,7 +171,7 @@ The dashboard contains live RGB, a robot-centered SLAM map, telemetry,
 pause/resume, camera recovery, route cancellation, map clearing, and manual
 drive controls.
 
-## Omnidirectional motion update (deployed; physical validation pending)
+## Omnidirectional motion update (deployed; initial physical validation complete)
 
 The repository controller now uses JetHexa's body-relative travel direction
 instead of reducing every route segment to turn-then-forward motion. Route
@@ -185,11 +187,15 @@ left/right arrow keys reserved for rotation. Manual driving still bypasses
 autonomous obstacle gates and therefore requires direct sight, key-release/
 browser-blur stop handling, and the 0.55 second server dead-man.
 
-This revision is deployed and included in the 160-test native pass, but its
-strafe and diagonal gait behavior has not yet been physically observed on PT.
-The Objects tab shows confirmed and pending landmarks. Map and object routes
-always use known-free, footprint-inflated planner space and remain subject to
-live sensor stops.
+This revision is deployed and included in the 163-test native pass. On
+2026-10-25 the operator confirmed correct left/right strafe without noticeable
+yaw or forward motion, correct in-place Q/E rotation without lateral motion,
+and continuous travel on a short known-free clicked route about 31 degrees from
+the current heading. The operator also confirmed that physical movement matched
+the map. Beyond-45-degree turn-first and diagonal obstacle-gate trials remain
+pending. The Objects tab shows confirmed and pending landmarks. Map and object
+routes always use known-free, footprint-inflated planner space and remain
+subject to live sensor stops.
 
 `CLEAR MAP` stops and pauses the robot, resets Hector and the planner, clears
 object landmarks, and starts a fresh stationary survey. Hector's installed
