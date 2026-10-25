@@ -170,7 +170,8 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   is upper-only; its floor-bump alarm is unavailable, but the independent
   registered-depth planner layer is active. Native robot suite: 160 passing.
   The preferred Objects365 ONNX is installed but rejected by OpenCV 4.5.5
-  warm-up, so YOLOv5n fallback is active at about 8-12.4 s per inference. One
-  12.38 s result correctly exceeded the 12 s age guard and was not mapped. No
-  movement was commanded during this deployment; autonomy remains paused.
+  warm-up, so YOLOv5n fallback is active at about 8-12.4 s per inference.
+  Results finishing near 12 s correctly exceeded the age guard and were not
+  mapped. No movement was commanded during this deployment; autonomy remains
+  paused.
   Latest battery sample was about 79% / 12.02 V.

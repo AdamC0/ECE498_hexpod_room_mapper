@@ -919,7 +919,7 @@ The preferred 365-label YOLO26 ONNX/sidecar pair was prepared at 640 pixels and
 opset 12, checksum-verified, and installed without replacing `yolov5n.onnx`.
 OpenCV 4.5.5 fails its blank warm-up forward pass with a DNN shape assertion,
 so the designed startup rollback selects YOLOv5n. The fallback measured about
-8-12.4 seconds per stationary inference. One 12.38-second result correctly
-exceeded the 12-second processing-age guard and was shown but not mapped.
+8-12.4 seconds per stationary inference. Results finishing near 12 seconds
+correctly exceeded the processing-age guard and were shown but not mapped.
 Objects365 recognition is therefore not active; physical motion, detector
 quality, and endpoint timing remain pending supervised tests.

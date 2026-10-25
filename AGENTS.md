@@ -125,8 +125,9 @@ occurred during this deployment validation.
 
 The preferred 365-label YOLO26 artifact is installed, but PT's OpenCV 4.5.5
 rejects its warm-up forward pass. Automatic rollback is active on the retained
-YOLOv5n model, measured at about 8-12.4 s per stationary inference. One 12.38 s
-result correctly exceeded the 12 s processing-age guard and was not mapped.
+YOLOv5n model, measured at about 8-12.4 s per stationary inference. Results
+finishing near 12 s correctly exceeded the processing-age guard and were not
+mapped.
 Objects365 quality, physical strafe/diagonal motion, longer frontier motion,
 and endpoint timing remain pending supervised tests. Native depth is upper-only,
 while the independent registered-depth planner overlay is active.
