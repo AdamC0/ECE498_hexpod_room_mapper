@@ -46,7 +46,8 @@ The full update was deployed on 2026-10-25 and all 160 tests pass both through
 the workstation shim runner and natively on PT. The target OpenCV 4.5.5 build
 rejects the preferred YOLO26 ONNX graph during warm-up, so automatic rollback
 keeps the retained COCO YOLOv5n model active; no-drive inference measured
-about 8-10.3 s. The Objects365 artifacts remain installed but are not active.
+about 8-12.4 s, with one result correctly rejected by the 12 s age guard. The
+Objects365 artifacts remain installed but are not active.
 Directly supervised motion and detector-quality validation remain pending.
 LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
 changed.

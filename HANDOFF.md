@@ -23,9 +23,11 @@ registered-depth planner overlay is live. Battery was about 11.90 V / 75%.
 The paired 365-label `yolo26n-objv1-150.onnx` artifact was prepared at 640 px,
 opset 12 and copied beside the retained fallback. PT's OpenCV 4.5.5 rejects its
 forward-pass warm-up with a DNN shape assertion, so the tested automatic
-rollback selects `yolov5n.onnx`. The fallback measured about 8-10.3 s per
-stationary inference in the no-drive check. The preferred artifacts remain on
-PT for later compatibility work, but the Objects365 vocabulary is not active.
+rollback selects `yolov5n.onnx`. The fallback measured about 8-12.4 s per
+stationary inference in the no-drive check; one 12.38 s result correctly
+exceeded the 12 s processing-age guard and was shown but not mapped. The
+preferred artifacts remain on PT for later compatibility work, but the
+Objects365 vocabulary is not active.
 Detector quality, physical strafe/diagonal motion, longer frontier motion, and
 two-second endpoint timing still require direct supervised validation.
 
