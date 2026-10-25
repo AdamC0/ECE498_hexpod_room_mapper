@@ -117,9 +117,9 @@ recharged; the latest value is recorded below.
 
 The 2026-10-24 repository update adds information-gain frontier goals, two-
 second/three-scan endpoint surveys, asynchronous object inference completion,
-and a reversible Objects365 model profile. It has 156 tests; 49 ROS-free tests
-pass directly, 107 controller tests pass under import-only ROS message shims,
-and syntax checks pass on the Windows host. Robot-native execution, detector
+and a reversible Objects365 model profile. It has 160 tests; 49 ROS-free tests
+pass directly, 111 controller tests pass under the checked-in import-only ROS
+message shim runner, and syntax checks pass on the Windows host. Robot-native execution, detector
 timing/quality, deployment, and physical motion remain pending. Do not present
 these repository-only results as live evidence.
 

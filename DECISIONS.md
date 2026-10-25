@@ -832,9 +832,9 @@ operator sets `_object_classes`, so the broader model capability is preserved.
 References: [Ultralytics Objects365 models and vocabulary](https://docs.ultralytics.com/datasets/detect/objects365/),
 [Ultralytics ONNX export options](https://docs.ultralytics.com/modes/export/),
 and [Jetson deployment guidance](https://docs.ultralytics.com/guides/nvidia-jetson/).
-The repository has 156 tests. The 49 ROS-free tests pass directly, the 107
-controller tests pass under import-only ROS message shims, and Python
-compilation passes on the Windows host. Native ROS tests, target inference
+The repository has 160 tests. The 49 ROS-free tests pass directly, the 111
+controller tests pass under the checked-in import-only ROS message shim, and
+Python compilation passes on the Windows host. Native ROS tests, target inference
 timing, detection quality, no-drive behavior, and supervised motion remain
 pending on PT.
 
@@ -851,3 +851,21 @@ calculation and the validation script's `/map` subscription. Frontier selection,
 known-free routing, occupancy rendering, and all LiDAR/depth behavior remain
 unchanged. Historical percentages in earlier decision records remain only as
 records of what prior builds displayed, not claims of room completion.
+
+## Reproducible workstation release gate - 2026-10-24
+
+The earlier workstation result used ad-hoc import-only ROS message shims, so a
+fresh maintainer could run only the 49 ROS-free tests without reconstructing
+that environment. The detector's startup fallback policy was also covered by
+decoder tests and planned target checks, but not by direct unit regressions.
+
+Chosen: retain `python3 -m unittest discover -v` as the robot-native gate and
+add `host_test_runner.py` for no-ROS workstations. Its shims satisfy imports and
+the simple message constructors used by tests; they do not start ROS or connect
+to hardware. Four new tests cover a missing preferred model falling back to
+the retained model, CUDA warm-up retrying the preferred model on CPU, an
+incompatible preferred model rolling back after warm-up, and both models
+missing disabling detection cleanly. The suite now has 160 tests: 49 run
+directly without ROS and all 160 pass through the workstation shim runner.
+Python compilation also passes. Native ROS execution, target OpenCV inference,
+sensor behavior, and supervised motion remain robot-only validation gates.

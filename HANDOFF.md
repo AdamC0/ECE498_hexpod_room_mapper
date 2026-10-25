@@ -7,8 +7,15 @@ Updated: 2026-10-24
 Repository-only update on 2026-10-24: removed the fixed-grid map-known
 percentage from web status, planner logs, and navigation validation. The room's
 total extent is unknown, so the fraction was not a valid completion measure.
-Frontier planning and occupancy data are unchanged. Test count remains 156;
+Frontier planning and occupancy data are unchanged. Test count is now 160;
 robot-native validation remains pending.
+
+The workstation validation is now reproducible through `host_test_runner.py`,
+which supplies import-only ROS/message shims and runs all 160 tests without a
+ROS node or hardware connection. Four detector-startup regressions verify
+missing-preferred fallback, CUDA-to-CPU retry, warm-up failure rollback, and
+clean disablement when both models are unavailable. The run sheet's object
+handling summary now matches the nonblocking, three-capture default.
 
 Repository-only update on 2026-10-24: autonomous frontier routes now prefer
 information-rich goals 1.5-3.0 m away, endpoint surveys default to two seconds
@@ -28,8 +35,8 @@ automatically falls back to CPU and then the unchanged `yolov5n.onnx`. The
 model artifacts are not committed and must be prepared with
 `prepare_yolo_model.py`, then copied beside the fallback model.
 
-Six regressions were added (156 total). All 49 directly runnable ROS-free tests
-pass, the remaining 107 controller tests pass under import-only ROS message
+Ten regressions were added (160 total). All 49 directly runnable ROS-free tests
+pass, the remaining 111 controller tests pass under import-only ROS message
 shims, and Python compilation passes on the Windows host. This is not a
 substitute for a native ROS run. Nothing in this update has been deployed or
 physically validated. The last

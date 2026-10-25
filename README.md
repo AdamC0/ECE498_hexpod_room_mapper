@@ -288,9 +288,16 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 156 tests and does not publish physical movement
-during test execution. The ROS-dependent regressions still require a
-robot-native run because the Windows development host does not provide ROS:
+The updated suite contains 160 tests and does not publish physical movement
+during test execution. On a workstation without ROS, the import-only shim
+runner exercises the same suite without creating a ROS node or hardware link:
+
+```bash
+python host_test_runner.py
+```
+
+The deployment gate remains a robot-native run against the target ROS message
+types and OpenCV build:
 
 ```bash
 cd ~/room_mapper

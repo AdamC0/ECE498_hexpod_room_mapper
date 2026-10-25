@@ -39,7 +39,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 156 tests. Tests do not publish robot movement.
+  Current regression count: 160 tests. Tests do not publish robot movement.
 
 SMOOTH ROUTING + CLASSROOM YOLO (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
   [ ] Before copying models, keep models/yolov5n.onnx in place for rollback.
@@ -48,7 +48,7 @@ SMOOTH ROUTING + CLASSROOM YOLO (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
   [ ] Start dry-run/AUTO PAUSED and confirm status names yolo26n-objv1-150.onnx
       (cpu or cuda_fp16), not "startup failed". A fallback warning is safe but
       means the classroom model is not active.
-  [ ] Run all 156 robot-native tests while AUTO PAUSED.
+  [ ] Run all 160 robot-native tests while AUTO PAUSED.
   [ ] Record idle/moving CPU, inference seconds, RGB/depth rates, and controller
       status. If sensor/control rates degrade, select the fallback explicitly:
       _yolo_model:=~/room_mapper/models/yolov5n.onnx
@@ -113,7 +113,7 @@ WEB CONTROLS:
   Objects tab: navigate, rename, or remove a landmark.
 
 OMNIDIRECTIONAL MOTION VALIDATION (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
-  [ ] Pull the new revision on PT and pass all 156 robot-native tests paused.
+  [ ] Pull the new revision on PT and pass all 160 robot-native tests paused.
   [ ] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
   [ ] At 50% translation, hold A then D separately for one dead-man interval;
       physically confirm lateral motion with no unintended yaw or forward step.
@@ -128,10 +128,11 @@ OMNIDIRECTIONAL MOTION VALIDATION (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
       not protected against unseen low, reflective, or transparent geometry.
 
 AUTONOMOUS OBJECT HANDLING:
-  A new tentative object stops mapping in object_focus. It is added after two
-  distinct observations, excluded after two misses, or excluded after 15 s.
-  The planner then replans and continues. Existing confirmed objects do not
-  repeatedly stop exploration.
+  By default, a tentative object does not stop mapping. It is confirmed after
+  three distinct settled captures and may remain pending for up to five
+  minutes. An immutable synchronized RGB/depth/TF snapshot may finish after
+  the next route begins. Legacy object_focus is opt-in; when enabled, it stops
+  for confirmation, two misses, or the 15 s limit before replanning.
 
 BLOCKED ROUTES:
   The controller first stops. It rotates toward an open side when the 0.30 m
