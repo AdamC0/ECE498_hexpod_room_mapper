@@ -23,6 +23,15 @@ COCO_CLASSES = (
 ).split("|")
 
 
+def load_labels(path):
+    """Load a one-label-per-line model vocabulary."""
+    with open(path, "r", encoding="utf-8") as stream:
+        labels = [line.strip() for line in stream if line.strip()]
+    if not labels:
+        raise ValueError("YOLO label file is empty: " + path)
+    return labels
+
+
 def decode_depth_image(msg):
     """Decode a ROS Image-like depth message to metres without resizing it."""
     if msg.encoding in ("16UC1", "mono16"):
@@ -187,12 +196,37 @@ class TransformCache:
 class YoloOnnxDetector:
     """Small OpenCV-DNN runner for raw YOLOv5/v8-style ONNX exports."""
 
-    def __init__(self, model_path, labels=None, input_size=640, confidence=.45, nms=.45):
+    def __init__(self, model_path, labels=None, input_size=640, confidence=.45, nms=.45,
+                 class_thresholds=None, allowed_labels=None, backend="cpu"):
         self.labels = list(labels or COCO_CLASSES)
         self.input_size = int(input_size)
         self.confidence = float(confidence)
         self.nms = float(nms)
+        if self.input_size < 256 or self.input_size % 32:
+            raise ValueError("YOLO input_size must be at least 256 and divisible by 32")
+        self.class_thresholds = {
+            str(label).strip().lower(): float(value)
+            for label, value in (class_thresholds or {}).items()
+        }
+        if any(not 0.01 <= value <= 0.99 for value in self.class_thresholds.values()):
+            raise ValueError("YOLO class thresholds must be between 0.01 and 0.99")
+        self.allowed_labels = ({str(label).strip().lower() for label in allowed_labels}
+                               if allowed_labels else None)
         self.net = cv2.dnn.readNetFromONNX(model_path)
+        self.backend = str(backend).strip().lower()
+        if self.backend == "cuda_fp16":
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
+        elif self.backend != "cpu":
+            raise ValueError("YOLO backend must be cpu or cuda_fp16")
+
+    def threshold_for(self, label):
+        return getattr(self, "class_thresholds", {}).get(
+            str(label).lower(), self.confidence)
+
+    def warmup(self):
+        """Run one blank frame so unsupported models/backends fail at startup."""
+        self.detect(np.zeros((self.input_size, self.input_size, 3), np.uint8))
 
     def detect(self, image):
         h, w = image.shape[:2]
@@ -218,9 +252,22 @@ class YoloOnnxDetector:
         expected4, expected5 = len(self.labels) + 4, len(self.labels) + 5
         if rows.shape[0] in (expected4, expected5) and rows.shape[1] not in (expected4, expected5):
             rows = rows.T
+        if rows.shape[1] not in (6, expected4, expected5):
+            raise ValueError("YOLO output has %d values per prediction, but %d labels were "
+                             "configured" % (rows.shape[1], len(self.labels)))
         boxes, scores, class_ids = [], [], []
         for row in rows:
-            if row.size == expected5:  # YOLOv5: cx cy w h objectness classes...
+            end_to_end = row.size == 6 and len(self.labels) != 2
+            if end_to_end:  # Exported end-to-end output: x1 y1 x2 y2 score class.
+                class_id = int(round(float(row[5])))
+                if not 0 <= class_id < len(self.labels):
+                    continue
+                score = float(row[4])
+                x1, y1, x2, y2 = [float(v) for v in row[:4]]
+                x = (x1 - left) / scale
+                y = (y1 - top) / scale
+                bw, bh = (x2 - x1) / scale, (y2 - y1) / scale
+            elif row.size == expected5:  # YOLOv5: cx cy w h objectness classes...
                 class_scores = row[5:]
                 class_id = int(np.argmax(class_scores))
                 score = float(row[4] * class_scores[class_id])
@@ -230,20 +277,33 @@ class YoloOnnxDetector:
                 score = float(class_scores[class_id])
             else:
                 continue
-            if score < self.confidence:
+            label = self.labels[class_id]
+            allowed_labels = getattr(self, "allowed_labels", None)
+            if ((allowed_labels is not None and label.lower() not in allowed_labels) or
+                    score < self.threshold_for(label)):
                 continue
-            cx, cy, bw, bh = [float(v) for v in row[:4]]
-            x = (cx - .5 * bw - left) / scale
-            y = (cy - .5 * bh - top) / scale
-            bw, bh = bw / scale, bh / scale
+            if not end_to_end:
+                cx, cy, bw, bh = [float(v) for v in row[:4]]
+                x = (cx - .5 * bw - left) / scale
+                y = (cy - .5 * bh - top) / scale
+                bw, bh = bw / scale, bh / scale
             boxes.append([int(round(x)), int(round(y)), int(round(bw)), int(round(bh))])
             scores.append(score)
             class_ids.append(class_id)
         if not boxes:
             return []
-        kept = cv2.dnn.NMSBoxes(boxes, scores, self.confidence, self.nms)
+        # NMS must be class-aware. Class-agnostic suppression can make a desk
+        # erase an overlapping chair (or vice versa) in a crowded classroom.
+        kept = []
+        for class_id in sorted(set(class_ids)):
+            indices = [i for i, value in enumerate(class_ids) if value == class_id]
+            class_boxes = [boxes[i] for i in indices]
+            class_scores = [scores[i] for i in indices]
+            threshold = self.threshold_for(self.labels[class_id])
+            selected = cv2.dnn.NMSBoxes(class_boxes, class_scores, threshold, self.nms)
+            kept.extend(indices[int(i)] for i in np.asarray(selected).reshape(-1))
         detections = []
-        for i in np.asarray(kept).reshape(-1):
+        for i in kept:
             x, y, bw, bh = boxes[int(i)]
             x1, y1 = max(0, x), max(0, y)
             x2, y2 = min(image_w - 1, x + bw), min(image_h - 1, y + bh)

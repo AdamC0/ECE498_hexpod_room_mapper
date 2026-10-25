@@ -26,7 +26,8 @@ from depth_mapping import project_obstacle_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TransformCache, YoloOnnxDetector, backproject,
-                            decode_depth_image, sample_box_depth, transform_point)
+                            decode_depth_image, load_labels, sample_box_depth,
+                            transform_point)
 
 try:
     from jethexa_controller import client
@@ -194,10 +195,11 @@ class RoomMapper:
             raise ValueError("max_spin_stalls must be between 2 and 10")
         self.scan_settle = float(rospy.get_param("~scan_settle", 0.65))
         self.survey = StationarySurvey(
-            # Hold at every waypoint long enough for repeated clear LiDAR
-            # rays and several CPU YOLO observations, not merely one scan.
-            float(rospy.get_param("~survey_seconds", 6.0)),
-            int(rospy.get_param("~survey_scans", 5)))
+            # Raw LiDAR already updates Hector continuously. This short gate
+            # verifies a settled pose/scan and admits an RGB-depth snapshot;
+            # YOLO completion no longer blocks the next route.
+            float(rospy.get_param("~survey_seconds", 2.0)),
+            int(rospy.get_param("~survey_scans", 3)))
         self.scan_max_age = float(rospy.get_param("~scan_max_age", 0.6))
         if not math.isfinite(self.scan_max_age) or self.scan_max_age <= 0:
             raise ValueError("scan_max_age must be finite and positive")
@@ -213,7 +215,12 @@ class RoomMapper:
         # separate from the denser native depth used for collision avoidance.
         self.detect_objects = bool(rospy.get_param("~detect_objects", True))
         self.yolo_model = os.path.expanduser(rospy.get_param(
-            "~yolo_model", "~/room_mapper/models/yolov5n.onnx"))
+            "~yolo_model", "~/room_mapper/models/yolo26n-objv1-150.onnx"))
+        self.yolo_fallback_model = os.path.expanduser(rospy.get_param(
+            "~yolo_fallback_model", "~/room_mapper/models/yolov5n.onnx"))
+        self.yolo_labels = os.path.expanduser(str(rospy.get_param("~yolo_labels", "")))
+        self.yolo_input_size = int(rospy.get_param("~yolo_input_size", 640))
+        self.yolo_backend = str(rospy.get_param("~yolo_backend", "cpu")).strip().lower()
         self.registered_depth_topic = rospy.get_param(
             "~registered_depth_topic", "/camera/depth_registered/image_raw")
         self.camera_info_topic = rospy.get_param(
@@ -245,7 +252,7 @@ class RoomMapper:
         self.depth_processing_hz = float(rospy.get_param("~depth_processing_hz", 15.0))
         self.registered_depth_processing_hz = float(rospy.get_param(
             "~registered_depth_processing_hz", 10.0))
-        self.opencv_threads = int(rospy.get_param("~opencv_threads", 1))
+        self.opencv_threads = int(rospy.get_param("~opencv_threads", 2))
         if (any(not math.isfinite(value) or value <= 0 for value in
                 (self.rgb_processing_hz, self.depth_processing_hz,
                  self.registered_depth_processing_hz)) or self.opencv_threads < 1):
@@ -278,10 +285,34 @@ class RoomMapper:
                 self.object_result_max_age < self.object_max_age):
             raise ValueError("object ages must be finite, positive, and result age >= admission age")
         self.object_confidence = float(rospy.get_param("~object_confidence", 0.45))
+        self.object_priority_confidence = float(rospy.get_param(
+            "~object_priority_confidence", 0.30))
+        priority_classes = rospy.get_param("~object_priority_classes", [
+            "chair", "desk", "podium", "lectern", "stool", "bench", "dining table", "coffee table",
+            "side table", "blackboard/whiteboard", "book", "backpack", "laptop",
+            "keyboard", "mouse", "monitor/tv", "projector", "printer", "clock",
+            "cabinet/shelf", "pen/pencil", "marker", "folder", "notepaper",
+            "calculator", "trash bin can", "power outlet"])
+        if isinstance(priority_classes, str):
+            priority_classes = priority_classes.split(",")
+        self.object_priority_classes = [str(item).strip() for item in priority_classes
+                                        if str(item).strip()]
+        object_classes = rospy.get_param("~object_classes", [])
+        if isinstance(object_classes, str):
+            object_classes = object_classes.split(",")
+        self.object_classes = [str(item).strip() for item in object_classes
+                               if str(item).strip()]
+        if (not 0.01 <= self.object_priority_confidence <= self.object_confidence <= 0.99 or
+                self.yolo_backend not in ("cpu", "cuda_fp16")):
+            raise ValueError("YOLO confidence/backend parameters are invalid")
         self.object_merge_distance = float(rospy.get_param("~object_merge_distance", 0.65))
-        self.object_min_observations = int(rospy.get_param("~object_min_observations", 2))
-        if self.object_min_observations < 1:
-            raise ValueError("object_min_observations must be positive")
+        self.object_min_observations = int(rospy.get_param("~object_min_observations", 3))
+        self.object_track_max_age = float(rospy.get_param("~object_track_max_age", 300.0))
+        if (not 1 <= self.object_min_observations <= 20 or
+                not math.isfinite(self.object_track_max_age) or
+                not 30.0 <= self.object_track_max_age <= 3600.0):
+            raise ValueError("object confirmation/retention parameters are invalid")
+        self.object_focus_enabled = bool(rospy.get_param("~object_focus_enabled", False))
         self.object_focus_seconds = float(rospy.get_param("~object_focus_seconds", 15.0))
         self.object_focus_max_misses = int(rospy.get_param("~object_focus_max_misses", 2))
         if (not math.isfinite(self.object_focus_seconds) or
@@ -292,7 +323,11 @@ class RoomMapper:
         self.explorer = ExploreMap(
             robot_radius=self.body_radius,
             margin=float(rospy.get_param("~map_margin", 0.03)),
-            occupied_threshold=int(rospy.get_param("~occupied_threshold", 75)))
+            occupied_threshold=int(rospy.get_param("~occupied_threshold", 75)),
+            frontier_goal_distance=float(rospy.get_param(
+                "~frontier_goal_distance", 1.50)),
+            frontier_max_distance=float(rospy.get_param(
+                "~frontier_max_distance", 3.0)))
         if self.use_map and self.reset_map:
             try:
                 self.call_reset_service()
@@ -372,7 +407,8 @@ class RoomMapper:
         self.battery_source = "waiting for battery telemetry"
         self.object_lock = threading.Lock()
         self.object_tracker = ObjectTracker(self.object_merge_distance,
-                                            self.object_min_observations)
+                                            self.object_min_observations,
+                                            self.object_track_max_age)
         self.object_detections = []
         self.registered_depth = None
         self.registered_depth_stamp = 0.0
@@ -521,18 +557,53 @@ class RoomMapper:
             return 0.0
 
     def start_object_detection(self):
-        if not os.path.isfile(self.yolo_model):
-            self.object_status = "model missing: %s" % self.yolo_model
-            rospy.logwarn("Object detection disabled; %s", self.object_status)
-            return
-        try:
-            cv2.setNumThreads(self.opencv_threads)
-            self.detector = YoloOnnxDetector(self.yolo_model,
-                                             confidence=self.object_confidence)
-            self.ensure_tf_listener()
-        except Exception as exc:
-            self.detector = None
-            self.object_status = "startup failed: %s" % exc
+        candidates = []
+        for path in (self.yolo_model, self.yolo_fallback_model):
+            if path and path not in candidates:
+                candidates.append(path)
+        failures = []
+        cv2.setNumThreads(self.opencv_threads)
+        thresholds = {label: self.object_priority_confidence
+                      for label in self.object_priority_classes}
+        for index, path in enumerate(candidates):
+            if not os.path.isfile(path):
+                failures.append("missing %s" % path)
+                continue
+            try:
+                explicit_labels = self.yolo_labels if index == 0 else ""
+                sidecar = explicit_labels or os.path.splitext(path)[0] + ".names"
+                labels = load_labels(sidecar) if os.path.isfile(sidecar) else None
+                backends = [self.yolo_backend]
+                if self.yolo_backend != "cpu":
+                    backends.append("cpu")
+                last_error = None
+                for backend in backends:
+                    try:
+                        detector = YoloOnnxDetector(
+                            path, labels=labels, input_size=self.yolo_input_size,
+                            confidence=self.object_confidence,
+                            class_thresholds=thresholds,
+                            allowed_labels=self.object_classes,
+                            backend=backend)
+                        detector.warmup()
+                        self.detector = detector
+                        self.active_yolo_model = path
+                        self.active_yolo_backend = backend
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                        self.detector = None
+                if self.detector is None:
+                    raise last_error
+                self.ensure_tf_listener()
+                if index:
+                    rospy.logwarn("Preferred YOLO unavailable; using rollback model %s", path)
+                break
+            except Exception as exc:
+                failures.append("%s: %s" % (path, exc))
+                self.detector = None
+        if self.detector is None:
+            self.object_status = "startup failed: " + "; ".join(failures)
             rospy.logerr("Object detection disabled; %s", self.object_status)
             return
         if not self.use_depth_map:
@@ -540,7 +611,10 @@ class RoomMapper:
                              self.registered_depth_callback, queue_size=1, buff_size=2**24)
         rospy.Subscriber(self.camera_info_topic, CameraInfo,
                          self.camera_info_callback, queue_size=1)
-        self.object_status = "waiting for synchronized RGB, registered depth, and camera info"
+        self.object_status = ("%s (%s) ready; waiting for synchronized RGB, registered depth, "
+                              "and camera info" %
+                              (os.path.basename(self.active_yolo_model),
+                               self.active_yolo_backend))
         self.object_thread = threading.Thread(target=self.object_loop, name="object-mapper")
         self.object_thread.start()
 
@@ -678,6 +752,17 @@ class RoomMapper:
                 self.pose is not None and 0 <= now - self.t_pose <= self.slam_stale and
                 self.map_is_fresh(now) and self.detector is not None)
 
+    def object_commit_ready(self, now):
+        """Return whether a previously captured settled observation is still valid.
+
+        Image-time TF and synchronized RGB/depth are snapshotted before
+        inference. Movement after that capture does not alter their geometry,
+        so slow inference may commit while a new route is already active.
+        """
+        return (not self.shutting_down and self.map_trusted and self.use_map and
+                self.pose is not None and 0 <= now - self.t_pose <= self.slam_stale and
+                self.map_is_fresh(now) and self.detector is not None)
+
     def process_objects(self):
         """Process one distinct RGB/depth pair; never hold control locks during YOLO."""
         with self.control_lock, self.data_lock:
@@ -746,15 +831,16 @@ class RoomMapper:
             now = time.time()
             ros_now = rospy.Time.now().to_sec()
             capture_ages = tuple(ros_now - s for s in stamps)
-            if not self.objects_ready(now):
+            if not self.object_commit_ready(now):
                 for detection in detections:
                     detection["map_point"] = None
                 if not self.shutting_down:
                     self.object_detections = detections
-                self.object_status = ("discarded observation after %.2f s: robot moved or "
+                self.object_status = ("discarded observation after %.2f s: "
                                       "SLAM/map became unavailable" % inference_seconds)
                 return
-            if generation != self.motion_generation:
+            if (getattr(self, "object_focus_enabled", False) and
+                    generation != self.motion_generation):
                 for detection in detections:
                     detection["map_point"] = None
                 self.object_detections = detections
@@ -784,12 +870,14 @@ class RoomMapper:
                         mapped += 1
             self.object_detections = detections
             confirmed = len(self.object_tracker.snapshot(True, now))
-            self.object_status = "%d detections, %d mapped, %d confirmed" % (
-                len(detections), mapped, confirmed)
+            self.object_status = ("%d detections, %d mapped, %d confirmed; %.2f s inference" %
+                                  (len(detections), mapped, confirmed, inference_seconds))
             self.update_object_focus_locked(updated_tracks, now)
 
     def update_object_focus_locked(self, updated_tracks, now):
         """Start or resolve autonomous object focus while object_lock is held."""
+        if not getattr(self, "object_focus_enabled", False):
+            return
         focus_id = getattr(self, "object_focus_id", None)
         if focus_id is None:
             if (getattr(self, "paused", True) or
@@ -1211,7 +1299,8 @@ class RoomMapper:
             return
         if self.commanded_moving:
             if now >= self.motion_until:
-                object_hold = (getattr(self, "object_processing", False) and
+                object_hold = (getattr(self, "object_focus_enabled", False) and
+                               getattr(self, "object_processing", False) and
                                bool(getattr(self, "object_detections", [])) and
                                not interrupt_object)
                 translation_start = getattr(self, "continuous_translation_start", now)
@@ -1268,7 +1357,8 @@ class RoomMapper:
         # before motion resumes. This avoids multi-second pauses between every
         # gait burst while preserving stable depth/TF observations for objects.
         object_in_view = bool(getattr(self, "object_detections", []))
-        if (getattr(self, "object_processing", False) and object_in_view and
+        if (getattr(self, "object_focus_enabled", False) and
+                getattr(self, "object_processing", False) and object_in_view and
                 not interrupt_object):
             return
         if cmd[0] == "spin":

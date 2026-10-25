@@ -26,3 +26,8 @@ Thumbs.db
 
 # Local pre-sync backup
 backup_local_pre_robot_sync_*/
+
+# Large runtime detector artifacts are prepared/downloaded outside Git.
+models/*.onnx
+models/*.pt
+models/*.engine

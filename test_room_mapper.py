@@ -650,6 +650,7 @@ class MapperTests(unittest.TestCase):
         n.spin_stride, n.spin_rate = 0., .35
         n.motion_generation, n.object_processing = 3, True
         n.object_detections = [{'label': 'chair'}]
+        n.object_focus_enabled = True
         n.motion_pub = Mock()
         n.robot = SimpleNamespace(traveling=Mock())
 

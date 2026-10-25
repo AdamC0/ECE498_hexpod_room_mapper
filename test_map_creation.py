@@ -276,6 +276,7 @@ class SurveyMotionTests(unittest.TestCase):
         n.survey.localize(1.)
         n.object_processing = True
         n.object_detections = [{'label': 'chair'}]
+        n.object_focus_enabled = True
         n.send_actual, n.set_motion = Mock(), Mock()
         n.move_burst, n.spin_burst = .45, .35
         with patch('room_mapper.time.time', return_value=2.):
@@ -284,6 +285,22 @@ class SurveyMotionTests(unittest.TestCase):
             n.object_processing = False
             n.send(('forward',))
             n.send_actual.assert_called_once_with(('forward',))
+
+    def test_default_nonblocking_detection_never_holds_autonomous_motion(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.drive = n.use_map = True
+        n.commanded_moving = False
+        n.data_lock = threading.Lock()
+        n.settle_until = 0.
+        n.object_processing = True
+        n.object_detections = [{'label': 'chair'}]
+        n.object_focus_enabled = False
+        n.send_actual, n.set_motion = Mock(), Mock()
+        n.move_burst, n.spin_burst = .45, .35
+        with patch('room_mapper.time.time', return_value=2.):
+            n.send(('forward',))
+        n.send_actual.assert_called_once_with(('forward',))
+        n.set_motion.assert_called_once_with(True)
 
     def test_motion_continues_through_empty_scene_inference(self):
         n = RoomMapper.__new__(RoomMapper)

@@ -775,3 +775,65 @@ boundary, directional LiDAR clearance, vendor direction values, and manual
 strafe dispatch. The suite now contains 150 tests. This Windows host lacks ROS,
 and noninteractive SSH authentication to PT was unavailable, so robot-native
 execution, deployment, and physical motion validation are still pending.
+
+## Longer frontier routes and nonblocking surveys - 2026-10-24
+
+The operator clarified that autonomous modes walk for only a few seconds, then
+can remain stopped for roughly 20 seconds. Manual control is acceptable and is
+not changed. The controller already had continuous path commands, but frontier
+planning selected the first reachable frontier only 0.5 m away, the endpoint
+survey required six seconds/five scans, and a tentative object could enter a
+15-second blocking `object_focus`. Together these produced the reported cadence
+even though individual path segments no longer used gait bursts.
+
+Chosen: search the connected known-free region once and select a high-information
+frontier normally 1.5-3.0 m away, retaining closer/farther fallback choices when
+the known map cannot supply that band. Endpoint surveys now require two seconds
+and three settled scans. YOLO still admits captures only while stationary and
+settled, but synchronized RGB/depth, intrinsics, timestamped TF, and the motion
+generation are snapshotted before inference. In default nonblocking mode, that
+immutable observation may commit after a new route begins. Blocking focus is
+disabled by default and remains reversible with `_object_focus_enabled:=true`.
+
+LiDAR/depth fusion, obstacle distances, route footprint, recovery, turn-progress
+checks, manual control, and the rule that object tracks never alter occupancy
+geometry are unchanged. Robot deployment and physical smoothness validation
+remain pending.
+
+## Classroom-oriented YOLO profile with automatic rollback - 2026-10-24
+
+COCO provides useful chair, book, backpack, laptop, keyboard, and dining-table
+classes, but has no desk, podium, projector, printer, or blackboard/whiteboard
+class. The official Objects365 vocabulary covers desk, chair, stool,
+blackboard/whiteboard, projector, printer, school supplies, and many additional
+indoor objects. Ultralytics publishes a 2.5-million-parameter YOLO26n Objects365
+checkpoint (`yolo26n-objv1-150.pt`), making it a better ready-made classroom
+candidate than simply increasing the size of the existing COCO model.
+Objects365 still has no podium/lectern class. The external vocabulary and custom
+checkpoint support deliberately leave that final class available for a later
+room-specific fine-tune; podium and lectern are already classroom-priority
+names when such a model is supplied.
+
+Chosen: `prepare_yolo_model.py` exports that checkpoint to a static 640-pixel,
+opset-12 ONNX file on a workstation and writes an ordered `.names` sidecar.
+The robot continues to use its small OpenCV-DNN runner and does not install
+PyTorch/Ultralytics. Startup performs a warm-up inference; an absent or
+incompatible preferred model, label mismatch, or requested CUDA failure falls
+back to CPU and then to the retained `yolov5n.onnx`. Artifacts are gitignored,
+and the exporter refuses to overwrite them unless `--force` is explicit.
+
+Classroom classes use a 0.30 admission threshold while other classes retain
+0.45. Class-aware NMS fixes the previous behavior where an overlapping class
+could suppress a desk/chair detection. Three distinct settled captures rather
+than two confirm a landmark, and pending tracks live for five minutes to permit
+confirmation at later route endpoints. All classes remain enabled unless the
+operator sets `_object_classes`, so the broader model capability is preserved.
+
+References: [Ultralytics Objects365 models and vocabulary](https://docs.ultralytics.com/datasets/detect/objects365/),
+[Ultralytics ONNX export options](https://docs.ultralytics.com/modes/export/),
+and [Jetson deployment guidance](https://docs.ultralytics.com/guides/nvidia-jetson/).
+The repository has 156 tests. The 49 ROS-free tests pass directly, the 107
+controller tests pass under import-only ROS message shims, and Python
+compilation passes on the Windows host. Native ROS tests, target inference
+timing, detection quality, no-drive behavior, and supervised motion remain
+pending on PT.

@@ -19,15 +19,22 @@ UNKNOWN, FREE, OCCUPIED = 0, 1, 2
 
 class ExploreMap:
     def __init__(self, size_m=25.6, cell=0.10, robot_radius=0.30, margin=0.03,
-                 occupied_threshold=75):
+                 occupied_threshold=75, frontier_goal_distance=1.50,
+                 frontier_max_distance=3.0):
         self.size_m = float(size_m)
         self.cell = float(cell)
         self.n = int(round(self.size_m / self.cell))
         self.half = self.size_m / 2.0
         self.clearance = float(robot_radius) + float(margin)
         self.occupied_threshold = int(occupied_threshold)
+        self.frontier_goal_distance = float(frontier_goal_distance)
+        self.frontier_max_distance = float(frontier_max_distance)
         if not 51 <= self.occupied_threshold <= 100:
             raise ValueError('occupied_threshold must be between 51 and 100')
+        if not 0.5 <= self.frontier_goal_distance <= 4.0:
+            raise ValueError('frontier_goal_distance must be between 0.5 and 4.0 metres')
+        if not self.frontier_goal_distance <= self.frontier_max_distance <= 8.0:
+            raise ValueError('frontier_max_distance must be at least the goal distance')
         self.state = np.full((self.n, self.n), UNKNOWN, np.uint8)
         self.slam_state = self.state.copy()
         self.depth_obstacles = {}
@@ -202,7 +209,15 @@ class ExploreMap:
         return path, goal
 
     def plan_frontier(self, pose, max_cells=60000):
-        """Return waypoints to the nearest reachable frontier, or (None, None)."""
+        """Return a route to a useful reachable frontier, or ``(None, None)``.
+
+        Selecting the first frontier only half a metre away made the robot
+        alternate between a few seconds of walking and a full stationary
+        survey. Search the connected free region once, then prefer a frontier
+        at least ``frontier_goal_distance`` away with high nearby unknown-space
+        gain. A closer frontier remains eligible when the known region is
+        still too small for a longer route.
+        """
         self.last_plan_kind = None
         if not self.have_map:
             return None, None
@@ -222,16 +237,10 @@ class ExploreMap:
         frontier &= cv2.boxFilter(frontier.astype(np.uint8), -1, (5, 5), normalize=False) >= 3
 
         parent = {(sr, sc): None}
+        steps = {(sr, sc): 0}
         q = deque([(sr, sc)])
-        found = None
         while q and len(parent) < max_cells:
             r, c = q.popleft()
-            # Goals inside the controller's 0.30 m arrival tolerance cause an
-            # endless plan/arrive loop without collecting a new viewpoint.
-            gx, gy = self.to_world(r, c)
-            if math.hypot(gx - pose[0], gy - pose[1]) >= 0.50 and frontier[r, c]:
-                found = (r, c)
-                break
             for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1),
                            (1, 1), (1, -1), (-1, 1), (-1, -1)):
                 nr, nc = r + dr, c + dc
@@ -241,7 +250,42 @@ class ExploreMap:
                     continue
                 if self.inside(nr, nc) and ok[nr, nc] and (nr, nc) not in parent:
                     parent[(nr, nc)] = (r, c)
+                    steps[(nr, nc)] = steps[(r, c)] + 1
                     q.append((nr, nc))
+        candidates = [cell for cell in parent
+                      if frontier[cell] and steps[cell] * self.cell >= 0.50]
+        found = None
+        if candidates:
+            preferred = [cell for cell in candidates
+                         if self.frontier_goal_distance <= steps[cell] * self.cell <=
+                         self.frontier_max_distance]
+            nearer = [cell for cell in candidates
+                      if steps[cell] * self.cell < self.frontier_goal_distance]
+            farther = [cell for cell in candidates
+                       if steps[cell] * self.cell > self.frontier_max_distance]
+            pool = preferred or nearer
+            if not pool and farther:
+                # When mapping has pushed every frontier farther away, take
+                # the closest one rather than choosing an impractically long
+                # information-rich route that will hit the route timeout.
+                pool = [min(farther, key=lambda cell: steps[cell])]
+            radius = max(3, int(round(1.0 / self.cell)))
+            unknown_near = cv2.boxFilter(
+                unknown.astype(np.float32), -1, (2*radius+1, 2*radius+1),
+                normalize=False)
+
+            def frontier_score(cell):
+                r, c = cell
+                gx, gy = self.to_world(r, c)
+                bearing = math.atan2(gy - pose[1], gx - pose[0])
+                heading = abs(math.atan2(math.sin(bearing - pose[2]),
+                                         math.cos(bearing - pose[2])))
+                # Information gain dominates; route length and initial turn
+                # break ties so decisions remain useful and inexpensive.
+                return (float(unknown_near[r, c]) - 0.20 * steps[cell],
+                        -heading, -steps[cell])
+
+            found = max(pool, key=frontier_score)
         if found is None:
             # A mapped wall can separate every reachable free cell from the
             # unknown boundary. Move to a different, confirmed-free viewpoint
@@ -255,10 +299,11 @@ class ExploreMap:
                 x, y = self.to_world(r, c)
                 travel = math.hypot(x-pose[0], y-pose[1])
                 if travel >= 0.50 and unknown_near[r, c] > 0:
-                    choices.append((float(unknown_near[r, c]), -travel, r, c))
+                    preferred = travel >= self.frontier_goal_distance
+                    choices.append((preferred, float(unknown_near[r, c]), -travel, r, c))
             if not choices:
                 return None, None
-            _, _, r, c = max(choices)
+            _, _, _, r, c = max(choices)
             found = (r, c)
             self.last_plan_kind = "survey viewpoint"
         else:

@@ -8,6 +8,46 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
+## Smooth routing and classroom detection update (pending robot validation)
+
+The repository now attacks the observed move-for-seconds/wait-for-about-20-
+seconds cadence at its two causes. Frontier selection considers reachable
+information gain and normally chooses a 1.5-3.0 m route rather than the first
+0.5 m frontier. Endpoint survey defaults are reduced from six seconds/five
+scans to two seconds/three scans. A synchronized RGB/depth/TF snapshot is still
+captured only while stopped and settled, but slow YOLO inference may finish and
+commit that snapshot after the next safe route has begun. Tentative objects no
+longer enter the 15-second blocking focus phase by default. Set
+`_object_focus_enabled:=true` to restore the old workflow.
+
+Object detection now prefers `models/yolo26n-objv1-150.onnx` with its matching
+`.names` file and validates it with a blank warm-up inference. This official
+Objects365 vocabulary includes desk, chair, stool, whiteboard/blackboard,
+projector, printer, laptop, books, backpacks, and many other classroom objects.
+It does not include a podium/lectern class; the same sidecar-label pipeline
+accepts a later room-specific fine-tuned checkpoint, and those class names are
+already configured for the classroom confidence threshold.
+Classroom classes use a 0.30 confidence threshold; all other supported classes
+remain enabled at 0.45. Three distinct settled captures now confirm a landmark,
+and class-aware NMS prevents overlapping desk/chair boxes from suppressing one
+another. If the preferred model is absent, incompatible, or its selected CUDA
+backend fails, startup automatically falls back to CPU and then to the retained
+`models/yolov5n.onnx` model. Existing model files are never overwritten.
+
+Prepare the preferred model on a workstation (not the robot), then copy both
+output files into `/home/hiwonder/room_mapper/models/`:
+
+```bash
+python3 -m pip install ultralytics
+python3 prepare_yolo_model.py
+```
+
+The full update is repository-only as of 2026-10-24. It has syntax and ROS-free
+test coverage but still needs paused robot-native tests, detector timing on the
+target OpenCV build, no-drive observation, and directly supervised motion.
+LiDAR/depth fusion, collision thresholds, and manual-control behavior were not
+changed.
+
 ## Hector/depth hybrid deployed and motion-checked (2026-10-19)
 
 Hector is again authoritative for robot pose and the persistent LiDAR room map.
@@ -234,6 +274,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_explore.py`: 10 cm planning grid, inflation, frontiers, point routes.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
+- `prepare_yolo_model.py`: workstation-only ONNX export and label-sidecar tool.
 - `depth_mapping.py`: registered-depth projection for temporary planner cells.
 - `hex_map.launch`: Hector and required TF bridges.
 - `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
@@ -241,9 +282,9 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 150 tests and does not publish physical movement
-during test execution. The five new omnidirectional regressions still require
-a robot-native run because the Windows development host does not provide ROS:
+The updated suite contains 156 tests and does not publish physical movement
+during test execution. The ROS-dependent regressions still require a
+robot-native run because the Windows development host does not provide ROS:
 
 ```bash
 cd ~/room_mapper

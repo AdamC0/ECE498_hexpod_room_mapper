@@ -1,8 +1,34 @@
 # JetHexa Room Mapper - Agent Handoff
 
-Updated: 2026-10-20
+Updated: 2026-10-24
 
 ## Live checkpoint
+
+Repository-only update on 2026-10-24: autonomous frontier routes now prefer
+information-rich goals 1.5-3.0 m away, endpoint surveys default to two seconds
+and three settled scans, and YOLO completion no longer blocks the next route.
+Image-time synchronized RGB/depth/TF snapshots can commit after motion resumes.
+Blocking `object_focus` is off by default but reversible with
+`_object_focus_enabled:=true`. Landmark confirmation is three distinct settled
+captures, retained for five minutes, rather than two immediate observations.
+
+The preferred detector is now an externally prepared
+`yolo26n-objv1-150.onnx` plus `.names` sidecar. It covers the 365 Objects365
+classes, including classroom-specific desk, whiteboard/blackboard, projector,
+printer, stool, and school-supply classes absent from COCO. Classroom classes
+use a lower 0.30 threshold while other classes retain 0.45; class-aware NMS
+keeps overlapping classes. Startup warm-up validates the model/backend and
+automatically falls back to CPU and then the unchanged `yolov5n.onnx`. The
+model artifacts are not committed and must be prepared with
+`prepare_yolo_model.py`, then copied beside the fallback model.
+
+Six regressions were added (156 total). All 49 directly runnable ROS-free tests
+pass, the remaining 107 controller tests pass under import-only ROS message
+shims, and Python compilation passes on the Windows host. This is not a
+substitute for a native ROS run. Nothing in this update has been deployed or
+physically validated. The last
+verified robot state below remains authoritative. LiDAR/depth fusion, safety
+distances, and manual controls are unchanged.
 
 Repository-only update on 2026-10-20: active paths now use the vendor's
 body-relative direction command for continuous crab steering in a conservative
@@ -93,10 +119,11 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   autonomous gait output without changing any sensor or planning threshold.
 - The web UI includes a header battery percentage badge with voltage and
   charging details plus clear stale/unavailable states.
-- YOLO landmarks require two distinct observations. Stationary exploration surveys
-  holds in `object_focus` until confirmation, two misses, or a 15 s timeout.
-- Active paths do not wait for YOLO or enter object focus. Object mapping still
-  requires stationary observations; obstacles are handled by depth and LiDAR.
+- The pending repository update requires three distinct settled captures for a
+  landmark. Inference finishes asynchronously and does not enter blocking
+  `object_focus` unless the legacy mode is explicitly enabled.
+- Object capture remains stationary; inference completion may occur during the
+  next route because image-time TF and registered depth were snapshotted.
 
 ## Depth/navigation update
 

@@ -50,6 +50,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.tf_buffer.update('camera', 'optical', (0, 0, 0), (-.5, .5, -.5, .5), 0, True)
         n.object_tracker = ObjectTracker()
         n.object_detections = []
+        n.object_focus_enabled = False
         n.detector = SimpleNamespace(detect=Mock(side_effect=self.detections))
 
     @staticmethod
@@ -73,6 +74,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.paused, n.phase, n.path = False, 'survey', [(2., 3.)]
         n.phase_start = 90.
         n.object_focus_seconds, n.object_focus_max_misses = 15., 2
+        n.object_focus_enabled = True
         n.object_focus_id = n.object_focus_label = None
         n.object_focus_deadline, n.object_focus_misses = 0., 0
         n.process_objects()
@@ -91,6 +93,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.paused, n.phase, n.path = False, 'survey', [(2., 3.)]
         n.phase_start = 90.
         n.object_focus_seconds, n.object_focus_max_misses = 15., 2
+        n.object_focus_enabled = True
         n.object_focus_id = n.object_focus_label = None
         n.object_focus_deadline, n.object_focus_misses = 0., 0
         n.detector.detect.side_effect = [self.detections(None), [], []]
@@ -163,7 +166,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.process_objects()
         n.detector.detect.assert_not_called()
 
-    def test_motion_during_inference_discards_result_even_after_stop(self):
+    def test_motion_after_settled_capture_does_not_discard_async_result(self):
         n = self.node
         n.motion_pub = Mock()
         def infer(frame):
@@ -172,8 +175,21 @@ class ObjectPipelineTests(unittest.TestCase):
             return self.detections(frame)
         n.detector.detect.side_effect = infer
         n.process_objects()
-        self.assertEqual(n.object_tracker.tracks, [])
+        self.assertEqual(len(n.object_tracker.tracks), 1)
         self.assertEqual(len(n.object_detections), 1)
+        self.assertIsNotNone(n.object_detections[0]['map_point'])
+
+    def test_legacy_focus_mode_discards_result_if_motion_changes(self):
+        n = self.node
+        n.object_focus_enabled = True
+        n.motion_pub = Mock()
+        def infer(frame):
+            n.set_motion(True)
+            n.set_motion(False)
+            return self.detections(frame)
+        n.detector.detect.side_effect = infer
+        n.process_objects()
+        self.assertEqual(n.object_tracker.tracks, [])
         self.assertIsNone(n.object_detections[0]['map_point'])
 
     def test_slam_loss_during_inference_cannot_repopulate_tracks(self):

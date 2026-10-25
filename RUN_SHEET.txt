@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-20)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-24)
 =====================================================
 
 ROBOT:
@@ -39,7 +39,32 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 150 tests. Tests do not publish robot movement.
+  Current regression count: 156 tests. Tests do not publish robot movement.
+
+SMOOTH ROUTING + CLASSROOM YOLO (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
+  [ ] Before copying models, keep models/yolov5n.onnx in place for rollback.
+  [ ] On a workstation, run prepare_yolo_model.py; copy the generated ONNX and
+      .names files together to /home/hiwonder/room_mapper/models/.
+  [ ] Start dry-run/AUTO PAUSED and confirm status names yolo26n-objv1-150.onnx
+      (cpu or cuda_fp16), not "startup failed". A fallback warning is safe but
+      means the classroom model is not active.
+  [ ] Run all 156 robot-native tests while AUTO PAUSED.
+  [ ] Record idle/moving CPU, inference seconds, RGB/depth rates, and controller
+      status. If sensor/control rates degrade, select the fallback explicitly:
+      _yolo_model:=~/room_mapper/models/yolov5n.onnx
+  [ ] In no-drive mode, place a chair, desk, book/backpack, and projector or
+      whiteboard in several views. Confirm boxes, synchronized depth placement,
+      three-observation confirmation, and no repeated false landmarks.
+  [ ] At 50% translation with direct supervision, confirm frontier routes are
+      normally longer than 0.5 m, endpoint waits are about two seconds rather
+      than 6-20 seconds, and inference completion never stops an active path.
+  [ ] Confirm pause, depth/LiDAR stops, turn-progress checks, route cancellation,
+      and recovery still interrupt motion immediately.
+
+  Legacy behavior is reversible with _object_focus_enabled:=true,
+  _object_min_observations:=2 _survey_seconds:=6 _survey_scans:=5
+  _frontier_goal_distance:=0.5 and the explicit yolov5n model path. Do not
+  alter LiDAR/depth fusion for rollback.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
@@ -88,7 +113,7 @@ WEB CONTROLS:
   Objects tab: navigate, rename, or remove a landmark.
 
 OMNIDIRECTIONAL MOTION VALIDATION (NOT YET DEPLOYED/PHYSICALLY VALIDATED):
-  [ ] Pull the new revision on PT and pass all 150 robot-native tests paused.
+  [ ] Pull the new revision on PT and pass all 156 robot-native tests paused.
   [ ] Confirm exactly one mapper, Hector only, and AUTO PAUSED before motion.
   [ ] At 50% translation, hold A then D separately for one dead-man interval;
       physically confirm lateral motion with no unintended yaw or forward step.

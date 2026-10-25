@@ -18,6 +18,19 @@ class SurveyPlannerTests(unittest.TestCase):
         for x, y in path:
             self.assertEqual(grid.state[grid.to_cell(x, y)], FREE)
 
+    def test_information_gain_prefers_longer_useful_frontier_route(self):
+        grid = ExploreMap(size_m=6., cell=.1, frontier_goal_distance=1.5)
+        grid.state[:] = FREE
+        # A small nearby unknown patch competes with a larger classroom-sized
+        # unexplored patch farther down the connected free region.
+        grid.state[29:32, 35:38] = UNKNOWN
+        grid.state[20:41, 49:58] = UNKNOWN
+        grid.have_map = True
+        path, goal = grid.plan_frontier((.05, .05, 0.))
+        self.assertIsNotNone(path)
+        self.assertGreater(goal[0], 1.0)
+        self.assertGreaterEqual(math.hypot(goal[0]-.05, goal[1]-.05), 1.5)
+
     def test_unknown_space_is_not_a_route_to_distant_free_island(self):
         grid = ExploreMap(size_m=4., cell=.1)
         grid.state[20, 20] = FREE

@@ -1,11 +1,13 @@
 import math
+import os
+import tempfile
 import unittest
 from types import SimpleNamespace
 
 import numpy as np
 
 from object_mapping import (COCO_CLASSES, ObjectTracker, TransformCache, YoloOnnxDetector,
-                            backproject, decode_depth_image, sample_box_depth,
+                            backproject, decode_depth_image, load_labels, sample_box_depth,
                             transform_point)
 
 
@@ -132,6 +134,39 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertEqual(len(detections), 1)
         self.assertEqual(detections[0]['label'], 'chair')
         self.assertEqual(detections[0]['box'], (270, 220, 370, 420))
+
+    def test_priority_threshold_and_class_aware_nms_keep_desk_and_chair(self):
+        detector = YoloOnnxDetector.__new__(YoloOnnxDetector)
+        detector.labels = ['chair', 'desk', 'car']
+        detector.confidence, detector.nms = .45, .45
+        detector.class_thresholds = {'chair': .30, 'desk': .30}
+        detector.allowed_labels = None
+        output = np.zeros((1, 7, 3), np.float32)
+        output[0, :4, :] = np.array([[320], [320], [200], [200]], np.float32)
+        output[0, 4, 0] = .40  # chair, accepted at classroom threshold
+        output[0, 5, 1] = .40  # overlapping desk, retained by class-aware NMS
+        output[0, 6, 2] = .40  # car, rejected at the general threshold
+        detections = detector._decode(output, 1., 0, 0, 640, 640)
+        self.assertEqual({item['label'] for item in detections}, {'chair', 'desk'})
+
+    def test_end_to_end_six_value_output_decode(self):
+        detector = YoloOnnxDetector.__new__(YoloOnnxDetector)
+        detector.labels = ['chair', 'desk', 'car']
+        detector.confidence, detector.nms = .45, .45
+        detector.class_thresholds = {}
+        detector.allowed_labels = None
+        output = np.array([[[10., 20., 110., 220., .9, 1.]]], np.float32)
+        detections = detector._decode(output, 1., 0, 0, 640, 640)
+        self.assertEqual(detections[0]['label'], 'desk')
+        self.assertEqual(detections[0]['box'], (10, 20, 110, 220))
+
+    def test_external_model_labels_are_loaded_in_order(self):
+        handle, path = tempfile.mkstemp(suffix='.names')
+        os.close(handle)
+        self.addCleanup(lambda: os.path.exists(path) and os.unlink(path))
+        with open(path, 'w', encoding='utf-8') as stream:
+            stream.write('Chair\nDesk\nProjector\n')
+        self.assertEqual(load_labels(path), ['Chair', 'Desk', 'Projector'])
 
 
 if __name__ == '__main__':

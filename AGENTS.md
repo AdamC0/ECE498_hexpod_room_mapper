@@ -45,7 +45,9 @@ one mapper process exists.
   Cancel Route, manual W/S drive, A/D strafe, Q/E rotation, independent 50-200%
   translation/rotation sliders, object management, and a battery badge.
 - Object mapping uses YOLO, synchronized registered depth, camera intrinsics,
-  and timestamped TF. Two observations confirm a landmark.
+  and timestamped TF. The pending repository revision requires three distinct
+  settled captures and prefers the Objects365 classroom model with automatic
+  fallback to the retained COCO YOLOv5n model.
 
 ## Current safety/calibration facts
 
@@ -58,7 +60,9 @@ one mapper process exists.
   or no previous valid result still faults.
 - Map pose jump: 0.25 m / 20 degrees.
 - Turn progress: three consecutive bursts below 3 degrees invalidate SLAM.
-- Object focus: 15 s maximum, two misses, then replan.
+- YOLO capture is stationary, but inference completion is nonblocking by
+  default. The legacy object-focus mode remains opt-in with its 15 s maximum
+  and two-miss limit.
 - YOLO inference does not hold active path motion. Stationary surveys can
   focus on detections before planning the next route.
 - Persistent front blockage escalates from turning to a one-second reverse
@@ -107,6 +111,14 @@ physical motion as pending supervised tests. The battery was subsequently
 recharged; the latest value is recorded below.
 
 ## Latest validation
+
+The 2026-10-24 repository update adds information-gain frontier goals, two-
+second/three-scan endpoint surveys, asynchronous object inference completion,
+and a reversible Objects365 model profile. It has 156 tests; 49 ROS-free tests
+pass directly, 107 controller tests pass under import-only ROS message shims,
+and syntax checks pass on the Windows host. Robot-native execution, detector
+timing/quality, deployment, and physical motion remain pending. Do not present
+these repository-only results as live evidence.
 
 PT was reachable on the latest 2026-10-19 check. RTAB-Map is stopped; Hector,
 RGB/depth/LiDAR, TF, `/slam_out_pose`, `/map`, the temporary depth planner
