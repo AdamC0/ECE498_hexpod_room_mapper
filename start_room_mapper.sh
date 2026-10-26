@@ -68,6 +68,51 @@ mapper_pids() {
   pgrep -f '(^|/)(python3|python) ([^ ]*/)?room_mapper\.py( |$)' || true
 }
 
+hector_launch_pids() {
+  pgrep -f '(^|/)roslaunch .*hex_map\.launch( |$)' || true
+}
+
+stop_unhealthy_hector_stack() {
+  local launch_pids
+  launch_pids="$(hector_launch_pids)"
+
+  # Prefer stopping roslaunch so it can clean up every node it owns. A Hector
+  # node started manually has no matching parent, so stop that node directly.
+  if [[ -n "$launch_pids" ]]; then
+    kill -INT $launch_pids 2>/dev/null || true
+  elif node_is_live /hector_mapping; then
+    rosnode kill /hector_mapping >/dev/null 2>&1 || true
+  fi
+
+  for _ in {1..5}; do
+    if ! node_is_live /hector_mapping && [[ -z "$(hector_launch_pids)" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  # A wedged child or launch monitor may ignore the graceful interrupt. Limit
+  # the fallback to the exact production node and launch command identified
+  # above, then allow another bounded shutdown interval.
+  if node_is_live /hector_mapping; then
+    rosnode kill /hector_mapping >/dev/null 2>&1 || true
+  fi
+  launch_pids="$(hector_launch_pids)"
+  if [[ -n "$launch_pids" ]]; then
+    kill -TERM $launch_pids 2>/dev/null || true
+  fi
+
+  for _ in {1..5}; do
+    if ! node_is_live /hector_mapping && [[ -z "$(hector_launch_pids)" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "The unhealthy Hector stack did not stop cleanly; inspect it before retrying." >&2
+  return 1
+}
+
 mapper_pid_list="$(mapper_pids)"
 mapper_count="$(printf '%s\n' "$mapper_pid_list" | sed '/^$/d' | wc -l)"
 if [[ "$mapper_count" -gt 1 ]]; then
@@ -122,13 +167,21 @@ fi
 echo "LiDAR is publishing."
 
 hector_started=false
+hector_live=false
 if node_is_live /hector_mapping; then
-  echo "Hector is already running; preserving its map unless --fresh-map was requested."
-else
-  if pgrep -f '(^|/)roslaunch .*hex_map\.launch( |$)' >/dev/null 2>&1; then
-    echo "A hex_map.launch process exists without a live Hector node; inspect it before retrying." >&2
-    exit 1
+  if topic_has_message /slam_out_pose 5; then
+    echo "Hector is already running and publishing pose; preserving its map unless --fresh-map was requested."
+    hector_live=true
+  else
+    echo "Hector is running but not publishing pose; restarting the unhealthy stack with a fresh map."
+    stop_unhealthy_hector_stack
   fi
+elif [[ -n "$(hector_launch_pids)" ]]; then
+  echo "A stale hex_map.launch process exists without a live Hector node; restarting the stack with a fresh map."
+  stop_unhealthy_hector_stack
+fi
+
+if [[ "$hector_live" == false ]]; then
   echo "Starting the production Hector stack with a fresh map."
   nohup roslaunch "$SCRIPT_DIR/hex_map.launch" \
     >"$LOG_DIR/hector.log" 2>&1 < /dev/null &
@@ -137,7 +190,11 @@ else
 fi
 
 if ! topic_has_message /slam_out_pose 15; then
-  echo "Hector did not produce /slam_out_pose; inspect $LOG_DIR/hector.log." >&2
+  if [[ "$hector_started" == true ]]; then
+    echo "Hector did not produce /slam_out_pose; inspect $LOG_DIR/hector.log." >&2
+  else
+    echo "The existing Hector stack stopped publishing /slam_out_pose; restart it or rerun this launcher." >&2
+  fi
   exit 1
 fi
 

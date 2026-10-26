@@ -29,7 +29,9 @@ STARTUP AFTER A ROBOT REBOOT:
   script over SSH and opens the web UI after startup verifies AUTO PAUSED and
   command stop. Neither launcher resumes autonomy or commands motion. The
   robot script preserves a live Hector map by default; use --fresh-map only
-  when deliberately discarding it. Logs are in ~/.room_mapper_logs/.
+  when deliberately discarding it. A Hector process without live
+  /slam_out_pose is restarted with a fresh map. Logs are in
+  ~/.room_mapper_logs/.
 
   Manual troubleshooting sequence:
   source /opt/ros/melodic/setup.bash

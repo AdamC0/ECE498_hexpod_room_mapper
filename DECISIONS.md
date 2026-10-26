@@ -990,6 +990,22 @@ The Windows `start_room_mapper.cmd` wrapper runs that launcher over SSH and
 opens the dashboard only after verification succeeds. It stores no password
 and never resumes autonomy or issues a motion command.
 
+### Recover an unresponsive Hector stack during startup - 2026-10-26
+
+The launcher previously treated a successful `/hector_mapping` ping as proof
+that the existing SLAM stack was healthy. A live node without
+`/slam_out_pose` therefore caused startup to time out, while its diagnostic
+incorrectly pointed to the launcher's Hector log even when that launcher had
+not started the existing process.
+
+Chosen: require both a responsive Hector node and a fresh pose message before
+preserving its map. If pose output is absent, stop the owning
+`hex_map.launch` (or a manually started Hector node), wait for it to exit, and
+start the checked-in production stack with a fresh map. Apply the same recovery
+to an orphaned `hex_map.launch` whose Hector node is gone. This recovery issues
+no gait command; the mapper still starts drive-enabled, stopped, and
+`AUTO PAUSED`.
+
 ## Implement the approved reliability plan - 2026-10-25
 
 The three approved reliability priorities were implemented as separately

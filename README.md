@@ -247,7 +247,9 @@ cd ~/room_mapper
 It restores `/scan` when necessary, starts Hector if it is not already live,
 and starts exactly one drive-enabled mapper with autonomy paused. If Hector is
 already live, its current map is preserved; pass `--fresh-map` to deliberately
-reset it. The launcher refuses to run alongside visual SLAM, verifies
+reset it. A Hector node that responds but does not publish `/slam_out_pose`, or
+a stale `hex_map.launch` without a live Hector node, is stopped and restarted
+with a fresh map. The launcher refuses to run alongside visual SLAM, verifies
 `AUTO PAUSED` and command `stop`, and writes logs to
 `~/.room_mapper_logs/`. It never resumes autonomous motion.
 

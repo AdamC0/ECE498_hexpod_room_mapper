@@ -443,7 +443,9 @@ cd ~/room_mapper
 It verifies ROS, restores LiDAR scanning when needed, rejects visual SLAM,
 starts Hector only when absent, and starts exactly one drive-enabled mapper in
 `AUTO PAUSED` with command `stop`. A live Hector map is preserved by default;
-`--fresh-map` explicitly resets it. Logs are written outside the repository at
+`--fresh-map` explicitly resets it. A pingable Hector without live pose output,
+or an orphaned `hex_map.launch`, is stopped and restarted with a fresh map.
+Logs are written outside the repository at
 `~/.room_mapper_logs/`. The Windows `start_room_mapper.cmd` wrapper invokes
 this script over SSH and opens the dashboard after successful verification.
 
