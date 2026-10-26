@@ -1023,3 +1023,34 @@ queue replacement/invalidation, and exact overlay positions at 25/50/100 px/m
 with pan. These results are repository-only. PT remains on the earlier
 163-test build; native tests, target performance, no-drive live evidence, and
 physical validation are pending.
+
+## Deploy and optimize the reliability revision - 2026-10-25
+
+The reliability commits were deployed with `_drive:=false` and
+`_start_paused:=true`. The first target benchmark averaged 0.347 s for a
+synthetic 480x640 registered-depth projection. Under the live stack this
+saturated a core and prevented successful image-time depth-map TF lookups, so
+the no-drive gate failed before any motion was considered.
+
+Chosen: preserve the exact occupied/free evidence and distinct-ray thresholds,
+but encode signed row/column/ray tuples as one-dimensional integer keys before
+deduplication. PT's older NumPy handles this substantially faster than
+`unique(axis=0)`. Commit `bd3aee0` adds a signed-cell/distinct-ray regression.
+All 177 tests pass on the host and natively on PT. The same target benchmark
+then averaged 0.085 s (0.080-0.100 s across five runs).
+
+The repeated no-drive run kept LiDAR near 12.1 Hz, `/map` near 1.2 Hz,
+`/slam_out_pose` near 8.1 Hz, RGB near 30 Hz, native depth around 20-30 Hz, and
+registered depth around 30-32 Hz. The preferred CPU model completed a
+stationary inference in 6.61 s; snapshot status reported one captured and one
+processed observation. The planner layer produced 23-26 temporary cells and
+reported successful clears. Map endpoints returned HTTP 200 with correct
+25/50/100 px/m and pan headers. Battery was 12.44 V / 94%.
+
+Hector's current TF cadence means the strict 0.5 s image-time lookup can still
+report transient misses between successful depth projections. The tolerance
+was not relaxed without motion evidence. Measured low-object clearing,
+near-field retention, multiple endpoint captures while inference is busy,
+visual landmark alignment, detector quality, and all motion remain pending.
+Exactly one drive-disabled mapper was left `AUTO PAUSED`; no gait command or
+physical motion occurred.

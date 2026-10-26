@@ -2,18 +2,43 @@
 
 Date: 2026-10-25
 
-Status: all three priorities implemented and host-tested in separate commits;
-robot deployment, native tests, no-drive measurements, and physical validation
-remain pending.
+Status: all three priorities are deployed in a drive-disabled mapper. All 177
+tests pass on the host and natively on PT, and no-drive sensor/performance checks
+pass. Measured-object, multi-endpoint, and supervised-motion validation remain
+pending.
 
 Implementation commits:
 
 - `a201e37` - conservative registered-depth free-space clearing.
 - `5d82570` - endpoint snapshot admission and bounded inference queue.
 - `6cd0253` - scale-correct world-overlay rendering.
+- `bd3aee0` - target-side packed clustering optimization after the first
+  no-drive run exposed excessive projection load.
 
-The combined workstation suite contains 176 passing tests. This is not robot,
-sensor, detector-quality, SLAM-motion, or physically observed evidence.
+The combined suite contains 177 passing tests on both the workstation and PT.
+This is not detector-quality, SLAM-motion, or physically observed evidence.
+
+## No-drive deployment gate - 2026-10-25
+
+The first target benchmark averaged 0.347 s for a synthetic 480x640 projection
+and caused the live mapper to saturate a core and miss every depth-map TF lookup.
+Packing signed row/column/ray keys instead of using multi-column NumPy unique
+preserved the exact clustering result and reduced the target mean to 0.085 s
+(0.080-0.100 s across five runs). The follow-up drive-disabled mapper produced
+live temporary cells and confirmed clears while the preferred CPU detector was
+active.
+
+No-drive rates remained live: LiDAR about 12.1 Hz, `/map` about 1.2 Hz,
+`/slam_out_pose` about 8.1 Hz, RGB about 30 Hz, native depth about 20-30 Hz,
+and registered depth about 30-32 Hz. The preferred detector completed one
+stationary inference in 6.61 s, and the snapshot counters reported one capture
+and one processed result. Map rendering returned HTTP 200 with the requested
+25/50/100 px/m transforms and pan headers. Battery telemetry was 12.44 V / 94%.
+
+Hector's map-to-base TF cadence still causes transient strict 0.5 s
+image-time lookup misses between successful projections. Successful updates
+continue at the live cadence and the overlay retains its 30 s TTL, but this
+must be watched during measured-object validation. No motion was commanded.
 
 ## Goals and priority
 
@@ -218,4 +243,5 @@ The operator specified that pink cells remain when they are near or beneath the
 camera view, even while the robot faces them. The existing 0.60 m depth-stop
 distance is the initial minimum near-field protection distance, subject to
 measured camera geometry. The plan is approved for implementation planning;
-implementation awaits further operator instruction.
+implementation and the no-drive deployment gate are complete. The remaining
+physical gates require direct operator supervision.

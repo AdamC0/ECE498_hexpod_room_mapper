@@ -50,16 +50,21 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 176 host tests.
-  Deployed/native regression count: 163 tests until the pending release gate.
+  Repository regression count: 177 host tests.
+  Deployed/native regression count: 177 tests.
   Tests do not publish robot movement.
 
-RELIABILITY UPDATE (IMPLEMENTED IN REPOSITORY; NOT DEPLOYED):
-  [x] Pass all 176 tests with host_test_runner.py and compile production Python.
+RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
+  [x] Pass all 177 tests with host_test_runner.py and compile production Python.
   [x] Keep depth clearing, snapshot queueing, and map scaling in separate commits.
-  [ ] Deploy with _drive:=false; run all 176 tests natively on PT.
-  [ ] Measure registered-depth projection cost and confirm RGB/depth/LiDAR/pose
+  [x] Deploy with _drive:=false; run all 177 tests natively on PT.
+  [x] Measure registered-depth projection cost and confirm RGB/depth/LiDAR/pose
       rates remain healthy with the preferred detector active.
+      PT mean: 0.085 s after packed-key optimization (0.080-0.100 s, five runs).
+      Live rates: scan 12.1 Hz, map about 1.2 Hz, pose about 8.1 Hz, RGB about
+      30 Hz, native depth 20-30 Hz, and registered depth 30-32 Hz. Strict
+      image-time TF lookup still reports transient misses between successful
+      depth updates; monitor this during measured-object validation.
   [ ] With a matte measured low object beyond 0.60 m, confirm magenta cells add,
       remain for occluded/invalid views, then clear after two valid farther views.
   [ ] Confirm cells within 0.60 m of the timestamped camera origin do not

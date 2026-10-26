@@ -4,13 +4,19 @@ Updated: 2026-10-25
 
 ## Live checkpoint
 
-Deployed 2026-10-25: PT now runs the 163-test smooth-routing,
-omnidirectional-control, nonblocking-object, and map-percentage-removal
-revision. A Python 3.6-compatible detector-startup assertion and repository LF
-export policy were added during the native release gate. All 163 tests pass on
-the Windows host and natively on PT. Exactly one drive-enabled mapper is
-`AUTO PAUSED` with command `stop`; Hector is the only SLAM stack and is using a
-fresh post-reboot frame. On 2026-10-25, directly supervised 50% tests physically
+Deployed 2026-10-25: PT now runs the reliability revision through `bd3aee0`.
+All 177 tests pass on the Windows host and natively on PT. Exactly one
+drive-disabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
+SLAM stack. Registered-depth projection averages 0.085 s on PT after the
+packed-key optimization, down from 0.347 s in the failed first no-drive gate.
+The live layer has added temporary cells and reported confirmed clears. Strict
+0.5 s image-time TF lookup still alternates between successful updates and
+transient misses at the current Hector TF cadence; watch this during the
+measured low-object test. RGB, depth, LiDAR, pose, map, web, detector, and
+battery telemetry are live. Battery was 12.44 V / 94%. No motion was commanded
+during this deployment.
+
+On 2026-10-25, directly supervised 50% tests on the preceding revision physically
 confirmed clean left/right strafe, clean in-place Q/E rotation, and continuous
 diagonal travel on a short clicked route about 31 degrees off heading. The
 operator reported that all movement was correct and matched the map. During
@@ -19,13 +25,13 @@ later route activity the operator intentionally moved both speed sliders to
 the active route and left the mapper `AUTO PAUSED` with command `stop`. Do not
 infer completion of the still-pending beyond-45-degree or obstacle-gate trials.
 
-## Reliability update implemented - deployment pending
+## Reliability update deployed - physical validation pending
 
 The operator reported three issues: mapped object markers do not follow map
 zoom, old magenta registered-depth obstacles remain after an object is moved,
 and fast exploration can leave too few settled object captures for confirmed
 landmarks. All three priorities in `RELIABILITY_FIX_PLAN.md` are implemented in
-separate commits, but none has been deployed to PT:
+separate commits and are now deployed to PT:
 
 1. `a201e37` adds conservative free-space evidence to the temporary registered-depth
    planner layer. Clear a magenta cell only after two consecutive valid depth
@@ -43,17 +49,13 @@ separate commits, but none has been deployed to PT:
 3. `6cd0253` passes the active map scale to every world-to-screen conversion so
    markers retain the correct position through zoom and pan.
 
-The combined host suite has 176 passing tests. Python compilation also passes.
-This is workstation-only evidence: robot-native tests, target projection cost,
-no-drive depth clearing, endpoint timing, and all physical validation remain
-pending. Deploy first with `_drive:=false`; keep each evidence category
-separate. The near-field depth protection is a safety requirement, not an
-optional tuning suggestion.
-
-At the last live check, PT still ran the prior build with exactly one
-drive-enabled mapper `AUTO PAUSED`, command `stop`, Hector only, a live depth
-planner overlay, and about 12.34 V / 91%. No new reliability code was copied to
-the robot and no motion was commanded during implementation.
+The combined host and native suite has 177 passing tests. Python compilation
+also passes. No-drive evidence covers target projection cost, live depth-layer
+updates, sensor rates, one endpoint snapshot/inference, multi-scale map HTTP
+rendering, and battery telemetry. It does not replace the pending measured
+low-object clearing/near-field test, multiple busy-detector endpoint test,
+visual marker check, detector-quality trial, or supervised motion. The
+near-field depth protection is a safety requirement, not optional tuning.
 
 The first post-deployment boot had USB enumeration error `-71`, no LiDAR
 device, and no RGB/depth frames. The documented in-place RGB recovery could

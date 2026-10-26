@@ -348,7 +348,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 176 tests and does not publish physical movement
+The repository suite contains 177 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -364,11 +364,15 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-The previously deployed 163-test suite passes natively on PT; the new 176-test
-suite has not run there yet. The current live stack uses Hector, not
-RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and command `stop`. RGB,
+All 177 tests pass both through the host shim and natively on PT. The current
+live stack uses Hector, not RTAB-Map, with one drive-disabled `AUTO PAUSED`
+mapper and command `stop`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
 depth planner layer, battery telemetry, and the web interface are live. The
 preferred Objects365 model is active on CPU after its legacy-OpenCV broadcast
-rewrite. This deployment used no physical
-movement; supervised motion validation remains separate and pending.
+rewrite. The reliability deployment reduced worst-case synthetic registered-
+depth projection from 0.347 s to 0.085 s mean on PT; successful live updates
+add and clear temporary cells, although strict image-time TF lookup can report
+transient misses between Hector updates. This deployment used no physical
+movement; measured-object and supervised-motion validation remain separate and
+pending.
