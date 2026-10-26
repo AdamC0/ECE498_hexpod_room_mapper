@@ -400,10 +400,11 @@ python3 -m unittest discover -v
 All 185 tests pass through the host shim and natively on PT. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
-reported the same model on `cpu`. At the operator's request, the mapper,
-Hector, camera, and LiDAR were
-stopped for the isolated YOLO benchmark and have not been restarted. The
-preferred Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
+reported the same model on `cpu`. The current production mapper was later
+restarted explicitly on `tensorrt_fp16` and remains `AUTO PAUSED` with command
+`stop`. Hector, LiDAR, and RGB are live, but native and registered depth are
+stale, so no full-stack GPU inference has been admitted and autonomy must not
+resume. The preferred Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
 reliability deployment reduced worst-case synthetic registered-
 depth projection from 0.347 s to 0.085 s mean on PT; successful live updates
 add and clear temporary cells, although strict image-time TF lookup can report

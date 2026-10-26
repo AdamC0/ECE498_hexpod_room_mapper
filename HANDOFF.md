@@ -4,11 +4,15 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
-GPU implementation work on 2026-10-26 intentionally stopped the single paused
-mapper, Hector, LiDAR, and camera processes at the operator's request so PT
-could focus solely on YOLO. The base controller was not stopped and no motion
-command was issued. Do not assume the mapping/sensor stack is currently live;
-restart it with the standard launcher when mapping work resumes.
+At the operator's request on 2026-10-26, the production launcher restarted one
+drive-enabled mapper with the optional `tensorrt_fp16` backend. It preserved
+the existing Hector map and verified `AUTO PAUSED` with command `stop`; live
+status reports `yolo26n-objv1-150.onnx (tensorrt_fp16)`. LiDAR and Hector are
+about 12.1 Hz and RGB about 29.8 Hz. Native and registered depth currently
+produce no messages, so status remains `Depth: waiting / stale`, no endpoint
+snapshot has been captured, and autonomy must remain paused. Available memory
+was about 741 MB with the warmed engine loaded; temperatures were low and the
+GPU was idle because no inference could be admitted. No movement was commanded.
 
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in
