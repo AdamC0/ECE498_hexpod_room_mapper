@@ -113,8 +113,8 @@ The operator reports that the previously tested object-mapping revision placed
 landmarks nearly perfectly and did not produce duplicate landmarks or false
 detections. Its observed weaknesses were missed objects and slow inference.
 Do not change depth projection, landmark association, or confirmation solely in
-response to that report. First test the pending Objects365/nonblocking revision
-on PT; its target OpenCV behavior and detection quality are still unknown.
+response to that report. The Objects365/nonblocking revision is deployed;
+labeled-scene detector quality remains untested.
 
 If the next robot tests still show missed objects or unacceptable inference
 delay, the following are optional directions for investigation, not required or
@@ -129,11 +129,6 @@ approved changes:
 - Compare CPU, CUDA FP16, and, if compatible with PT, TensorRT FP16 execution
   before considering a larger model. Measure camera, ROS, and controller rates
   as well as detector latency.
-- `GPU_YOLO_TEST_PLAN.md` records the current Jetson findings and a reversible,
-  paused/no-drive TensorRT comparison against the 5.8-6.9 s CPU baseline. The
-  installed OpenCV cannot use CUDA; GPU execution and model parity are untested.
-  Keep CPU as default and roll back if GPU performance or system behavior is
-  worse.
 - During the settled survey, choose the sharpest of a small set of candidate
   frames for one inference. Keep any pending-work queue bounded to the newest
   useful settled observation so slow inference cannot accumulate stale work.
@@ -150,6 +145,91 @@ These possibilities intentionally leave the currently successful map-point and
 deduplication behavior unchanged unless new evidence identifies a regression in
 those areas. None should be described as necessary until robot measurements
 support it.
+
+## Jetson Nano GPU YOLO evaluation plan (planning only)
+
+### Goal and current findings
+
+Determine whether GPU inference is faster than the current CPU path while
+preserving detection results and healthy mapper sensor rates. Keep the
+experiment optional and reversible. If GPU performance is slower than the
+non-GPU test, less reliable, or harms sensor rates, stop it and restore CPU
+configuration and artifacts.
+
+The deployed `yolo26n-objv1-150.onnx` model runs through OpenCV DNN on CPU,
+with measured stationary inference around 5.8-6.9 seconds per frame. PT has
+JetPack CUDA 10.2, cuDNN 8.2, TensorRT 8.2.1, TensorRT Python bindings, and
+PyCUDA installed. Its OpenCV 4.5.5 build has no CUDA modules and reports zero
+CUDA devices. OpenCV's CUDA constants therefore do not indicate GPU support;
+requesting `cuda_fp16` falls back to CPU after warm-up failure.
+
+TensorRT is the primary candidate. First check its ONNX parser/tooling and
+operator support. Record JetPack, TensorRT, CUDA, cuDNN versions, precision,
+model checksums, memory pressure, and temperature. Do not assume the graph will
+build or that FP16 will be faster on Nano's Maxwell GPU. PT reported about 1 GB
+available memory during inspection, and CPU/GPU share system memory.
+
+### Test sequence
+
+1. Freeze the CPU reference. Keep the production ONNX model and `.names` file
+   unchanged; record checksums. Capture fixed, representative robot RGB frames
+   including empty scenes and labeled classroom objects. Run CPU inference on
+   these same frames and record warm-up, per-frame latency, median, 90th
+   percentile, worst time, detections, labels, confidence, boxes, memory, and
+   CPU use. Record baseline `/scan`, `/map`, `/slam_out_pose`, RGB, native-depth,
+   and registered-depth rates with the normal paused mapper active.
+2. Build an isolated candidate while the robot is stationary and autonomy
+   paused. Use a standalone benchmark with `_drive:=false` or no mapper
+   connection. Put TensorRT engine and trial configuration under a separate
+   directory such as `models/gpu_trial/`; never overwrite production ONNX,
+   labels, CPU model, or current artifacts. Try FP16 only if supported; use
+   FP32 as a separate comparison if needed. If engine generation fails,
+   document the unsupported operation. Do not rewrite, quantize, or simplify
+   the production model without a separate output comparison.
+3. If a runtime selector is needed, make it explicitly opt-in (for example,
+   `tensorrt_fp16`), keep CPU as the default, and fall back to CPU when engine
+   load, warm-up, or inference fails. Keep TensorRT dependencies and engine
+   paths out of standard CPU startup.
+4. Run CPU and GPU on the exact same saved frames. Compare warm-up and
+   steady-state latency (median, 90th percentile, worst), matched detections,
+   box overlap, confidence differences, misses, and added detections. Report
+   empty-scene false positives separately from labeled-object recall. Monitor
+   GPU/CPU load, memory, temperature, throttling, and failures with available
+   Jetson telemetry such as `tegrastats`.
+5. With the mapper paused and drive disabled, check sensor rates and endpoint
+   capture behavior while inference runs. Call the trial successful only if it
+   is reliably faster than the 5.8-6.9 s CPU baseline on the same workload,
+   preserves acceptable detection parity, and causes no memory pressure,
+   thermal throttling, inference failures, or unhealthy ROS rates. GPU
+   utilization alone is not a success measure.
+
+### Reversibility and rollback
+
+- Keep all engines, calibration data, and trial settings in a separate,
+  removable GPU-trial directory. Never replace the CPU ONNX model or labels.
+- Keep CPU as the default. Enable GPU only with an explicit parameter during a
+  paused trial.
+- Commit code changes separately from model artifacts and keep CPU startup
+  covered. Roll back code by reverting the GPU-backend commit, then restart the
+  mapper with CPU selected.
+- If GPU performance is worse than the non-GPU run, stop the benchmark,
+  terminate the GPU process, restart the standard CPU mapper in `AUTO PAUSED`
+  mode, and verify status reports `(cpu)`. Remove only the isolated trial
+  engine after checking its exact path. Preserve the known-good ONNX and label
+  files.
+- After rollback, recheck CPU inference, ROS sensor rates, and mapper status.
+  Do not resume autonomy during benchmarking or rollback.
+
+Require an isolated benchmark, output comparison, CPU fallback check, and
+paused/no-drive live soak before any physical-use decision. If these pass, keep
+GPU execution opt-in until it has been observed during ordinary stationary
+surveys. Any movement test is separate and directly supervised; GPU
+benchmarking itself must not command movement.
+
+The Jetson GPU software stack is present, but the deployed OpenCV runtime
+cannot use it. Whether TensorRT can build this model, whether FP16 helps, and
+whether GPU output matches CPU detections remain untested. The CPU path remains
+the baseline and rollback target until measurements support a change.
 
 Ten regressions were added (160 total). All 49 directly runnable ROS-free tests
 pass, the remaining 111 controller tests pass under import-only ROS message
