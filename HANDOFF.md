@@ -4,17 +4,20 @@ Updated: 2026-10-25
 
 ## Live checkpoint
 
-Deployed 2026-10-25: PT now runs the reliability revision through `bd3aee0`.
-All 177 tests pass on the Windows host and natively on PT. Exactly one
-drive-disabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
+Deployed 2026-10-25: PT now runs the rear-swept-clearance revision through
+`5dca682`. All 180 tests pass on the Windows host and natively on PT. Exactly one
+drive-enabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
 SLAM stack. Registered-depth projection averages 0.085 s on PT after the
 packed-key optimization, down from 0.347 s in the failed first no-drive gate.
 The live layer has added temporary cells and reported confirmed clears. Strict
 0.5 s image-time TF lookup still alternates between successful updates and
 transient misses at the current Hector TF cadence; watch this during the
 measured low-object test. RGB, depth, LiDAR, pose, map, web, detector, and
-battery telemetry are live. Battery was 12.44 V / 94%. No motion was commanded
-during this deployment.
+battery telemetry are live. The current rear geometry provides 0.134 m of swept
+travel before entering the 0.45 m envelope, versus 0.060 m required at 100%
+translation or 0.100 m at 200%. Native depth recalibrated upper-only, so the
+previous dropout alarm cleared. No motion was commanded during this deployment;
+the 0.5 s autonomous reverse remains pending direct supervised validation.
 
 On 2026-10-25, directly supervised 50% tests on the preceding revision physically
 confirmed clean left/right strafe, clean in-place Q/E rotation, and continuous

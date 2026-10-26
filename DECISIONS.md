@@ -1076,3 +1076,12 @@ Three regressions cover corner geometry, speed-scaled path admission versus a
 short direct path, and retention of the depth-dropout prohibition. All 180 host
 tests pass and production Python compiles. Robot-native and physical validation
 remain pending; the robot stayed paused and no motion was commanded.
+
+The exact revision then passed all 180 tests natively on PT. One drive-enabled
+mapper was restored `AUTO PAUSED` with command `stop`, preserving Hector's map.
+The live scan produced 0.134 m of swept reverse travel before the 0.45 m
+envelope. The speed-scaled requirement was 0.060 m at the reset 100% setting
+and would be 0.100 m at 200%, so the observed corner geometry now passes. Native
+depth recalibrated in upper-only mode and the earlier dropout alarm was no
+longer present. These are software and no-motion sensor results; the new 0.5 s
+reverse recovery remains pending direct supervised physical validation.

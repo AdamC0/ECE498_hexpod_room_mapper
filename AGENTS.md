@@ -118,13 +118,18 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
-The 2026-10-24 update was deployed on 2026-10-25. All 163 tests pass both under
-the checked-in Windows shim runner and natively on PT. Exactly one
+The rear-swept-clearance update was deployed on 2026-10-25. All 180 tests pass
+both under the checked-in Windows shim runner and natively on PT. Exactly one
 drive-enabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
-SLAM stack, using a fresh post-reboot map. RGB, native/registered depth, LiDAR,
+SLAM stack. RGB, native/registered depth, LiDAR,
 TF, `/slam_out_pose`, `/map`, the temporary depth planner layer, battery
 telemetry, and the web UI are live. No motion command or physical movement
 occurred during this deployment validation.
+
+The live rear scan measured 0.134 m of swept travel before entering the 0.45 m
+envelope; the new speed-scaled requirement is 0.060 m at 100% and 0.100 m at
+200%. This is no-motion sensor evidence. The 0.5 s autonomous reverse recovery
+still requires direct supervised physical validation.
 
 The Objects365 exporter now materializes a final broadcast constant for PT's
 legacy OpenCV 4.5.5 DNN implementation. The patched preferred model is active

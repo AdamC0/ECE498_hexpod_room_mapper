@@ -51,7 +51,7 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 180 host tests.
-  Deployed/native regression count: 177 tests.
+  Deployed/native regression count: 180 tests.
   Tests do not publish robot movement.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):

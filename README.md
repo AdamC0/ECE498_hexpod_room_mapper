@@ -367,11 +367,9 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 180 tests pass through the host shim. The currently deployed 177-test
-revision passes natively on PT; the rear-sweep update still requires its native
-deployment gate. The current
-live stack uses Hector, not RTAB-Map, with one drive-disabled `AUTO PAUSED`
-mapper and command `stop`. RGB,
+All 180 tests pass through the host shim and natively on PT. The current live
+stack uses Hector, not RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and
+command `stop`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
 depth planner layer, battery telemetry, and the web interface are live. The
 preferred Objects365 model is active on CPU after its legacy-OpenCV broadcast

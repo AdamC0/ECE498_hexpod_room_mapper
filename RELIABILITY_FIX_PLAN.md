@@ -2,8 +2,8 @@
 
 Date: 2026-10-25
 
-Status: all three priorities are deployed. The later rear-sweep recovery update
-brings the host suite to 180 passing tests; its robot-native gate is pending.
+Status: all three priorities and the later rear-sweep recovery update are
+deployed. All 180 tests pass on the host and natively on PT.
 Measured-object, multi-endpoint, and supervised-motion validation remain pending.
 
 Implementation commits:
@@ -14,9 +14,8 @@ Implementation commits:
 - `bd3aee0` - target-side packed clustering optimization after the first
   no-drive run exposed excessive projection load.
 
-The reliability deployment's 177-test suite passed on the workstation and PT.
-The current 180-test repository suite passes on the workstation and awaits its
-native gate. This is not detector-quality, SLAM-motion, or physical evidence.
+The current 180-test repository suite passes on the workstation and PT. This is
+not detector-quality, SLAM-motion, or physical evidence.
 
 ## No-drive deployment gate - 2026-10-25
 
