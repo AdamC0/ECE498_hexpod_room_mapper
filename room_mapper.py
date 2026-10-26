@@ -288,10 +288,14 @@ class RoomMapper:
         # image-time TF snapshot keep that delayed observation map-safe.
         self.object_result_max_age = float(rospy.get_param(
             "~object_result_max_age", 12.0))
+        self.object_snapshot_grace = float(rospy.get_param(
+            "~object_snapshot_grace", 1.0))
         if (not math.isfinite(self.object_max_age) or self.object_max_age <= 0 or
                 not math.isfinite(self.object_result_max_age) or
-                self.object_result_max_age < self.object_max_age):
-            raise ValueError("object ages must be finite, positive, and result age >= admission age")
+                self.object_result_max_age < self.object_max_age or
+                not math.isfinite(self.object_snapshot_grace) or
+                not 0.0 <= self.object_snapshot_grace <= 1.0):
+            raise ValueError("object ages or snapshot grace are outside safe bounds")
         self.object_confidence = float(rospy.get_param("~object_confidence", 0.45))
         self.object_priority_confidence = float(rospy.get_param(
             "~object_priority_confidence", 0.30))
@@ -399,6 +403,7 @@ class RoomMapper:
         self.web_map_center = None
         self.commanded_moving = False
         self.motion_generation = 0
+        self.map_generation = 0
         self.map_trusted = True
         self.prev_pose = None
         self.pose_guard_start = time.time() + 5.0
@@ -438,10 +443,19 @@ class RoomMapper:
         self.active_yolo_model = ""
         self.active_yolo_backend = ""
         self.object_processing = False
+        self.object_queue_lock = threading.Lock()
+        self.object_pending_snapshot = None
+        self.object_snapshots_captured = 0
+        self.object_snapshots_processed = 0
+        self.object_snapshots_replaced = 0
+        self.object_endpoint_key = None
+        self.object_endpoint_deadline = 0.0
+        self.object_endpoint_done = None
         self.object_focus_id = None
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
         self.object_focus_misses = 0
+        self.object_focus_next_capture = 0.0
         self.tf_buffer = None
         self.tf_subscribers = []
         self.object_thread = None
@@ -754,12 +768,20 @@ class RoomMapper:
             if now < next_run:
                 time.sleep(min(.05, next_run - now))
                 continue
+            with self.object_queue_lock:
+                snapshot = self.object_pending_snapshot
+                self.object_pending_snapshot = None
+            if snapshot is None:
+                time.sleep(.05)
+                continue
             try:
-                self.process_objects()
+                self.process_object_snapshot(snapshot)
             except Exception as exc:
                 self.object_status = "processing failed: %s" % exc
                 rospy.logerr_throttle(5, "Object processing failed: %s", exc)
             finally:
+                with self.object_queue_lock:
+                    self.object_snapshots_processed += 1
                 # Schedule from completion, not start. A slow detector must not
                 # immediately begin another inference and monopolize the CPU.
                 next_run = time.time() + period
@@ -782,39 +804,38 @@ class RoomMapper:
                 self.pose is not None and 0 <= now - self.t_pose <= self.slam_stale and
                 self.map_is_fresh(now) and self.detector is not None)
 
-    def process_objects(self):
-        """Process one distinct RGB/depth pair; never hold control locks during YOLO."""
+    def capture_object_snapshot(self):
+        """Freeze one settled synchronized observation before slow inference."""
         with self.control_lock, self.data_lock:
             now = time.time()
             if not self.objects_ready(now):
                 self.object_status = "waiting for settled robot and fresh, trusted SLAM"
-                return
+                return None
             if (self.camera is None or self.registered_depth is None or
                     self.camera_k is None or not self.camera_frame):
                 self.object_status = "waiting for RGB, registered depth, or camera info"
-                return
+                return None
             stamps = (self.camera_stamp, self.registered_depth_stamp)
             ros_now = rospy.Time.now().to_sec()
             if any(s <= 0 or not 0 <= ros_now - s <= self.object_max_age for s in stamps):
                 self.object_status = "waiting for fresh RGB/depth timestamps"
-                return
+                return None
             if (any(s <= old for s, old in zip(stamps, self.last_object_stamps)) or
                     min(self.t_camera, self.t_registered_depth) < self.settle_until or
                     min(stamps) < ros_now - (now - self.settle_until)):
                 self.object_status = "waiting for a new settled RGB/depth pair"
-                return
+                return None
             if abs(stamps[0] - stamps[1]) > self.object_sync_slop:
                 self.object_status = "waiting for synchronized RGB/depth (skew %.3f s)" % \
                     abs(stamps[0] - stamps[1])
-                return
+                return None
             shape = self.camera.shape[:2]
             if (shape != self.registered_depth.shape[:2] or shape != self.camera_info_size or
                     self.camera_frame.lstrip('/') != self.camera_info_frame):
                 self.object_status = "RGB/depth/calibration dimensions or RGB frame mismatch"
-                return
+                return None
             frame, depth = self.camera.copy(), self.registered_depth.copy()
             k, frame_id = self.camera_k, self.camera_frame
-            generation = self.motion_generation
             self.last_object_stamps = stamps
             # Snapshot image-time TF before slow inference can evict its history.
             with self.object_lock:
@@ -824,8 +845,71 @@ class RoomMapper:
                 except (KeyError, ValueError) as exc:
                     transform = None
                     rospy.logwarn_throttle(5, "Object map TF unavailable: %s", exc)
-            # Set this before releasing the control lock so a motion command
-            # cannot slip between image capture and the inference guard.
+            return {
+                "frame": frame,
+                "depth": depth,
+                "k": k,
+                "frame_id": frame_id,
+                "stamps": stamps,
+                "transform": transform,
+                "motion_generation": self.motion_generation,
+                "map_generation": getattr(self, "map_generation", 0),
+                "observation_id": stamps[0],
+            }
+
+    def enqueue_object_snapshot(self, snapshot):
+        """Queue one immutable observation, retaining only the newest pending one."""
+        with self.object_queue_lock:
+            if self.object_pending_snapshot is not None:
+                self.object_snapshots_replaced += 1
+            self.object_pending_snapshot = snapshot
+            self.object_snapshots_captured += 1
+
+    def capture_endpoint_snapshot(self, now):
+        """Capture at most once per ready survey, with a bounded sensor grace."""
+        if self.detector is None:
+            return True
+        key = (getattr(self.survey, "settled_at", 0.0),
+               getattr(self.survey, "required_stamp", 0.0))
+        if self.object_endpoint_done == key:
+            return True
+        if self.object_endpoint_key != key:
+            self.object_endpoint_key = key
+            self.object_endpoint_deadline = now + self.object_snapshot_grace
+        snapshot = self.capture_object_snapshot()
+        if snapshot is not None:
+            self.enqueue_object_snapshot(snapshot)
+            self.object_endpoint_done = key
+            self.object_endpoint_deadline = 0.0
+            return True
+        if now >= self.object_endpoint_deadline:
+            self.object_endpoint_done = key
+            self.object_status = ("endpoint snapshot skipped after %.2f s acquisition grace" %
+                                  self.object_snapshot_grace)
+            return True
+        return False
+
+    def process_objects(self):
+        """Synchronously capture/process one pair for tests and legacy callers."""
+        snapshot = self.capture_object_snapshot()
+        if snapshot is not None:
+            self.process_object_snapshot(snapshot)
+
+    def process_object_snapshot(self, snapshot):
+        """Run YOLO and commit one previously frozen observation."""
+        frame = snapshot["frame"]
+        depth = snapshot["depth"]
+        k = snapshot["k"]
+        stamps = snapshot["stamps"]
+        transform = snapshot["transform"]
+        generation = snapshot["motion_generation"]
+        map_generation = snapshot["map_generation"]
+        observation_id = snapshot.get("observation_id", stamps[0])
+        # Set this under the control lock so legacy focus mode can keep its
+        # original inference hold without affecting default nonblocking mode.
+        with self.control_lock:
+            if self.shutting_down:
+                return
             self.object_processing = True
         inference_started = time.time()
         try:
@@ -858,6 +942,13 @@ class RoomMapper:
                 self.object_status = ("discarded observation after %.2f s: "
                                       "SLAM/map became unavailable" % inference_seconds)
                 return
+            if map_generation != getattr(self, "map_generation", 0):
+                for detection in detections:
+                    detection["map_point"] = None
+                self.object_detections = detections
+                self.object_status = ("discarded observation after %.2f s: map generation "
+                                      "changed" % inference_seconds)
+                return
             if (getattr(self, "object_focus_enabled", False) and
                     generation != self.motion_generation):
                 for detection in detections:
@@ -883,7 +974,7 @@ class RoomMapper:
                 if point is not None:
                     track = self.object_tracker.update(
                         detection["label"], point[0], point[1],
-                        detection["confidence"], now, observation_id=stamps[0])
+                        detection["confidence"], now, observation_id=observation_id)
                     if track is not None:
                         updated_tracks.append(track)
                         mapped += 1
@@ -912,6 +1003,7 @@ class RoomMapper:
             self.object_focus_label = candidate["label"]
             self.object_focus_deadline = now + getattr(self, "object_focus_seconds", 15.0)
             self.object_focus_misses = 0
+            self.object_focus_next_capture = now
             self.path = []
             self.phase, self.phase_start = "object_focus", now
             self.web_msg = "Focusing on possible %s (observation %d/%d)" % (
@@ -941,6 +1033,7 @@ class RoomMapper:
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
         self.object_focus_misses = 0
+        self.object_focus_next_capture = 0.0
         self.path = []
         self.phase, self.phase_start = "plan", now
         self.web_msg = ("Added %s to the map; continuing mapping" % label if confirmed else
@@ -1250,6 +1343,10 @@ class RoomMapper:
         with self.object_lock:
             self.object_tracker.clear()
             self.object_detections = []
+        self.map_generation = getattr(self, "map_generation", 0) + 1
+        if hasattr(self, "object_queue_lock"):
+            with self.object_queue_lock:
+                self.object_pending_snapshot = None
 
     def send_actual(self, cmd):
         if cmd == self.last_cmd:
@@ -1295,10 +1392,9 @@ class RoomMapper:
     def send(self, cmd, interrupt_object=False):
         """Apply motion in short bursts, then stand still for clean SLAM scans.
 
-        Autonomous motion waits for an object observation to finish so it can
-        be committed to the map.  Manual motion instead invalidates that
-        observation through ``motion_generation`` below; making the operator
-        wait for CPU-only YOLO inference creates a multi-second control lag.
+        Default object inference is nonblocking because image/depth/TF are
+        frozen at endpoint capture. The opt-in legacy focus mode may still hold
+        autonomous motion while a visible candidate is being confirmed.
         """
         now = time.time()
         if not self.drive:
@@ -1622,6 +1718,9 @@ class RoomMapper:
             return
         if self.paused and manual_cmd is None:
             self.send(("stop",))
+            if (getattr(self, "detector", None) is not None and self.survey.ready(now) and
+                    self.objects_ready(now)):
+                self.capture_endpoint_snapshot(now)
             return
         # RGB is used for display and YOLO, not collision sensing. A stalled
         # RGB stream must not disable depth/LiDAR-protected manual navigation.
@@ -1674,6 +1773,12 @@ class RoomMapper:
             self.start_look(now)
         if self.phase == "object_focus":
             self.send(("stop",))
+            if (now >= getattr(self, "object_focus_next_capture", 0.0) and
+                    self.objects_ready(now)):
+                snapshot = self.capture_object_snapshot()
+                if snapshot is not None:
+                    self.enqueue_object_snapshot(snapshot)
+                self.object_focus_next_capture = now + 1.0 / max(0.1, self.object_hz)
             if now >= getattr(self, "object_focus_deadline", 0.0):
                 with self.object_lock:
                     self.finish_object_focus_locked(False, now, "focus timed out")
@@ -1809,7 +1914,8 @@ class RoomMapper:
 
         if self.phase in ("look", "survey"):
             self.send(("stop",))
-            if self.survey.ready(now):
+            if (self.survey.ready(now) and
+                    self.capture_endpoint_snapshot(now)):
                 self.phase = "plan"
         elif self.phase == "plan":
             self.send(("stop",))
@@ -1916,6 +2022,7 @@ class RoomMapper:
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
         self.object_focus_misses = 0
+        self.object_focus_next_capture = 0.0
         self.phase, self.phase_start = "survey", now
         self.state, self.state_start = SEARCH, now
         self.web_map_center = pose[:2] if pose else None
@@ -2023,11 +2130,21 @@ class RoomMapper:
                          (os.path.basename(active_model),
                           getattr(self, "active_yolo_backend", "unknown"))
                          if active_model else "Detector: disabled")
-        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\n%s\nObjects: %s\n%s\nLast: %s" % (
+        if hasattr(self, "object_queue_lock"):
+            with self.object_queue_lock:
+                queue_line = ("Object snapshots: captured %d, processed %d, replaced %d, "
+                              "pending %s" %
+                              (self.object_snapshots_captured,
+                               self.object_snapshots_processed,
+                               self.object_snapshots_replaced,
+                               "yes" if self.object_pending_snapshot is not None else "no"))
+        else:
+            queue_line = "Object snapshots: unavailable"
+        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\n%s\nObjects: %s\n%s\n%s\nLast: %s" % (
             self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
             scan_line, self.translation_speed_percent, self.rotation_speed_percent,
             depth_line, depth_map_line, front, self.lidar_stop,
-            detector_line, self.object_status, survey_line, self.web_msg)
+            detector_line, self.object_status, queue_line, survey_line, self.web_msg)
 
     def web_battery(self):
         with self.data_lock:
@@ -2057,6 +2174,9 @@ class RoomMapper:
     def shutdown(self):
         with self.control_lock:
             self.shutting_down = True
+            if hasattr(self, "object_queue_lock"):
+                with self.object_queue_lock:
+                    self.object_pending_snapshot = None
             self.timer.shutdown()
             self.last_cmd = None
             try:
