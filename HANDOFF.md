@@ -129,6 +129,11 @@ approved changes:
 - Compare CPU, CUDA FP16, and, if compatible with PT, TensorRT FP16 execution
   before considering a larger model. Measure camera, ROS, and controller rates
   as well as detector latency.
+- `GPU_YOLO_TEST_PLAN.md` records the current Jetson findings and a reversible,
+  paused/no-drive TensorRT comparison against the 5.8-6.9 s CPU baseline. The
+  installed OpenCV cannot use CUDA; GPU execution and model parity are untested.
+  Keep CPU as default and roll back if GPU performance or system behavior is
+  worse.
 - During the settled survey, choose the sharpest of a small set of candidate
   frames for one inference. Keep any pending-work queue bounded to the newest
   useful settled observation so slow inference cannot accumulate stale work.

@@ -350,6 +350,8 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `RUN_SHEET.txt`: operator checklist.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
+- `GPU_YOLO_TEST_PLAN.md`: reversible Jetson Nano GPU evaluation and CPU
+  comparison plan; planning only, not deployed.
 
 The repository suite contains 180 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
