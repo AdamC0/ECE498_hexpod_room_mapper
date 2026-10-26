@@ -35,7 +35,7 @@ one mapper process exists.
 ## Current architecture
 
 - YDLIDAR G4 raw `/scan` feeds Hector, which owns pose and the persistent map.
-- Registered depth adds low-obstacle cells to a fused planner copy. Six
+- Registered depth adds low-obstacle cells to a fused planner copy. Three
   settled observations paired with LiDAR promote a temporary cell for the
   mapping session; four joint free observations can remove it or suppress a
   stale Hector-black cell downstream. It never writes into Hector.
@@ -121,6 +121,14 @@ physical motion as pending supervised tests. The battery was subsequently
 recharged; the latest value is recorded below.
 
 ## Latest validation
+
+The low-leg follow-up was deployed on 2026-10-26 at commit `f13f296`. All 214
+tests pass on the Windows host and natively on PT. The promotion threshold is
+three settled LiDAR-paired depth observations, and active routes recheck their
+next 0.80 m against the fused planner map. In a paused no-motion check the live
+layer reported 3 temporary and 28 persistent depth cells. Exactly one
+drive-enabled mapper is `AUTO PAUSED` with command `stop`; Hector is the only
+SLAM stack. Directly supervised table/chair-leg motion validation is pending.
 
 The rear-swept-clearance update was deployed on 2026-10-25. All 180 tests pass
 both under the checked-in Windows shim runner and natively on PT. Exactly one

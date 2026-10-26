@@ -53,7 +53,7 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 214 host tests.
-  Deployed/native regression count: 211 tests passed on PT.
+  Deployed/native regression count: 214 tests passed on PT.
   Tests do not publish robot movement.
 
 DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
@@ -86,12 +86,14 @@ PROMOTION RENDER + LEG CLEARANCE FOLLOW-UP (DEPLOYED; MOTION PENDING):
   [ ] Directly supervise routes beside measured obstacles and verify the legs
       retain the added 0.10 m clearance without making required aisles unusable.
 
-LOW-LEG ACTIVE-ROUTE FOLLOW-UP (HOST VALIDATED; DEPLOYMENT PENDING):
+LOW-LEG ACTIVE-ROUTE FOLLOW-UP (DEPLOYED; MOTION PENDING):
   [x] Lower depth/LiDAR promotion from six settled observations to three.
   [x] Recheck the next 0.80 m of every active route against the fused map;
       stop and replan when newly projected low occupancy blocks that prefix.
   [x] Pass all 214 host tests and compile production Python.
-  [ ] Pass all 214 tests natively on PT and deploy with autonomy paused.
+  [x] Pass all 214 tests natively on PT and deploy with autonomy paused.
+      Commit f13f296: one mapper AUTO PAUSED/stopped; Hector only; paused live
+      layer 3 temporary / 28 persistent cells; no fusion/TF errors.
   [ ] Directly supervise a route toward the currently visible table/chair legs;
       verify the robot stops/replans and retains 0.43 m center clearance.
 

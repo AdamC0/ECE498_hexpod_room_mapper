@@ -22,9 +22,11 @@ The follow-up table/chair-leg report lowered promotion from six observations
 to three and added continuous validation of the next 0.80 m of an active path
 against the fused planner map. A newly projected obstacle now stops the active
 command and returns the controller to planning instead of letting it continue
-on the older path snapshot. All 214 host tests pass. Robot-native validation
-and deployment of this follow-up are pending. The deployed mapper remains
-`AUTO PAUSED` with command `stop`.
+on the older path snapshot. Commit `f13f296` passes all 214 host and
+robot-native tests and is deployed. Exactly one drive-enabled mapper remains
+`AUTO PAUSED` with command `stop`; Hector is the only SLAM stack. A paused
+no-motion check reported 3 temporary and 28 persistent depth cells without
+fusion/TF errors.
 
 The repository now promotes a temporary depth obstacle to session-persistent
 black occupancy after three settled depth observations paired with fresh LiDAR.
@@ -41,8 +43,7 @@ and disappears on `CLEAR MAP` or mapper restart. Unconfirmed depth cells retain
 their existing two-observation depth clear and 30 s TTL behavior. The web map
 uses magenta for unconfirmed depth and black for persistent fused occupancy.
 
-The previously deployed 211-test suite passed on host and robot. The current
-214-test suite passes on the host and awaits robot-native validation.
+The current 214-test suite passes on both the host and robot.
 Synthetic tests cover LiDAR occupied/free projection, promotion, single-sensor
 rejection, occupied-neighbor veto, joint clearing, immediate reappearance,
 reset, and rendering. Commit `878267e` was deployed with matching runtime

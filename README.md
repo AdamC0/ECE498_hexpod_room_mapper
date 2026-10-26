@@ -35,15 +35,16 @@ strict 0.5-second limit.
 Active routes continuously recheck the next 0.80 m against this fused planner
 map, stopping and replanning if new low-obstacle occupancy blocks the path.
 
-All 214 host tests pass, including synthetic LiDAR ray
+All 214 host and robot-native tests pass, including synthetic LiDAR ray
 projection, promotion, one-sensor rejection, occupied-neighbor veto,
 moved-object clearing, reappearance, reset, and map-color cases. In a paused
 drive-disabled live check, 25 cells promoted and remained after the old 30 s
 TTL while no Hector cells were suppressed. Sensor rates remained about 12 Hz
 for scan/pose and 30 Hz for RGB/native/registered depth. The exact revision is
 now running drive-enabled but `AUTO PAUSED` with command `stop`; no motion was
-commanded. Measured-object clearing and physical-motion validation remain
-pending.
+commanded. The latest paused deployment reported 3 temporary and 28 persistent
+depth cells at commit `f13f296`. Measured-object clearing and directly
+supervised physical-motion validation remain pending.
 
 ## Reliability and object-validation behavior (2026-10-26)
 

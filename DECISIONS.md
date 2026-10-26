@@ -1400,3 +1400,11 @@ magenta cells remain planner obstacles before promotion, and the 0.30 m body
 radius plus 0.13 m margin remains unchanged. Host tests cover mid-route fused
 obstacle invalidation and movement away from pre-existing close occupancy;
 robot-native and directly supervised table/chair-leg validation remain pending.
+
+Commit `f13f296` passed all 214 tests on the Windows host and natively on PT.
+It was deployed without clearing Hector's map, and exactly one drive-enabled
+mapper was restored `AUTO PAUSED` with command `stop`. Hector remained the only
+SLAM stack. A paused live check reported 3 temporary and 28 persistent depth
+cells with no fusion/TF errors in the current log. No movement command or
+physical movement occurred during deployment; the table/chair-leg route still
+requires direct supervised validation.
