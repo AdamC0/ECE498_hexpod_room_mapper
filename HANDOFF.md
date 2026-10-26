@@ -78,6 +78,14 @@ that as pipeline evidence, not a detector-quality judgment. Labeled-scene
 quality and a measured two-second endpoint-timing check remain pending; the
 initial omnidirectional motion cases are recorded above.
 
+Current object-mapping behavior: per-frame object detections are working, but
+objects are not currently being added to the map because detections are not
+registering across enough distinct settled frames to satisfy landmark
+validation. A visible per-frame detection is therefore not evidence that an
+object has been confirmed or mapped. Confirmation requires three distinct
+settled captures; investigate capture/track registration and validation before
+changing detector thresholds or treating this as a detector failure.
+
 Repository-only update on 2026-10-24: removed the fixed-grid map-known
 percentage from web status, planner logs, and navigation validation. The room's
 total extent is unknown, so the fraction was not a valid completion measure.
@@ -391,7 +399,7 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
 - depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL
-- object confirmation: 2 observations
+- object confirmation: 3 distinct settled observations
 - object focus: 15 s or 2 distinct misses
 - weak turn tolerance: fault after 3 consecutive bursts below 3 degrees
 - pose jump guard: 0.25 m / 20 degrees
