@@ -16,8 +16,10 @@ completed in 0.22 s. Post-change rates were LiDAR 12.08 Hz, Hector pose 12.11
 Hz, RGB 29.83 Hz, native depth 30.03 Hz, and registered depth 29.80 Hz.
 Temperatures remained low, with CPU around 33 C and GPU around 29 C. The robot
 has exactly one drive-enabled mapper on `tensorrt_fp16`, remains `AUTO PAUSED`
-with command `stop`, and no movement was commanded. This is no-motion pipeline
-evidence, not labeled-scene detector-quality or physical-motion validation.
+with command `stop`, and no gait command was issued. The operator manually
+repositioned the robot during later observation, explaining the changed Hector
+pose and additional endpoint captures. This is paused pipeline evidence, not
+labeled-scene detector-quality or commanded physical-motion validation.
 
 Default YOLO admission is one immutable synchronized snapshot per ready
 stationary survey endpoint, not continuous inference while paused. Another

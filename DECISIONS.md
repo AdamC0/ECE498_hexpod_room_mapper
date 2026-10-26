@@ -1186,6 +1186,8 @@ paused TensorRT mapper restarts measured 1.12, 0.50, and 0.47 s inference, a
 rate sample was LiDAR 12.08 Hz, pose 12.11 Hz, RGB 29.83 Hz, native depth 30.03
 Hz, and registered depth 29.80 Hz. CPU was about 33 C and GPU about 29 C.
 Exactly one mapper was left `AUTO PAUSED` with command `stop`; Hector's map was
-preserved and no gait command or physical movement occurred. This validates a
-short no-motion pipeline run, not labeled classroom accuracy, long thermal
-soak, or physical motion.
+preserved and no gait command was issued. The operator later confirmed manually
+repositioning the robot, which explains the changing Hector pose and additional
+settled endpoint captures; physical stillness was not independently observed.
+This validates a short paused pipeline run, not labeled classroom accuracy,
+long thermal soak, or commanded physical motion.
