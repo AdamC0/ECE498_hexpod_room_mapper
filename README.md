@@ -66,8 +66,9 @@ backend fails, startup automatically falls back to CPU and then to the retained
 YOLO is endpoint-triggered, not a continuous video detector. Each ready
 stationary survey admits one bounded five-frame synchronized RGB/depth/TF
 burst. Only distinct sensor timestamps count. After that burst, remaining
-paused at the same endpoint does not run YOLO again; another normal burst is
-admitted at a new survey endpoint.
+paused at the same endpoint runs latest-frame display-only preview inference;
+those preview frames never enter landmark validation. Another validation burst
+is admitted only at a new survey endpoint.
 Consequently, `_object_hz` limits queued processing and legacy focus recapture
 frequency—it is not a continuous-preview frame rate. This prevents duplicate
 frames from consuming inference resources or being treated as additional
@@ -199,7 +200,9 @@ medium, charging, stale, and unavailable telemetry.
   autonomous gait commands from 50% to 200%. They start at 100% after a mapper
   restart and do not alter collision distances, footprint, or dead-man timing.
 - Detected objects are listed in the Objects tab. Pending objects may be
-  renamed or removed but cannot be navigation targets. Expected classroom
+  renamed or removed but cannot be navigation targets. They appear as hollow
+  amber map markers with the current validation reason; confirmed landmarks
+  are solid. Expected classroom
   classes require three qualifying detections in four fresh frames (each at
   least 0.50 confidence and median at least 0.65). Every other model class
   remains eligible but requires four in five (each at least 0.60 and median at
@@ -208,6 +211,10 @@ medium, charging, stale, and unavailable telemetry.
   observation. Two consecutive same-view misses remove a pending candidate;
   confirmed landmarks use only qualifying hits for their stored coordinate,
   remain fixed for the mapping session, and clear with the map.
+- Stationary preview uses a single latest-frame queue slot and never changes
+  validation evidence. Camera boxes clear immediately when motion begins and
+  expire after one second without a new result, so an old box cannot remain
+  over unrelated live video.
 - During stationary surveys, tentative objects remain nonblocking by default.
   The legacy `object_focus` behavior is opt-in; when enabled, motion stops until
   the object is confirmed, missed twice, or the 15-second limit expires.
@@ -402,7 +409,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 199 tests and does not publish physical movement
+The repository suite contains 203 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -418,9 +425,8 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 199 tests pass through the host shim and natively on PT. No-drive live
-validation of the stronger object policy is recorded in `HANDOFF.md` and
-`RUN_SHEET.txt`. A drive-disabled,
+All 203 tests pass through the host shim. Native/no-drive deployment results
+for the preview revision are recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later

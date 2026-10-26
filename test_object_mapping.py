@@ -106,6 +106,9 @@ class ObjectMappingTests(unittest.TestCase):
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))
         self.assertEqual(tracker.snapshot(True, 3), [])
+        pending = tracker.snapshot(False, 3)[0]
+        self.assertIn('median confidence 0.60 is below 0.65',
+                      pending['validation_reason'])
 
     def test_high_confidence_does_not_override_box_inconsistency(self):
         tracker = ObjectTracker(priority_labels=['chair'])
@@ -115,6 +118,9 @@ class ObjectMappingTests(unittest.TestCase):
                            observation_id=observation,
                            validation_group=('endpoint', 1), box=box)
         self.assertEqual(tracker.snapshot(True, 3), [])
+        pending = tracker.snapshot(False, 3)[0]
+        self.assertIn('box overlap', pending['validation_reason'])
+        self.assertEqual(pending['validation']['required_hits'], 3)
 
     def test_two_same_view_misses_remove_pending_candidate(self):
         tracker = ObjectTracker(priority_labels=['chair'])

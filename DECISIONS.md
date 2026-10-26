@@ -1245,3 +1245,26 @@ production launcher initially false-failed by reading the first paused status
 before its stop publication and cleaned up the mapper; the identical mapper
 command was then started under Bash and explicitly verified paused/stopped.
 No gait command or physical motion occurred.
+
+## Separate live preview from landmark validation - 2026-10-26
+
+The operator reported that detections were not visible on the map and that
+camera boxes appeared to freeze. Live evidence showed the detector had drained
+its queue normally: the map intentionally rendered confirmed tracks only, and
+the five-frame endpoint burst left its final camera detections displayed
+indefinitely. These were presentation/scheduling issues, not a TensorRT crash.
+
+Chosen: preserve every conservative confidence, depth, box, and map-position
+gate. Render pending tracks as hollow amber, non-navigable map markers and add
+the tracker's exact current failure reason to the Objects tab. After the
+validation burst finishes, allow only one latest display-only preview snapshot
+at a time while the robot is paused and settled. Preview results never enter
+the tracker. Clear boxes immediately when motion starts, reject a result from a
+changed motion generation for display, and hide any overlay older than one
+second. Confirmed landmarks remain solid and session-persistent.
+
+Four regressions cover pending marker rendering, box expiry/motion clearing,
+preview isolation, and latest-only preview queueing; validation-reason checks
+were added to existing confidence and box-consistency tests. All 203 host tests
+pass and production Python compiles. Robot-native and no-drive live validation
+remain separate deployment gates.

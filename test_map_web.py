@@ -7,6 +7,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+import time
 from unittest import mock
 from types import SimpleNamespace
 
@@ -21,7 +22,7 @@ class ObjectTrackerStub:
 
     def snapshot(self, confirmed_only):
         return [{'id': 1, 'label': 'chair', 'name': 'Desk chair',
-                 'x': 1.0, 'y': 0.5, 'count': 3}]
+                 'x': 1.0, 'y': 0.5, 'count': 3, 'confirmed': True}]
 
 
 class FakeNode:
@@ -43,6 +44,9 @@ class FakeNode:
         self.body_radius = 0.25
         self.object_lock = threading.Lock()
         self.object_detections = []
+        self.object_detections_stamp = time.time()
+        self.object_detection_ttl = 1.0
+        self.commanded_moving = False
         self.object_tracker = ObjectTrackerStub()
         self.commands = []
 
@@ -91,6 +95,7 @@ class WebServerTests(unittest.TestCase):
             self.assertIn("id='translation-speed'", body)
             self.assertIn("id='rotation-speed'", body)
             self.assertIn("fetch('/speed.json')", body)
+            self.assertIn('validation_reason', body)
             self.assertIn('RECOVER CAMERA', body)
             self.assertIn("fetch('/recover-camera'", body)
             self.assertIn("max='200'", body)
@@ -220,6 +225,36 @@ class WebServerTests(unittest.TestCase):
         n.explorer.slam_state[5, 5] = OCCUPIED
         image = map_web.draw_map(n)
         self.assertEqual(tuple(image[207, 207]), (0, 0, 0))
+
+    def test_pending_landmark_uses_hollow_map_marker(self):
+        n = FakeNode()
+        n.object_tracker = SimpleNamespace(snapshot=lambda confirmed_only: [{
+            'id': 2, 'label': 'fan', 'name': 'fan', 'x': 0., 'y': 0.,
+            'count': 2, 'confirmed': False}])
+        image = map_web.draw_map(n)
+        center = map_web.MAP_SIZE // 2
+        self.assertEqual(tuple(image[center, center + 6]),
+                         map_web.PENDING_OBJECT_COLOR)
+        self.assertNotEqual(tuple(image[center, center]),
+                            map_web.PENDING_OBJECT_COLOR)
+
+    def test_camera_boxes_expire_and_are_hidden_during_motion(self):
+        n = FakeNode()
+        n.camera = np.zeros((100, 100, 3), np.uint8)
+        n.object_detections = [{
+            'label': 'chair', 'confidence': .9, 'box': (10, 10, 20, 20),
+            'map_point': None}]
+        with mock.patch('map_web.time.time', return_value=100.):
+            n.object_detections_stamp = 100.
+            fresh = map_web.draw_camera(n)
+            self.assertEqual(tuple(fresh[48, 64]), (0, 180, 255))
+            n.object_detections_stamp = 98.
+            stale = map_web.draw_camera(n)
+            self.assertEqual(tuple(stale[48, 64]), (0, 0, 0))
+            n.object_detections_stamp = 100.
+            n.commanded_moving = True
+            moving = map_web.draw_camera(n)
+            self.assertEqual(tuple(moving[48, 64]), (0, 0, 0))
 
     def test_navigation_endpoints_reject_invalid_input(self):
         for path in ('/navigate?px=-1&py=20', '/navigate?px=nope&py=20',

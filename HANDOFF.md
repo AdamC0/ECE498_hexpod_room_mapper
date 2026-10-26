@@ -4,6 +4,15 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
+The approved object-visibility revision is ready for deployment. It preserves
+the conservative 3-of-4/4-of-5 validation gates but shows pending candidates as
+hollow amber map markers, reports the exact pending reason in the Objects tab,
+and runs display-only latest-frame inference while paused and settled. Preview
+frames cannot create, confirm, move, or remove tracks. Boxes clear immediately
+on motion and expire after one second without a new result. All 203 host tests
+pass and production modules compile; robot-native and live behavior for this
+revision remain to be recorded below after deployment.
+
 The stronger autonomous landmark-validation revision is deployed. All 199
 tests pass on the Windows host and production modules compile. Each
 settled endpoint now acquires at most five distinct synchronized frames within
@@ -50,12 +59,12 @@ repositioned the robot during later observation, explaining the changed Hector
 pose and additional endpoint captures. This is paused pipeline evidence, not
 labeled-scene detector-quality or commanded physical-motion validation.
 
-Default YOLO admission is one bounded burst of up to five distinct immutable
-synchronized snapshots per ready stationary survey endpoint, not continuous
-inference while paused. Another burst normally requires a new endpoint-ready
-event. `_object_hz` controls worker pacing and the opt-in legacy focus recapture
-interval; it does not turn the RGB stream into a continuous detector. Repeated
-sensor timestamps are rejected and cannot inflate landmark confirmation.
+Default landmark validation admits one bounded burst of up to five distinct
+immutable synchronized snapshots per ready stationary survey endpoint. After
+that burst, a paused and settled robot runs latest-frame preview inference at
+the bounded worker cadence. Preview frames are display-only and cannot inflate
+landmark confirmation. Another validation burst requires a new endpoint-ready
+event; repeated sensor timestamps are rejected.
 
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in

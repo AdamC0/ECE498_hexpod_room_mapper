@@ -557,32 +557,70 @@ class ObjectTracker:
         return (self.expected_policy if str(label).lower() in self.priority_labels
                 else self.other_policy)
 
-    def _confirmation_hits(self, track):
+    def _confirmation_evaluation(self, track):
         policy = self._policy(track["label"])
         evidence = track.get("_evidence", [])[-int(policy["window"]):]
-        hits = [item for item in evidence
-                if item.get("hit") and
-                item["confidence"] >= float(policy["minimum_confidence"])]
-        if len(hits) < int(policy["hits"]):
-            return None
-        hits = hits[-int(policy["hits"]):]
-        if float(np.median([item["confidence"] for item in hits])) < \
-                float(policy["median_confidence"]):
-            return None
+        required = int(policy["hits"])
+        minimum_confidence = float(policy["minimum_confidence"])
+        required_median = float(policy["median_confidence"])
+        hits = [item for item in evidence if item.get("hit") and
+                item["confidence"] >= minimum_confidence]
+        status = {
+            "required_hits": required,
+            "window": int(policy["window"]),
+            "observed_frames": len(evidence),
+            "qualifying_hits": len(hits),
+            "minimum_confidence": minimum_confidence,
+            "required_median_confidence": required_median,
+        }
+        if len(hits) < required:
+            status["reason"] = ("%d/%d detections meet %.2f minimum confidence" %
+                                (len(hits), required, minimum_confidence))
+            return None, status
+        hits = hits[-required:]
+        median_confidence = float(np.median(
+            [item["confidence"] for item in hits]))
+        status["median_confidence"] = median_confidence
+        if median_confidence < required_median:
+            status["reason"] = ("median confidence %.2f is below %.2f" %
+                                (median_confidence, required_median))
+            return None, status
         tolerance_key = ("large_position_tolerance"
                          if track["label"].lower() in self.large_labels
                          else "position_tolerance")
         tolerance = float(policy[tolerance_key])
+        maximum_distance = 0.0
+        minimum_iou = 1.0
         for index, first in enumerate(hits):
             for second in hits[index + 1:]:
-                if math.hypot(first["x"] - second["x"],
-                              first["y"] - second["y"]) > tolerance:
-                    return None
+                distance = math.hypot(first["x"] - second["x"],
+                                      first["y"] - second["y"])
+                maximum_distance = max(maximum_distance, distance)
+                if distance > tolerance:
+                    status["maximum_position_delta"] = maximum_distance
+                    status["position_tolerance"] = tolerance
+                    status["reason"] = ("map positions differ by %.2f m (limit %.2f m)" %
+                                        (distance, tolerance))
+                    return None, status
                 if (first.get("group") == second.get("group") and
-                        first.get("box") is not None and second.get("box") is not None and
-                        box_iou(first["box"], second["box"]) < float(policy["box_iou"])):
-                    return None
-        return hits
+                        first.get("box") is not None and second.get("box") is not None):
+                    overlap = box_iou(first["box"], second["box"])
+                    minimum_iou = min(minimum_iou, overlap)
+                    if overlap < float(policy["box_iou"]):
+                        status["minimum_box_iou"] = minimum_iou
+                        status["required_box_iou"] = float(policy["box_iou"])
+                        status["reason"] = ("same-view box overlap %.2f is below %.2f" %
+                                            (overlap, float(policy["box_iou"])))
+                        return None, status
+        status["maximum_position_delta"] = maximum_distance
+        status["position_tolerance"] = tolerance
+        status["minimum_box_iou"] = minimum_iou
+        status["required_box_iou"] = float(policy["box_iou"])
+        status["reason"] = "confirmation requirements met"
+        return hits, status
+
+    def _confirmation_hits(self, track):
+        return self._confirmation_evaluation(track)[0]
 
     def _confirmation_ready(self, track):
         return self._confirmation_hits(track) is not None
@@ -726,5 +764,12 @@ class ObjectTracker:
             item["confirmed"] = confirmed
             item["name"] = track.get("name", track["label"])
             item["position_std"] = math.sqrt(track["m2"] / max(1, track["count"] - 1))
+            if self.validation_enabled:
+                if confirmed:
+                    validation = {"reason": "confirmed"}
+                else:
+                    _, validation = self._confirmation_evaluation(track)
+                item["validation"] = validation
+                item["validation_reason"] = validation["reason"]
             result.append(item)
         return result

@@ -39,7 +39,7 @@ PAGE = """<!doctype html><html><head><meta charset='utf-8'>
 <section class='console'><div class='console-head'><span>Telemetry</span><span>● streaming</span></div><pre id='status'>connecting...</pre></section>
 <section class='card speed-panel'><h2>Movement speed</h2><div class='speed-grid'><div class='speed-control'><label for='translation-speed'>Translation</label><output id='translation-value'>100%</output><input id='translation-speed' type='range' min='50' max='200' step='5' value='100'></div><div class='speed-control'><label for='rotation-speed'>Rotation</label><output id='rotation-value'>100%</output><input id='rotation-speed' type='range' min='50' max='200' step='5' value='100'></div></div></section>
 <section class='card manual'><div class='manual-copy'><h2>Manual drive</h2><p>Available while autonomy is paused. Manual commands bypass map and obstacle gating; maintain direct sight of the robot. Releasing a key stops immediately. W/S move, A/D strafe, and Q/E rotate; arrow keys retain forward/back/rotate.</p></div><div class='drive-pad' aria-label='Manual drive controls'><button class='drive turn-left' data-drive='left' aria-label='Rotate left'>↶<span class='key'>Q / ←</span></button><button class='drive forward' data-drive='forward' aria-label='Move forward'>▲<span class='key'>W / ↑</span></button><button class='drive turn-right' data-drive='right' aria-label='Rotate right'>↷<span class='key'>E / →</span></button><button class='drive strafe-left' data-drive='strafe_left' aria-label='Strafe left'>◀<span class='key'>A</span></button><button class='drive drive-stop' data-stop aria-label='Stop'>■<span class='key'>STOP</span></button><button class='drive strafe-right' data-drive='strafe_right' aria-label='Strafe right'>▶<span class='key'>D</span></button><button class='drive back' data-drive='back' aria-label='Move backward'>▼<span class='key'>S / ↓</span></button></div></section>
-<nav class='controls' aria-label='Robot controls'><button class='stop' onclick="post('/pause')">PAUSE AUTO</button><button class='cancel-route' onclick="cancelRoute()">CANCEL ROUTE</button><button class='go' onclick="post('/resume')">RESUME AUTO</button><button class='recover' onclick="recoverCamera(this)">RECOVER CAMERA</button><button class='clear' onclick="clearMap()">CLEAR MAP</button></nav></section><section class='pane card object-panel' id='objects' hidden><div class='object-intro'><div><h2>Detected objects</h2><p>Navigate to a safe stand-off point, rename a landmark, or remove it from this map.</p></div><span class='object-count' id='object-count'>0 OBJECTS</span></div><div class='object-list' id='object-list'><div class='empty'>Waiting for detected objects...</div></div></section>
+<nav class='controls' aria-label='Robot controls'><button class='stop' onclick="post('/pause')">PAUSE AUTO</button><button class='cancel-route' onclick="cancelRoute()">CANCEL ROUTE</button><button class='go' onclick="post('/resume')">RESUME AUTO</button><button class='recover' onclick="recoverCamera(this)">RECOVER CAMERA</button><button class='clear' onclick="clearMap()">CLEAR MAP</button></nav></section><section class='pane card object-panel' id='objects' hidden><div class='object-intro'><div><h2>Detected objects</h2><p>Pending candidates use hollow map markers; only confirmed landmarks can be navigation targets.</p></div><span class='object-count' id='object-count'>0 OBJECTS</span></div><div class='object-list' id='object-list'><div class='empty'>Waiting for detected objects...</div></div></section>
 <script>function fresh(id,ms){let x=document.getElementById(id),load=()=>x.src='/'+id+'.jpg?t='+Date.now();x.onload=x.onerror=()=>setTimeout(load,ms);load()}fresh('cam',150);
 const mapImage=document.getElementById('map'),mapView={scale:50,dx:0,dy:0,rendered:null},MAP_BASE_SCALE=50,MAP_MIN_SCALE=15,MAP_MAX_SCALE=180;let mapTimer=null,mapDrag=null,mapDragged=false,mapObjectUrl=null,mapLoadSequence=0;
 function mapUrl(){let q=new URLSearchParams({t:Date.now(),scale:mapView.scale.toFixed(3),dx:mapView.dx.toFixed(4),dy:mapView.dy.toFixed(4)});return '/map.jpg?'+q}
@@ -65,7 +65,7 @@ function cancelRoute(){if(confirm('Cancel the active route and leave autonomy pa
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(item=>item.classList.toggle('active',item===button));document.querySelectorAll('.pane').forEach(pane=>pane.hidden=pane.id!==button.dataset.tab)}));
 mapImage.addEventListener('click',event=>{if(mapDragged){mapDragged=false;return}let p=imagePoint(event),v=mapView.rendered;if(!v){show('Map coordinates are not ready yet');return}let q=new URLSearchParams({px:p.x.toFixed(2),py:p.y.toFixed(2),scale:v.scale.toFixed(3),cx:v.cx.toFixed(6),cy:v.cy.toFixed(6)});post('/navigate?'+q)});
 function objectAction(action,id,name){let url='/object/'+action+'?id='+encodeURIComponent(id);if(action==='rename'){let next=prompt('New object name:',name);if(next===null)return;url+='&name='+encodeURIComponent(next)}if(action==='remove'&&!confirm('Remove '+name+' from this map and suppress it at this location?'))return;post(url)}
-function renderObjects(items){let list=document.getElementById('object-list'),count=document.getElementById('object-count');count.textContent=items.length+' OBJECT'+(items.length===1?'':'S');list.replaceChildren();if(!items.length){let empty=document.createElement('div');empty.className='empty';empty.textContent='No mapped detections yet.';list.appendChild(empty);return}items.forEach(item=>{let row=document.createElement('article');row.className='object-row';let info=document.createElement('div'),name=document.createElement('div'),meta=document.createElement('div');name.className='object-name';name.textContent=item.name||item.label;meta.className='object-meta';meta.textContent=item.label+' class | '+item.count+' observation'+(item.count===1?'':'s')+' | '+item.x.toFixed(2)+', '+item.y.toFixed(2)+' m';info.append(name,meta);let state=document.createElement('div');let confirmed=item.confirmed===true;state.className='object-state'+(confirmed?'':' pending');state.textContent=confirmed?'CONFIRMED':'PENDING';let actions=document.createElement('div');actions.className='object-actions';[['navigate','NAVIGATE'],['rename','RENAME'],['remove','REMOVE']].forEach(pair=>{let button=document.createElement('button');button.className=pair[0];button.textContent=pair[1];if(pair[0]==='navigate'&&!confirmed){button.disabled=true;button.title='Requires autonomous landmark confirmation'}else button.addEventListener('click',()=>objectAction(pair[0],item.id,item.name||item.label));actions.appendChild(button)});row.append(info,state,actions);list.appendChild(row)})}
+function renderObjects(items){let list=document.getElementById('object-list'),count=document.getElementById('object-count');count.textContent=items.length+' OBJECT'+(items.length===1?'':'S');list.replaceChildren();if(!items.length){let empty=document.createElement('div');empty.className='empty';empty.textContent='No mapped detections yet.';list.appendChild(empty);return}items.forEach(item=>{let row=document.createElement('article');row.className='object-row';let info=document.createElement('div'),name=document.createElement('div'),meta=document.createElement('div');name.className='object-name';name.textContent=item.name||item.label;meta.className='object-meta';let reason=item.confirmed===true?'':(' | '+(item.validation_reason||'awaiting validation'));meta.textContent=item.label+' class | '+item.count+' observation'+(item.count===1?'':'s')+' | '+item.x.toFixed(2)+', '+item.y.toFixed(2)+' m'+reason;info.append(name,meta);let state=document.createElement('div');let confirmed=item.confirmed===true;state.className='object-state'+(confirmed?'':' pending');state.textContent=confirmed?'CONFIRMED':'PENDING';let actions=document.createElement('div');actions.className='object-actions';[['navigate','NAVIGATE'],['rename','RENAME'],['remove','REMOVE']].forEach(pair=>{let button=document.createElement('button');button.className=pair[0];button.textContent=pair[1];if(pair[0]==='navigate'&&!confirmed){button.disabled=true;button.title='Requires autonomous landmark confirmation'}else button.addEventListener('click',()=>objectAction(pair[0],item.id,item.name||item.label));actions.appendChild(button)});row.append(info,state,actions);list.appendChild(row)})}
 function refreshObjects(){fetch('/objects.json').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(renderObjects).catch(e=>{let list=document.getElementById('object-list');list.textContent='Object list unavailable: '+e.message})}refreshObjects();setInterval(refreshObjects,1500);
 let driveTimer=null,driveCommand=null;
 function drivePulse(command){fetch('/manual?command='+encodeURIComponent(command),{method:'POST'}).catch(e=>show('Manual control failed: '+e.message))}
@@ -77,6 +77,8 @@ setInterval(()=>fetch('/status').then(r=>{if(!r.ok)throw Error('HTTP '+r.status)
 
 MAP_SIZE, MAP_SCALE = 420, 50.0
 DEPTH_OBSTACLE_COLOR = (180, 0, 220)  # BGR: magenta in the encoded map
+CONFIRMED_OBJECT_COLOR = (0, 165, 255)
+PENDING_OBJECT_COLOR = (0, 205, 255)
 CAMERA_RECOVERY_LOCK = threading.Lock()
 
 
@@ -142,7 +144,10 @@ def draw_camera(node):
         cv2.putText(img, label, (x, y), font, scale, (255,255,255), thickness,
                     cv2.LINE_AA)
     with node.object_lock:
-        detections = [dict(d) for d in node.object_detections]
+        age = time.time() - getattr(node, 'object_detections_stamp', 0.0)
+        fresh = (not getattr(node, 'commanded_moving', False) and
+                 0.0 <= age <= getattr(node, 'object_detection_ttl', 1.0))
+        detections = ([dict(d) for d in node.object_detections] if fresh else [])
     sx, sy = 640.0 / source_w, 480.0 / source_h
     for detection in detections:
         x1, y1, x2, y2 = detection['box']
@@ -229,14 +234,17 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
         cv2.putText(img, heading, (10, 22), cv2.FONT_HERSHEY_SIMPLEX,
                     .48, (255,255,255), 1, cv2.LINE_AA)
     with node.object_lock:
-        objects = node.object_tracker.snapshot(True)
+        objects = node.object_tracker.snapshot(False)
     for obj in objects:
         point = overlay_point(obj['x'], obj['y'])
         if 0 <= point[0] < MAP_SIZE and 0 <= point[1] < MAP_SIZE:
-            cv2.circle(img, point, 6, (0, 165, 255), -1)
-            label = '%s #%d' % (obj.get('name', obj['label']), obj['id'])
+            confirmed = obj.get('confirmed', True)
+            color = CONFIRMED_OBJECT_COLOR if confirmed else PENDING_OBJECT_COLOR
+            cv2.circle(img, point, 6, color, -1 if confirmed else 2)
+            label = '%s%s #%d' % ('' if confirmed else '? ',
+                                  obj.get('name', obj['label']), obj['id'])
             cv2.putText(img, label, (point[0]+8, point[1]-5),
-                        cv2.FONT_HERSHEY_SIMPLEX, .42, (0, 100, 220), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, .42, color, 1)
     requested = getattr(node, 'user_goal', None)
     actual = getattr(node, 'nav_goal', None)
     if requested is not None:

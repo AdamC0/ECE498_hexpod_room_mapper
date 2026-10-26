@@ -51,6 +51,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.tf_buffer.update('camera', 'optical', (0, 0, 0), (-.5, .5, -.5, .5), 0, True)
         n.object_tracker = ObjectTracker()
         n.object_detections = []
+        n.object_detections_stamp = 0.0
         n.object_processing = False
         n.object_queue_lock = threading.Lock()
         n.object_pending_snapshots = []
@@ -66,6 +67,9 @@ class ObjectPipelineTests(unittest.TestCase):
         n.object_endpoint_captured = 0
         n.object_endpoint_next_capture = 0.0
         n.object_endpoint_observations = set()
+        n.object_preview_enabled = True
+        n.object_preview_next_capture = 0.0
+        n.object_detection_ttl = 1.0
         n.survey = SimpleNamespace(settled_at=98., required_stamp=99.9,
                                    localize=Mock())
         n.object_focus_enabled = False
@@ -197,6 +201,29 @@ class ObjectPipelineTests(unittest.TestCase):
             worker.join(1.)
             self.assertFalse(worker.is_alive())
 
+    def test_stationary_preview_is_latest_only_and_never_validates(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        self.assertTrue(n.capture_preview_snapshot(100.))
+        self.assertEqual(len(n.object_pending_snapshots), 1)
+        self.assertTrue(n.object_pending_snapshots[0]['display_only'])
+        self.assertFalse(n.capture_preview_snapshot(100.))
+        snapshot = n.object_pending_snapshots.pop(0)
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(n.object_tracker.tracks, [])
+        self.assertEqual(len(n.object_detections), 1)
+        self.assertEqual(n.object_detections_stamp, 100.)
+        self.assertIn('preview:', n.object_status)
+
+    def test_motion_immediately_clears_detection_overlay(self):
+        n = self.node
+        n.motion_pub = Mock()
+        n.object_detections = self.detections(None)
+        n.object_detections_stamp = 100.
+        n.set_motion(True)
+        self.assertEqual(n.object_detections, [])
+        self.assertEqual(n.object_detections_stamp, 0.)
+
     def test_slow_inference_queue_keeps_five_newest_snapshots(self):
         n = self.node
         started, release = threading.Event(), threading.Event()
@@ -303,7 +330,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.process_objects()
         n.detector.detect.assert_not_called()
 
-    def test_motion_after_settled_capture_does_not_discard_async_result(self):
+    def test_motion_after_capture_commits_map_result_but_clears_overlay(self):
         n = self.node
         n.motion_pub = Mock()
         def infer(frame):
@@ -313,8 +340,8 @@ class ObjectPipelineTests(unittest.TestCase):
         n.detector.detect.side_effect = infer
         n.process_objects()
         self.assertEqual(len(n.object_tracker.tracks), 1)
-        self.assertEqual(len(n.object_detections), 1)
-        self.assertIsNotNone(n.object_detections[0]['map_point'])
+        self.assertEqual(n.object_detections, [])
+        self.assertEqual(n.object_detections_stamp, 0.)
 
     def test_legacy_focus_mode_discards_result_if_motion_changes(self):
         n = self.node
@@ -327,7 +354,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.detector.detect.side_effect = infer
         n.process_objects()
         self.assertEqual(n.object_tracker.tracks, [])
-        self.assertIsNone(n.object_detections[0]['map_point'])
+        self.assertEqual(n.object_detections, [])
 
     def test_slam_loss_during_inference_cannot_repopulate_tracks(self):
         n = self.node

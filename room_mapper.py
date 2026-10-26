@@ -284,14 +284,20 @@ class RoomMapper:
                     self.depth_map_range_max):
             raise ValueError("depth map parameters are outside safe bounds")
         self.object_hz = float(rospy.get_param("~object_hz", 2.0))
+        self.object_preview_enabled = bool(rospy.get_param(
+            "~object_preview_enabled", True))
+        self.object_detection_ttl = float(rospy.get_param(
+            "~object_detection_ttl", 1.0))
         self.rgb_processing_hz = float(rospy.get_param("~rgb_processing_hz", 10.0))
         self.depth_processing_hz = float(rospy.get_param("~depth_processing_hz", 15.0))
         self.registered_depth_processing_hz = float(rospy.get_param(
             "~registered_depth_processing_hz", 10.0))
         self.opencv_threads = int(rospy.get_param("~opencv_threads", 2))
         if (any(not math.isfinite(value) or value <= 0 for value in
-                (self.rgb_processing_hz, self.depth_processing_hz,
-                 self.registered_depth_processing_hz)) or self.opencv_threads < 1):
+                (self.object_hz, self.rgb_processing_hz, self.depth_processing_hz,
+                 self.registered_depth_processing_hz)) or
+                not .25 <= self.object_detection_ttl <= 5.0 or
+                self.opencv_threads < 1):
             raise ValueError("image processing rates and opencv_threads must be positive")
         # Structured-light depth is naturally sparse on dark, reflective, or
         # distant surfaces. Hundreds of current samples are sufficient for a
@@ -533,6 +539,7 @@ class RoomMapper:
                                             other_policy=other_policy,
                                             large_labels=self.object_large_classes)
         self.object_detections = []
+        self.object_detections_stamp = 0.0
         self.registered_depth = None
         self.registered_depth_stamp = 0.0
         self.t_registered_depth = 0.0
@@ -564,6 +571,7 @@ class RoomMapper:
         self.object_endpoint_captured = 0
         self.object_endpoint_next_capture = 0.0
         self.object_endpoint_observations = set()
+        self.object_preview_next_capture = 0.0
         self.object_focus_id = None
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
@@ -1036,6 +1044,23 @@ class RoomMapper:
             self.object_pending_snapshots.append(snapshot)
             self.object_snapshots_captured += 1
 
+    def capture_preview_snapshot(self, now):
+        """Queue at most one latest stationary display-only inference."""
+        if (not getattr(self, "object_preview_enabled", True) or
+                now < getattr(self, "object_preview_next_capture", 0.0)):
+            return False
+        with self.object_queue_lock:
+            busy = bool(self.object_pending_snapshots)
+        if busy or self.object_processing:
+            return False
+        snapshot = self.capture_object_snapshot()
+        if snapshot is None:
+            return False
+        snapshot["display_only"] = True
+        self.enqueue_object_snapshot(snapshot)
+        self.object_preview_next_capture = now + 1.0 / max(.1, self.object_hz)
+        return True
+
     def capture_endpoint_snapshot(self, now):
         """Capture a short fresh-frame burst within the bounded endpoint grace."""
         if self.detector is None:
@@ -1099,6 +1124,7 @@ class RoomMapper:
         map_generation = snapshot["map_generation"]
         observation_id = snapshot.get("observation_id", stamps[0])
         validation_group = snapshot.get("validation_group", ("legacy",))
+        display_only = bool(snapshot.get("display_only", False))
         # Set this under the control lock so legacy focus mode can keep its
         # original inference hold without affecting default nonblocking mode.
         with self.control_lock:
@@ -1142,20 +1168,32 @@ class RoomMapper:
         with self.control_lock, self.data_lock, self.object_lock:
             self.object_processing = False
             now = time.time()
+            display_current = (generation == self.motion_generation and
+                               not self.commanded_moving)
+            if display_only:
+                for detection in detections:
+                    detection["map_point"] = None
+                self.object_detections = detections if display_current else []
+                self.object_detections_stamp = now if display_current else 0.0
+                self.object_status = ("preview: %d detections; %.2f s inference" %
+                                      (len(detections), inference_seconds))
+                return
             ros_now = rospy.Time.now().to_sec()
             capture_ages = tuple(ros_now - s for s in stamps)
             if not self.object_commit_ready(now):
                 for detection in detections:
                     detection["map_point"] = None
                 if not self.shutting_down:
-                    self.object_detections = detections
+                    self.object_detections = detections if display_current else []
+                    self.object_detections_stamp = now if display_current else 0.0
                 self.object_status = ("discarded observation after %.2f s: "
                                       "SLAM/map became unavailable" % inference_seconds)
                 return
             if map_generation != getattr(self, "map_generation", 0):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections
+                self.object_detections = detections if display_current else []
+                self.object_detections_stamp = now if display_current else 0.0
                 self.object_status = ("discarded observation after %.2f s: map generation "
                                       "changed" % inference_seconds)
                 return
@@ -1163,14 +1201,16 @@ class RoomMapper:
                     generation != self.motion_generation):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections
+                self.object_detections = detections if display_current else []
+                self.object_detections_stamp = now if display_current else 0.0
                 self.object_status = "discarded observation after %.2f s: motion changed" % \
                     inference_seconds
                 return
             if any(not 0 <= age <= self.object_result_max_age for age in capture_ages):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections
+                self.object_detections = detections if display_current else []
+                self.object_detections_stamp = now if display_current else 0.0
                 self.object_status = ("%d detections shown; map observation discarded after "
                                       "%.2f s: RGB/depth age %.2f/%.2f s exceeds %.2f s" %
                                       (len(detections), inference_seconds,
@@ -1194,7 +1234,8 @@ class RoomMapper:
                         mapped += 1
             self.object_tracker.finish_observation(
                 validation_group, observation_id, seen_track_ids)
-            self.object_detections = detections
+            self.object_detections = detections if display_current else []
+            self.object_detections_stamp = now if display_current else 0.0
             confirmed = len(self.object_tracker.snapshot(True, now))
             self.object_status = ("%d detections, %d mapped, %d confirmed; %.2f s inference" %
                                   (len(detections), mapped, confirmed, inference_seconds))
@@ -1565,6 +1606,7 @@ class RoomMapper:
         with self.object_lock:
             self.object_tracker.clear()
             self.object_detections = []
+            self.object_detections_stamp = 0.0
         self.map_generation = getattr(self, "map_generation", 0) + 1
         if hasattr(self, "object_queue_lock"):
             with self.object_queue_lock:
@@ -1609,6 +1651,10 @@ class RoomMapper:
         if moving != self.commanded_moving:
             self.motion_generation = getattr(self, "motion_generation", 0) + 1
             self.commanded_moving = moving
+            if moving and hasattr(self, "object_lock"):
+                with self.object_lock:
+                    self.object_detections = []
+                    self.object_detections_stamp = 0.0
             self.motion_pub.publish(Bool(moving))
 
     def send(self, cmd, interrupt_object=False):
@@ -1942,7 +1988,8 @@ class RoomMapper:
             self.send(("stop",))
             if (getattr(self, "detector", None) is not None and self.survey.ready(now) and
                     self.objects_ready(now)):
-                self.capture_endpoint_snapshot(now)
+                if self.capture_endpoint_snapshot(now):
+                    self.capture_preview_snapshot(now)
             return
         # RGB is used for display and YOLO, not collision sensing. A stalled
         # RGB stream must not disable depth/LiDAR-protected manual navigation.
