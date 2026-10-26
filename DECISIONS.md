@@ -1002,9 +1002,11 @@ Chosen: require both a responsive Hector node and a fresh pose message before
 preserving its map. If pose output is absent, stop the owning
 `hex_map.launch` (or a manually started Hector node), wait for it to exit, and
 start the checked-in production stack with a fresh map. Apply the same recovery
-to an orphaned `hex_map.launch` whose Hector node is gone. This recovery issues
-no gait command; the mapper still starts drive-enabled, stopped, and
-`AUTO PAUSED`.
+to an orphaned `hex_map.launch` whose Hector node is gone. Shutdown first uses
+SIGINT, then explicitly stops only the four nodes owned by `hex_map.launch` and
+escalates only the exact matching launch process if it remains wedged. This
+recovery issues no gait command; the mapper still starts drive-enabled,
+stopped, and `AUTO PAUSED`.
 
 ## Implement the approved reliability plan - 2026-10-25
 

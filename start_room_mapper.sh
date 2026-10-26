@@ -72,6 +72,33 @@ hector_launch_pids() {
   pgrep -f '(^|/)roslaunch .*hex_map\.launch( |$)' || true
 }
 
+hector_stack_has_live_nodes() {
+  local node
+  for node in \
+    /hector_mapping \
+    /hex_body_link_bridge \
+    /room_mapper_laser_mount \
+    /room_mapper_camera_mount; do
+    if node_is_live "$node"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+stop_hector_nodes() {
+  local node
+  for node in \
+    /hector_mapping \
+    /hex_body_link_bridge \
+    /room_mapper_laser_mount \
+    /room_mapper_camera_mount; do
+    if node_is_live "$node"; then
+      rosnode kill "$node" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 stop_unhealthy_hector_stack() {
   local launch_pids
   launch_pids="$(hector_launch_pids)"
@@ -85,7 +112,7 @@ stop_unhealthy_hector_stack() {
   fi
 
   for _ in {1..5}; do
-    if ! node_is_live /hector_mapping && [[ -z "$(hector_launch_pids)" ]]; then
+    if ! hector_stack_has_live_nodes && [[ -z "$(hector_launch_pids)" ]]; then
       return 0
     fi
     sleep 1
@@ -94,16 +121,29 @@ stop_unhealthy_hector_stack() {
   # A wedged child or launch monitor may ignore the graceful interrupt. Limit
   # the fallback to the exact production node and launch command identified
   # above, then allow another bounded shutdown interval.
-  if node_is_live /hector_mapping; then
-    rosnode kill /hector_mapping >/dev/null 2>&1 || true
-  fi
+  stop_hector_nodes
   launch_pids="$(hector_launch_pids)"
   if [[ -n "$launch_pids" ]]; then
     kill -TERM $launch_pids 2>/dev/null || true
   fi
 
   for _ in {1..5}; do
-    if ! node_is_live /hector_mapping && [[ -z "$(hector_launch_pids)" ]]; then
+    if ! hector_stack_has_live_nodes && [[ -z "$(hector_launch_pids)" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  # Do not let an exact, already-signalled production roslaunch monitor block
+  # recovery indefinitely. Its node set has been stopped explicitly above.
+  launch_pids="$(hector_launch_pids)"
+  if [[ -n "$launch_pids" ]]; then
+    kill -KILL $launch_pids 2>/dev/null || true
+  fi
+  stop_hector_nodes
+
+  for _ in {1..5}; do
+    if ! hector_stack_has_live_nodes && [[ -z "$(hector_launch_pids)" ]]; then
       return 0
     fi
     sleep 1
