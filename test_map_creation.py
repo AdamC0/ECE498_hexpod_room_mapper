@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from map_explore import ExploreMap, OCCUPIED
-from map_web import draw_map
+from map_web import draw_map, to_screen
 from object_mapping import ObjectTracker
 from room_mapper import RoomMapper
 from stationary_survey import StationarySurvey
@@ -231,6 +231,42 @@ class MapPresentationTests(unittest.TestCase):
         # The robot itself remains at the center of the moving viewport.
         self.assertFalse(np.all(before[210, 210] == 0))
         self.assertFalse(np.all(after[210, 210] == 0))
+
+    def test_all_world_overlays_share_zoomed_and_panned_transform(self):
+        self.update(self.raw)
+        point = (1.2, -.4)
+        tracker = NS(snapshot=Mock(return_value=[
+            {'id': 1, 'label': 'chair', 'name': 'Chair',
+             'x': point[0], 'y': point[1]}]))
+        n = NS(explorer=self.explorer, pose=(point[0], point[1], 0.),
+               map_lock=threading.Lock(), object_lock=threading.Lock(),
+               path=[point], view={}, body_radius=.25,
+               object_tracker=tracker,
+               user_goal=(point[0], point[1], 'requested', 0.),
+               nav_goal=point)
+        center = (.3, -.2)
+        for scale in (25., 50., 100.):
+            with self.subTest(scale=scale), \
+                    patch('map_web.cv2.circle') as circle, \
+                    patch('map_web.cv2.polylines') as polylines, \
+                    patch('map_web.cv2.drawMarker') as marker:
+                draw_map(n, scale=scale, center=center)
+            expected = to_screen(point[0], point[1], center[0], center[1], scale)
+
+            path_call = next(call for call in polylines.call_args_list
+                             if call.args[3] == (230, 140, 40))
+            self.assertEqual(tuple(path_call.args[1][0][0]), expected)
+            body_call = next(call for call in circle.call_args_list
+                             if call.args[3] == (30, 210, 230))
+            object_call = next(call for call in circle.call_args_list
+                               if call.args[3] == (0, 165, 255))
+            self.assertEqual(body_call.args[1], expected)
+            self.assertEqual(object_call.args[1], expected)
+            self.assertEqual(object_call.args[2], 6)
+            self.assertEqual(marker.call_args_list[0].args[1], expected)
+            self.assertEqual(marker.call_args_list[0].args[4], 16)
+            self.assertEqual(marker.call_args_list[1].args[1], expected)
+            self.assertEqual(marker.call_args_list[1].args[4], 18)
 
 
 class HectorLaunchTests(unittest.TestCase):

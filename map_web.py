@@ -158,7 +158,7 @@ def draw_camera(node):
     return img
 
 
-def to_screen(x, y, cx, cy, scale=MAP_SCALE):
+def to_screen(x, y, cx, cy, scale):
     return (int(MAP_SIZE/2 - (y-cy)*scale), int(MAP_SIZE/2 - (x-cx)*scale))
 
 
@@ -179,6 +179,11 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
         cx, cy = cx + dx, cy + dy
     else:
         cx, cy = float(center[0]), float(center[1])
+    # Every world-anchored overlay must use this render's exact transform.
+    # Requiring scale in to_screen() prevents a future layer from silently
+    # falling back to the historical fixed 50 px/m value.
+    def overlay_point(x, y):
+        return to_screen(x, y, cx, cy, scale)
     with node.map_lock:
         depth_mask_fn = getattr(e, 'depth_obstacle_mask', None)
         depth_mask = (depth_mask_fn() if callable(depth_mask_fn)
@@ -200,18 +205,18 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     depth_only = inside & depth_mask[r,c] & (slam_state[r,c] != 2)
     img[depth_only] = DEPTH_OBSTACLE_COLOR
     if path:
-        pts = np.array([to_screen(x,y,cx,cy,scale) for x,y in path], np.int32)
+        pts = np.array([overlay_point(x, y) for x, y in path], np.int32)
         cv2.polylines(img, [pts], False, (230,140,40), 2)
     if pose:
-        x,y,yaw = pose; center = to_screen(x,y,cx,cy,scale)
+        x,y,yaw = pose; center = overlay_point(x, y)
         touching = node.view.get('nearest', 99) < node.body_radius + .02
         outline = (40,40,235) if touching else (255,255,255)
         # A filled, asymmetric body marker makes rotation visible even when
         # the robot has barely translated.  The long nose points along SLAM's
         # world-frame yaw; the map itself remains fixed in the initial frame.
-        nose = to_screen(x+.42*math.cos(yaw), y+.42*math.sin(yaw), cx, cy, scale)
-        left = to_screen(x+.22*math.cos(yaw+2.35), y+.22*math.sin(yaw+2.35), cx, cy, scale)
-        right = to_screen(x+.22*math.cos(yaw-2.35), y+.22*math.sin(yaw-2.35), cx, cy, scale)
+        nose = overlay_point(x+.42*math.cos(yaw), y+.42*math.sin(yaw))
+        left = overlay_point(x+.22*math.cos(yaw+2.35), y+.22*math.sin(yaw+2.35))
+        right = overlay_point(x+.22*math.cos(yaw-2.35), y+.22*math.sin(yaw-2.35))
         marker = np.array([nose, left, right], np.int32)
         cv2.fillConvexPoly(img, marker, (210,90,20))
         cv2.polylines(img, [marker], True, outline, 2)
@@ -226,7 +231,7 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     with node.object_lock:
         objects = node.object_tracker.snapshot(True)
     for obj in objects:
-        point = to_screen(obj['x'], obj['y'], cx, cy)
+        point = overlay_point(obj['x'], obj['y'])
         if 0 <= point[0] < MAP_SIZE and 0 <= point[1] < MAP_SIZE:
             cv2.circle(img, point, 6, (0, 165, 255), -1)
             label = '%s #%d' % (obj.get('name', obj['label']), obj['id'])
@@ -235,10 +240,10 @@ def draw_map(node, scale=MAP_SCALE, dx=0.0, dy=0.0, center=None):
     requested = getattr(node, 'user_goal', None)
     actual = getattr(node, 'nav_goal', None)
     if requested is not None:
-        cv2.drawMarker(img, to_screen(requested[0], requested[1], cx, cy),
+        cv2.drawMarker(img, overlay_point(requested[0], requested[1]),
                        (210, 0, 210), cv2.MARKER_TILTED_CROSS, 16, 2)
     if actual is not None:
-        cv2.drawMarker(img, to_screen(actual[0], actual[1], cx, cy),
+        cv2.drawMarker(img, overlay_point(actual[0], actual[1]),
                        (255, 200, 20), cv2.MARKER_CROSS, 18, 2)
     cv2.line(img, (10, MAP_SIZE-12), (60, MAP_SIZE-12), (0,0,0), 3)
     cv2.putText(img, '1 m', (12, MAP_SIZE-20), cv2.FONT_HERSHEY_SIMPLEX, .45, (255,255,255), 1)
