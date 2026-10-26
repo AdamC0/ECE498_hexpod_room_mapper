@@ -1113,3 +1113,29 @@ and would be 0.100 m at 200%, so the observed corner geometry now passes. Native
 depth recalibrated in upper-only mode and the earlier dropout alarm was no
 longer present. These are software and no-motion sensor results; the new 0.5 s
 reverse recovery remains pending direct supervised physical validation.
+
+## Add opt-in TensorRT FP16 object inference with CPU rollback - 2026-10-26
+
+OpenCV 4.5.5 on PT has no CUDA backend, but the installed TensorRT 8.2.1 and
+PyCUDA 2019.1 stack can execute a device-specific engine. Chosen: retain CPU as
+the default; add an explicit `tensorrt_fp16` selector, an isolated target-side
+engine builder, checksum metadata tying the engine to the exact ONNX, and a
+same-frame CPU/GPU benchmark. TensorRT and PyCUDA imports occur only on the GPU
+path. Engine/checksum/load/warm-up failure retries the preferred ONNX on CPU,
+then the retained YOLOv5n model. A CUDA failure during later inference
+permanently replaces the detector with CPU for that mapper process and retries
+the captured frame. Normal startup without the selector is the rollback path.
+
+PT built `models/gpu_trial/yolo26n-objv1-150-fp16.engine` in 639.453 s without
+overwriting either ONNX model. With the mapper, Hector, camera, and LiDAR
+stopped at the operator's request, three saved non-classroom images produced a
+1.010 s CPU median and 0.400 s TensorRT FP16 median across nine samples per
+backend (worst 1.036 s and 0.410 s respectively). The backends returned the
+same 11 detections; minimum matched box IoU was 0.979 and maximum confidence
+difference was 0.023. One blank-frame TensorRT warm-up was 1.923 s. This proves
+standalone acceleration and close numeric parity on those frames only. Labeled
+classroom quality, empty-scene coverage, memory/thermal behavior, automatic
+runtime fallback on PT, and paused drive-disabled full-stack sensor rates remain
+gates before ordinary use. No movement was commanded.
+All 185 repository tests pass through the host shim; robot-native execution of
+this revision remains pending.

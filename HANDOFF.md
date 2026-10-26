@@ -4,6 +4,25 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
+GPU implementation work on 2026-10-26 intentionally stopped the single paused
+mapper, Hector, LiDAR, and camera processes at the operator's request so PT
+could focus solely on YOLO. The base controller was not stopped and no motion
+command was issued. Do not assume the mapping/sensor stack is currently live;
+restart it with the standard launcher when mapping work resumes.
+
+The optional TensorRT FP16 backend is implemented with CPU as the unchanged
+default. PT built the checksum-bound engine under `models/gpu_trial/` in
+639.453 s. With ROS perception stopped, three saved non-classroom images and
+nine timed samples per backend measured 1.010 s CPU median (1.036 s worst) and
+0.400 s TensorRT median (0.410 s worst), about 2.5x faster. Both produced the
+same 11 labels/detections; minimum matched box IoU was 0.979 and maximum
+confidence delta was 0.023. This is standalone model evidence, not labeled
+classroom quality or full-stack sensor-rate evidence. GPU remains explicit
+opt-in, and checksum/load/warm-up/runtime failure switches permanently to CPU
+for that process. The original ONNX and YOLOv5n artifacts were not replaced.
+All 185 repository tests pass on the host; robot-native execution of this
+revision remains pending.
+
 Deployed 2026-10-26: the production launcher now detects ROS node liveness
 from an actual XML-RPC reply rather than `rosnode ping`'s unreliable exit code.
 An injected, pingable Hector instance without pose output was removed; the
@@ -163,7 +182,7 @@ deduplication behavior unchanged unless new evidence identifies a regression in
 those areas. None should be described as necessary until robot measurements
 support it.
 
-## Jetson Nano GPU YOLO evaluation plan (planning only)
+## Jetson Nano GPU YOLO evaluation plan (implemented; full-stack gate pending)
 
 ### Goal and current findings
 
@@ -244,9 +263,11 @@ surveys. Any movement test is separate and directly supervised; GPU
 benchmarking itself must not command movement.
 
 The Jetson GPU software stack is present, but the deployed OpenCV runtime
-cannot use it. Whether TensorRT can build this model, whether FP16 helps, and
-whether GPU output matches CPU detections remain untested. The CPU path remains
-the baseline and rollback target until measurements support a change.
+cannot use it. The isolated TensorRT engine now builds and the standalone
+same-frame trial is faster with acceptable FP16 output parity. CPU remains the
+default and rollback target until the GPU backend passes a paused, drive-
+disabled full-stack soak with healthy sensor rates and representative labeled
+classroom images.
 
 Ten regressions were added (160 total). All 49 directly runnable ROS-free tests
 pass, the remaining 111 controller tests pass under import-only ROS message

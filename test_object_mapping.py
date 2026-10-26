@@ -1,3 +1,5 @@
+import hashlib
+import json
 import math
 import os
 import tempfile
@@ -6,8 +8,9 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from object_mapping import (COCO_CLASSES, ObjectTracker, TransformCache, YoloOnnxDetector,
-                            backproject, decode_depth_image, load_labels, sample_box_depth,
+from object_mapping import (COCO_CLASSES, ObjectTracker, TensorRtYoloDetector,
+                            TransformCache, YoloOnnxDetector, backproject,
+                            decode_depth_image, load_labels, sample_box_depth,
                             transform_point)
 
 
@@ -167,6 +170,29 @@ class ObjectMappingTests(unittest.TestCase):
         with open(path, 'w', encoding='utf-8') as stream:
             stream.write('Chair\nDesk\nProjector\n')
         self.assertEqual(load_labels(path), ['Chair', 'Desk', 'Projector'])
+
+    def test_tensorrt_engine_sidecar_binds_exact_model_and_engine(self):
+        directory = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__('shutil').rmtree(directory))
+        model = os.path.join(directory, 'model.onnx')
+        engine = os.path.join(directory, 'model.engine')
+        with open(model, 'wb') as stream:
+            stream.write(b'model-v1')
+        with open(engine, 'wb') as stream:
+            stream.write(b'engine-v1')
+        def checksum(path):
+            with open(path, 'rb') as source:
+                return hashlib.sha256(source.read()).hexdigest()
+        with open(engine + '.json', 'w', encoding='utf-8') as stream:
+            json.dump({'precision': 'fp16', 'onnx_sha256': checksum(model),
+                       'engine_sha256': checksum(engine)}, stream)
+        detector = TensorRtYoloDetector.__new__(TensorRtYoloDetector)
+        detector.engine_path = engine
+        detector._validate_sidecar(model)
+        with open(model, 'wb') as stream:
+            stream.write(b'model-v2')
+        with self.assertRaisesRegex(ValueError, 'different ONNX'):
+            detector._validate_sidecar(model)
 
 
 if __name__ == '__main__':

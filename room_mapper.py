@@ -25,9 +25,9 @@ from std_srvs.srv import Empty, Trigger
 from depth_mapping import project_depth_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
-from object_mapping import (ObjectTracker, TransformCache, YoloOnnxDetector, backproject,
-                            decode_depth_image, load_labels, sample_box_depth,
-                            transform_point)
+from object_mapping import (ObjectTracker, TensorRtYoloDetector, TransformCache,
+                            YoloOnnxDetector, backproject, decode_depth_image, load_labels,
+                            sample_box_depth, transform_point)
 
 try:
     from jethexa_controller import client
@@ -246,6 +246,9 @@ class RoomMapper:
         self.yolo_labels = os.path.expanduser(str(rospy.get_param("~yolo_labels", "")))
         self.yolo_input_size = int(rospy.get_param("~yolo_input_size", 640))
         self.yolo_backend = str(rospy.get_param("~yolo_backend", "cpu")).strip().lower()
+        self.yolo_engine = os.path.expanduser(rospy.get_param(
+            "~yolo_engine",
+            "~/room_mapper/models/gpu_trial/yolo26n-objv1-150-fp16.engine"))
         self.registered_depth_topic = rospy.get_param(
             "~registered_depth_topic", "/camera/depth_registered/image_raw")
         self.camera_info_topic = rospy.get_param(
@@ -340,7 +343,7 @@ class RoomMapper:
         self.object_classes = [str(item).strip() for item in object_classes
                                if str(item).strip()]
         if (not 0.01 <= self.object_priority_confidence <= self.object_confidence <= 0.99 or
-                self.yolo_backend not in ("cpu", "cuda_fp16")):
+                self.yolo_backend not in ("cpu", "cuda_fp16", "tensorrt_fp16")):
             raise ValueError("YOLO confidence/backend parameters are invalid")
         self.object_merge_distance = float(rospy.get_param("~object_merge_distance", 0.65))
         self.object_min_observations = int(rospy.get_param("~object_min_observations", 3))
@@ -628,13 +631,9 @@ class RoomMapper:
                     backends.append("cpu")
                 last_error = None
                 for backend in backends:
+                    detector = None
                     try:
-                        detector = YoloOnnxDetector(
-                            path, labels=labels, input_size=self.yolo_input_size,
-                            confidence=self.object_confidence,
-                            class_thresholds=thresholds,
-                            allowed_labels=self.object_classes,
-                            backend=backend)
+                        detector = self.make_yolo_detector(path, labels, backend, thresholds)
                         detector.warmup()
                         self.detector = detector
                         self.active_yolo_model = path
@@ -642,6 +641,9 @@ class RoomMapper:
                         break
                     except Exception as exc:
                         last_error = exc
+                        close = getattr(detector, "close", None)
+                        if close is not None:
+                            close()
                         self.detector = None
                 if self.detector is None:
                     raise last_error
@@ -667,6 +669,55 @@ class RoomMapper:
                                self.active_yolo_backend))
         self.object_thread = threading.Thread(target=self.object_loop, name="object-mapper")
         self.object_thread.start()
+
+    def make_yolo_detector(self, path, labels, backend, thresholds):
+        options = dict(labels=labels, input_size=self.yolo_input_size,
+                       confidence=self.object_confidence,
+                       class_thresholds=thresholds,
+                       allowed_labels=self.object_classes)
+        if backend == "tensorrt_fp16":
+            return TensorRtYoloDetector(path, self.yolo_engine, **options)
+        return YoloOnnxDetector(path, backend=backend, **options)
+
+    def fallback_yolo_to_cpu(self, reason):
+        """Permanently replace a failed optional GPU detector with CPU inference."""
+        failed_backend = self.active_yolo_backend
+        previous = self.detector
+        failures = []
+        candidates = [self.active_yolo_model]
+        if self.yolo_fallback_model not in candidates:
+            candidates.append(self.yolo_fallback_model)
+        thresholds = {label: self.object_priority_confidence
+                      for label in self.object_priority_classes}
+        for index, path in enumerate(candidates):
+            if not path or not os.path.isfile(path):
+                failures.append("missing %s" % path)
+                continue
+            try:
+                explicit_labels = self.yolo_labels if path == self.yolo_model else ""
+                sidecar = explicit_labels or os.path.splitext(path)[0] + ".names"
+                labels = load_labels(sidecar) if os.path.isfile(sidecar) else None
+                detector = self.make_yolo_detector(path, labels, "cpu", thresholds)
+                detector.warmup()
+                self.detector = detector
+                self.active_yolo_model = path
+                self.active_yolo_backend = "cpu"
+                close = getattr(previous, "close", None)
+                if close is not None:
+                    close()
+                rospy.logerr("YOLO %s failed (%s); permanently switched to CPU model %s",
+                             failed_backend, reason, path)
+                return
+            except Exception as exc:
+                failures.append("%s: %s" % (path, exc))
+        self.detector = None
+        self.active_yolo_model = ""
+        self.active_yolo_backend = ""
+        close = getattr(previous, "close", None)
+        if close is not None:
+            close()
+        raise RuntimeError("GPU inference failed and CPU rollback failed: " +
+                           "; ".join(failures))
 
     def registered_depth_callback(self, msg):
         now = time.time()
@@ -938,7 +989,13 @@ class RoomMapper:
             self.object_processing = True
         inference_started = time.time()
         try:
-            detections = self.detector.detect(frame)
+            try:
+                detections = self.detector.detect(frame)
+            except Exception as exc:
+                if getattr(self, "active_yolo_backend", "") != "tensorrt_fp16":
+                    raise
+                self.fallback_yolo_to_cpu(exc)
+                detections = self.detector.detect(frame)
         except Exception:
             with self.control_lock:
                 self.object_processing = False
@@ -2225,6 +2282,11 @@ class RoomMapper:
         if (object_thread is not None and object_thread.is_alive() and
                 object_thread is not threading.current_thread()):
             object_thread.join(timeout=5.0)
+        if object_thread is None or not object_thread.is_alive():
+            detector = getattr(self, "detector", None)
+            close = getattr(detector, "close", None)
+            if close is not None:
+                close()
         rospy.loginfo("room_mapper shutdown; no further controller commands")
 
 

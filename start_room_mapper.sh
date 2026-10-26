@@ -9,16 +9,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JETHEXA_SETUP="${JETHEXA_SETUP:-$HOME/jethexa/devel/setup.bash}"
 LOG_DIR="${ROOM_MAPPER_LOG_DIR:-$HOME/.room_mapper_logs}"
 FRESH_MAP=false
+YOLO_BACKEND=cpu
 
 usage() {
-  echo "Usage: $0 [--fresh-map]"
+  echo "Usage: $0 [--fresh-map] [--yolo-backend cpu|tensorrt_fp16]"
   echo "  --fresh-map  Reset Hector's current map when starting the mapper."
+  echo "  --yolo-backend  Select object inference; CPU remains the default."
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fresh-map)
       FRESH_MAP=true
+      ;;
+    --yolo-backend)
+      if [[ $# -lt 2 ]]; then
+        echo "--yolo-backend requires cpu or tensorrt_fp16" >&2
+        exit 2
+      fi
+      YOLO_BACKEND="$2"
+      shift
+      if [[ "$YOLO_BACKEND" != cpu && "$YOLO_BACKEND" != tensorrt_fp16 ]]; then
+        echo "Unsupported YOLO backend: $YOLO_BACKEND" >&2
+        exit 2
+      fi
       ;;
     -h|--help)
       usage
@@ -264,6 +278,7 @@ nohup /usr/bin/python3 room_mapper.py \
   _start_paused:=true \
   _reset_map:="$reset_map" \
   _detect_objects:=true \
+  _yolo_backend:="$YOLO_BACKEND" \
   _use_depth:=true \
   _use_depth_map:=true \
   >"$LOG_DIR/mapper.log" 2>&1 < /dev/null &

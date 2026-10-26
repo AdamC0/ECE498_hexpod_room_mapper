@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-24)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-26)
 =====================================================
 
 ROBOT:
@@ -52,7 +52,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 180 host tests.
+  Repository regression count: 185 host tests.
   Deployed/native regression count: 180 tests.
   Tests do not publish robot movement.
 
@@ -102,6 +102,27 @@ SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   _object_min_observations:=2 _survey_seconds:=6 _survey_scans:=5
   _frontier_goal_distance:=0.5 and the explicit yolov5n model path. Do not
   alter LiDAR/depth fusion for rollback.
+
+OPTIONAL TENSORRT YOLO (STANDALONE VALIDATED; FULL-STACK GATE PENDING):
+  CPU remains the default. The original ONNX, labels, and yolov5n rollback must
+  remain unchanged. The engine is device-specific and stays under
+  models/gpu_trial/ with its required .json checksum sidecar.
+
+  [x] Build the FP16 engine on PT with prepare_tensorrt_engine.py.
+  [x] Compare CPU and GPU on the exact same saved frames. Initial no-ROS result:
+      1.010 s CPU median versus 0.400 s TensorRT median over nine samples each;
+      all 11 detections matched within IoU/confidence tolerances.
+  [ ] Repeat with labeled classroom-camera frames, including empty views.
+  [ ] Start drive-disabled and paused with:
+      ./start_room_mapper.sh --yolo-backend tensorrt_fp16
+      Confirm status explicitly reports (tensorrt_fp16), then check memory,
+      temperature/throttling, failures, endpoint captures, and all sensor rates.
+  [ ] Force an invalid engine/checksum and confirm status reports (cpu) after
+      automatic rollback without changing either ONNX model.
+
+  Rollback: stop the mapper, run ./start_room_mapper.sh with no backend option,
+  and verify Detector reports (cpu). Remove only the exact gpu_trial engine and
+  sidecar if desired. Do not resume autonomy during benchmark or rollback.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds

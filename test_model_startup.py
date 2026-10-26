@@ -13,6 +13,7 @@ class ModelStartupTests(unittest.TestCase):
         n.yolo_labels = ""
         n.yolo_input_size = 640
         n.yolo_backend = "cpu"
+        n.yolo_engine = "/models/gpu_trial/preferred-fp16.engine"
         n.object_confidence = .45
         n.object_priority_confidence = .30
         n.object_priority_classes = ["desk"]
@@ -68,6 +69,39 @@ class ModelStartupTests(unittest.TestCase):
         self.assertIs(n.detector, cpu_detector)
         self.assertEqual(n.active_yolo_model, n.yolo_model)
         self.assertEqual(n.active_yolo_backend, "cpu")
+
+    @patch("room_mapper.threading.Thread")
+    @patch("room_mapper.rospy.Subscriber")
+    @patch("room_mapper.cv2.setNumThreads")
+    @patch("room_mapper.YoloOnnxDetector")
+    @patch("room_mapper.TensorRtYoloDetector")
+    def test_tensorrt_failure_retries_same_preferred_model_on_cpu(
+            self, tensorrt_type, opencv_type, _threads, _subscriber, _thread_type):
+        n = self.node()
+        n.yolo_backend = "tensorrt_fp16"
+        tensorrt_type.return_value.warmup.side_effect = RuntimeError("bad engine")
+        with patch("room_mapper.os.path.isfile",
+                   side_effect=lambda path: path.endswith(".onnx")):
+            n.start_object_detection()
+        tensorrt_type.assert_called_once()
+        self.assertEqual(tensorrt_type.call_args[0][:2],
+                         (n.yolo_model, n.yolo_engine))
+        self.assertIs(n.detector, opencv_type.return_value)
+        self.assertEqual(n.active_yolo_backend, "cpu")
+
+    @patch("room_mapper.YoloOnnxDetector")
+    def test_runtime_tensorrt_failure_permanently_switches_to_cpu(self, detector_type):
+        n = self.node()
+        failed = Mock()
+        n.detector = failed
+        n.active_yolo_model = n.yolo_model
+        n.active_yolo_backend = "tensorrt_fp16"
+        with patch("room_mapper.os.path.isfile",
+                   side_effect=lambda path: path.endswith(".onnx")):
+            n.fallback_yolo_to_cpu("CUDA failure")
+        self.assertIs(n.detector, detector_type.return_value)
+        self.assertEqual(n.active_yolo_backend, "cpu")
+        failed.close.assert_called_once_with()
 
     @patch("room_mapper.threading.Thread")
     @patch("room_mapper.rospy.Subscriber")

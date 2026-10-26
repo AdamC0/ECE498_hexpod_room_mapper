@@ -5,7 +5,10 @@ This module has no ROS dependency so its geometry and tracking can be tested on
 the development computer.  ROS/TF synchronization is handled by room_mapper.
 """
 
+import hashlib
+import json
 import math
+import os
 import time
 
 import cv2
@@ -198,6 +201,18 @@ class YoloOnnxDetector:
 
     def __init__(self, model_path, labels=None, input_size=640, confidence=.45, nms=.45,
                  class_thresholds=None, allowed_labels=None, backend="cpu"):
+        self._configure(labels, input_size, confidence, nms,
+                        class_thresholds, allowed_labels)
+        self.net = cv2.dnn.readNetFromONNX(model_path)
+        self.backend = str(backend).strip().lower()
+        if self.backend == "cuda_fp16":
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
+        elif self.backend != "cpu":
+            raise ValueError("OpenCV YOLO backend must be cpu or cuda_fp16")
+
+    def _configure(self, labels, input_size, confidence, nms,
+                   class_thresholds, allowed_labels):
         self.labels = list(labels or COCO_CLASSES)
         self.input_size = int(input_size)
         self.confidence = float(confidence)
@@ -212,13 +227,6 @@ class YoloOnnxDetector:
             raise ValueError("YOLO class thresholds must be between 0.01 and 0.99")
         self.allowed_labels = ({str(label).strip().lower() for label in allowed_labels}
                                if allowed_labels else None)
-        self.net = cv2.dnn.readNetFromONNX(model_path)
-        self.backend = str(backend).strip().lower()
-        if self.backend == "cuda_fp16":
-            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
-        elif self.backend != "cpu":
-            raise ValueError("YOLO backend must be cpu or cuda_fp16")
 
     def threshold_for(self, label):
         return getattr(self, "class_thresholds", {}).get(
@@ -229,6 +237,45 @@ class YoloOnnxDetector:
         self.detect(np.zeros((self.input_size, self.input_size, 3), np.uint8))
 
     def detect(self, image):
+        blob, geometry = self._preprocess(image)
+        self.net.setInput(blob)
+        output = self.net.forward()
+        return self._decode(output, *geometry)
+
+    def close(self):
+        """Release device allocations while their CUDA context is current."""
+        context = getattr(self, "cuda_context", None)
+        if context is None:
+            return
+        try:
+            context.push()
+            try:
+                stream = getattr(self, "stream", None)
+                if stream is not None:
+                    stream.synchronize()
+                # TensorRT owns CUDA allocations too; destroy its objects while
+                # this detector's context is current, before detaching it.
+                for name in ("context", "engine", "runtime", "stream"):
+                    if hasattr(self, name):
+                        setattr(self, name, None)
+                for name in ("input_device", "output_device"):
+                    allocation = getattr(self, name, None)
+                    if allocation is not None:
+                        allocation.free()
+                        setattr(self, name, None)
+            finally:
+                context.pop()
+            context.detach()
+        finally:
+            self.cuda_context = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def _preprocess(self, image):
         h, w = image.shape[:2]
         scale = min(self.input_size / float(w), self.input_size / float(h))
         nw, nh = int(round(w * scale)), int(round(h * scale))
@@ -238,9 +285,7 @@ class YoloOnnxDetector:
         canvas[top:top + nh, left:left + nw] = resized
         blob = cv2.dnn.blobFromImage(canvas, 1.0 / 255.0, (self.input_size, self.input_size),
                                      swapRB=True, crop=False)
-        self.net.setInput(blob)
-        output = self.net.forward()
-        return self._decode(output, scale, left, top, w, h)
+        return blob, (scale, left, top, w, h)
 
     def _decode(self, output, scale, left, top, image_w, image_h):
         rows = np.asarray(output)
@@ -312,6 +357,109 @@ class YoloOnnxDetector:
                                    "confidence": scores[int(i)],
                                    "box": (x1, y1, x2, y2)})
         return detections
+
+
+class TensorRtYoloDetector(YoloOnnxDetector):
+    """TensorRT engine runner with no import or CUDA context cost on CPU startup.
+
+    Engines are device-specific generated artifacts. A sidecar written by
+    prepare_tensorrt_engine.py binds the engine to the exact source ONNX file,
+    preventing a stale engine from silently being paired with a newer model.
+    """
+
+    def __init__(self, model_path, engine_path, labels=None, input_size=640,
+                 confidence=.45, nms=.45, class_thresholds=None,
+                 allowed_labels=None):
+        self._configure(labels, input_size, confidence, nms,
+                        class_thresholds, allowed_labels)
+        self.backend = "tensorrt_fp16"
+        self.engine_path = os.path.abspath(engine_path)
+        self._validate_sidecar(model_path)
+        # These dependencies deliberately remain outside the standard CPU path.
+        import tensorrt as trt
+        import pycuda.driver as cuda
+        self.trt, self.cuda = trt, cuda
+        cuda.init()
+        # PT's PyCUDA 2019.1 does not expose retain_primary_context correctly.
+        # make_context() is supported there and initially pushes the context;
+        # pop it after allocation so the object worker can push it explicitly.
+        self.cuda_context = cuda.Device(0).make_context()
+        try:
+            self.logger = trt.Logger(trt.Logger.WARNING)
+            with open(self.engine_path, "rb") as stream:
+                serialized = stream.read()
+            self.runtime = trt.Runtime(self.logger)
+            self.engine = self.runtime.deserialize_cuda_engine(serialized)
+            if self.engine is None:
+                raise RuntimeError("TensorRT could not deserialize engine")
+            self.context = self.engine.create_execution_context()
+            if self.context is None:
+                raise RuntimeError("TensorRT could not create execution context")
+            self._allocate_bindings()
+        finally:
+            self.cuda_context.pop()
+
+    @staticmethod
+    def _sha256(path):
+        digest = hashlib.sha256()
+        with open(path, "rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+
+    def _validate_sidecar(self, model_path):
+        if not os.path.isfile(self.engine_path):
+            raise IOError("TensorRT engine is missing: " + self.engine_path)
+        metadata_path = self.engine_path + ".json"
+        if not os.path.isfile(metadata_path):
+            raise IOError("TensorRT engine metadata is missing: " + metadata_path)
+        with open(metadata_path, "r", encoding="utf-8") as stream:
+            metadata = json.load(stream)
+        if metadata.get("precision") != "fp16":
+            raise ValueError("TensorRT engine metadata does not declare fp16 precision")
+        if metadata.get("onnx_sha256") != self._sha256(model_path):
+            raise ValueError("TensorRT engine was built from a different ONNX model")
+        if metadata.get("engine_sha256") != self._sha256(self.engine_path):
+            raise ValueError("TensorRT engine checksum does not match its metadata")
+
+    def _allocate_bindings(self):
+        trt, cuda = self.trt, self.cuda
+        inputs, outputs = [], []
+        self.bindings = [None] * self.engine.num_bindings
+        for index in range(self.engine.num_bindings):
+            shape = tuple(self.engine.get_binding_shape(index))
+            if any(int(value) <= 0 for value in shape):
+                raise ValueError("TensorRT engine must use static binding shapes: %r" %
+                                 (shape,))
+            dtype = np.dtype(trt.nptype(self.engine.get_binding_dtype(index)))
+            host = cuda.pagelocked_empty(int(np.prod(shape)), dtype)
+            device = cuda.mem_alloc(host.nbytes)
+            self.bindings[index] = int(device)
+            record = (index, shape, host, device)
+            (inputs if self.engine.binding_is_input(index) else outputs).append(record)
+        if len(inputs) != 1 or len(outputs) != 1:
+            raise ValueError("TensorRT YOLO engine must have one input and one output")
+        self.input_index, input_shape, self.input_host, self.input_device = inputs[0]
+        self.output_index, self.output_shape, self.output_host, self.output_device = outputs[0]
+        if input_shape != (1, 3, self.input_size, self.input_size):
+            raise ValueError("TensorRT input shape %r does not match configured size %d" %
+                             (input_shape, self.input_size))
+        self.stream = cuda.Stream()
+
+    def detect(self, image):
+        blob, geometry = self._preprocess(image)
+        self.cuda_context.push()
+        try:
+            np.copyto(self.input_host, blob.reshape(-1), casting="unsafe")
+            self.cuda.memcpy_htod_async(self.input_device, self.input_host, self.stream)
+            if not self.context.execute_async_v2(self.bindings, self.stream.handle):
+                raise RuntimeError("TensorRT execution failed")
+            self.cuda.memcpy_dtoh_async(self.output_host, self.output_device, self.stream)
+            self.stream.synchronize()
+            output = np.array(self.output_host, copy=True).reshape(self.output_shape)
+        finally:
+            self.cuda_context.pop()
+        return self._decode(output, *geometry)
 
 
 class ObjectTracker:

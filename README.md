@@ -61,6 +61,32 @@ another. If the preferred model is absent, incompatible, or its selected CUDA
 backend fails, startup automatically falls back to CPU and then to the retained
 `models/yolov5n.onnx` model. Existing model files are never overwritten.
 
+### Optional TensorRT acceleration
+
+CPU remains the production default and rollback path. On PT, build the
+device-specific FP16 engine in the isolated, gitignored trial directory:
+
+```bash
+cd ~/room_mapper
+python3 prepare_tensorrt_engine.py models/yolo26n-objv1-150.onnx \
+  --output models/gpu_trial/yolo26n-objv1-150-fp16.engine
+```
+
+The engine metadata binds it to the exact ONNX checksum. Enable it explicitly
+with `./start_room_mapper.sh --yolo-backend tensorrt_fp16` or the ROS parameter
+`_yolo_backend:=tensorrt_fp16`. Engine load, checksum, warm-up, or later CUDA
+execution failure permanently switches that mapper process to the same model
+on CPU; the retained YOLOv5n rollback remains the final fallback. Running the
+launcher without the option restores CPU selection.
+
+Use `benchmark_yolo_backends.py` on fixed saved frames before enabling the
+mapper. With all ROS perception processes stopped, the initial PT trial on
+three non-classroom reference images measured 1.010 s CPU versus 0.400 s
+TensorRT FP16 median inference (nine samples each). All 11 detections matched;
+minimum box IoU was 0.979 and maximum confidence difference was 0.023. This is
+standalone performance/parity evidence, not classroom detector-quality or
+full-stack sensor-rate validation.
+
 Prepare the preferred model on a workstation (not the robot), then copy both
 output files into `/home/hiwonder/room_mapper/models/`:
 
@@ -345,7 +371,9 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
 - `prepare_yolo_model.py`: workstation-only ONNX export and label-sidecar tool.
-- `validate_yolo_model.py`: target OpenCV warm-up and timing check.
+- `prepare_tensorrt_engine.py`: target-only isolated FP16 engine builder.
+- `benchmark_yolo_backends.py`: same-frame CPU/TensorRT timing and parity report.
+- `validate_yolo_model.py`: target OpenCV/TensorRT warm-up and timing check.
 - `depth_mapping.py`: registered-depth projection for temporary planner cells.
 - `hex_map.launch`: Hector and required TF bridges.
 - `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
@@ -353,7 +381,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 180 tests and does not publish physical movement
+The repository suite contains 185 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -369,13 +397,12 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 180 tests pass through the host shim and natively on PT. The current live
-stack uses Hector, not RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and
-command `stop`. RGB,
-native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
-depth planner layer, battery telemetry, and the web interface are live. The
-preferred Objects365 model is active on CPU after its legacy-OpenCV broadcast
-rewrite. The reliability deployment reduced worst-case synthetic registered-
+All 185 tests pass through the host shim. The preceding 180-test revision
+passed natively on PT; native execution of the GPU revision remains a release
+gate. At the operator's request, the mapper, Hector, camera, and LiDAR were
+stopped for the isolated YOLO benchmark and have not been restarted. The
+preferred Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
+reliability deployment reduced worst-case synthetic registered-
 depth projection from 0.347 s to 0.085 s mean on PT; successful live updates
 add and clear temporary cells, although strict image-time TF lookup can report
 transient misses between Hector updates. This deployment used no physical
