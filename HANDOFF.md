@@ -7,12 +7,16 @@ Updated: 2026-10-26
 At the operator's request on 2026-10-26, the production launcher restarted one
 drive-enabled mapper with the optional `tensorrt_fp16` backend. It preserved
 the existing Hector map and verified `AUTO PAUSED` with command `stop`; live
-status reports `yolo26n-objv1-150.onnx (tensorrt_fp16)`. LiDAR and Hector are
-about 12.1 Hz and RGB about 29.8 Hz. Native and registered depth currently
-produce no messages, so status remains `Depth: waiting / stale`, no endpoint
-snapshot has been captured, and autonomy must remain paused. Available memory
-was about 741 MB with the warmed engine loaded; temperatures were low and the
-GPU was idle because no inference could be admitted. No movement was commanded.
+status reports `yolo26n-objv1-150.onnx (tensorrt_fp16)`. The Astra depth stack,
+which had remained stopped after the isolated benchmark, was relaunched while
+the mapper stayed paused. A fresh paused mapper survey then captured and
+processed one synchronized GPU snapshot: 2 detections, 2 tentative mapped
+tracks, 0 confirmed, and 3.07 s inference. Post-inference rates were LiDAR
+12.07 Hz, Hector pose 12.19 Hz, RGB 29.79 Hz, native depth 30.02 Hz, and
+registered depth 30.28 Hz. Depth reports clear and the temporary planner layer
+is live. Available memory was about 613 MB with roughly 1.0 GB swap in use;
+temperatures were low. The robot remains `AUTO PAUSED` with command `stop`, and
+no movement was commanded.
 
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in

@@ -402,9 +402,12 @@ map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later
 restarted explicitly on `tensorrt_fp16` and remains `AUTO PAUSED` with command
-`stop`. Hector, LiDAR, and RGB are live, but native and registered depth are
-stale, so no full-stack GPU inference has been admitted and autonomy must not
-resume. The preferred Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
+`stop`. After restoring the Astra depth stack, one full-stack stationary GPU
+snapshot completed in 3.07 s with two tentative mapped detections. LiDAR,
+Hector pose, RGB, native depth, and registered depth remained near 12, 12, 30,
+30, and 30 Hz respectively in the post-inference sample. This is one paused
+pipeline check, not a detector-quality or motion validation. The preferred
+Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
 reliability deployment reduced worst-case synthetic registered-
 depth projection from 0.347 s to 0.085 s mean on PT; successful live updates
 add and clear temporary cells, although strict image-time TF lookup can report

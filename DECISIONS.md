@@ -1143,3 +1143,15 @@ drive-disabled, map/depth-disabled mapper reported the preferred model on
 engine through a path without its required metadata automatically reported the
 preferred ONNX on CPU. Both remained `AUTO PAUSED` with command `stop`. The
 full-stack sensor-rate/memory/thermal gate remains pending.
+
+Later that day the operator requested live GPU testing. The production launcher
+preserved Hector's map and started one drive-enabled mapper `AUTO PAUSED` with
+command `stop` and `tensorrt_fp16` active. The Astra depth workers had remained
+stopped after the isolated benchmark, so they were relaunched without restarting
+Hector. A fresh paused survey then processed one synchronized snapshot in 3.07 s,
+producing two tentative mapped detections and no confirmed landmarks. The
+post-inference rate sample was LiDAR 12.07 Hz, pose 12.19 Hz, RGB 29.79 Hz,
+native depth 30.02 Hz, and registered depth 30.28 Hz. Available memory was about
+613 MB with about 1.0 GB swap in use and low temperatures. This is a single
+paused full-stack pipeline check, not a labeled-quality, soak, thermal-load, or
+physical-motion validation. No motion was commanded.
