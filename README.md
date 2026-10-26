@@ -391,7 +391,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 185 tests and does not publish physical movement
+The repository suite contains 186 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -407,7 +407,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 185 tests pass through the host shim and natively on PT. A drive-disabled,
+All 186 tests pass through the host shim and natively on PT. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later
@@ -415,8 +415,13 @@ restarted explicitly on `tensorrt_fp16` and remains `AUTO PAUSED` with command
 `stop`. After restoring the Astra depth stack, one full-stack stationary GPU
 snapshot completed in 3.07 s with two tentative mapped detections. LiDAR,
 Hector pose, RGB, native depth, and registered depth remained near 12, 12, 30,
-30, and 30 Hz respectively in the post-inference sample. This is one paused
-pipeline check, not a detector-quality or motion validation. The preferred
+30, and 30 Hz respectively in the post-inference sample. The deployed decoder
+now vectorizes class selection and threshold filtering across all 8,400
+Objects365 predictions. Three paused full-stack TensorRT restarts measured
+1.12, 0.50, and 0.47 s (0.50 s median), versus 2.64-3.47 s immediately before
+the change; post-change LiDAR, pose, RGB, native depth, and registered depth
+remained near 12, 12, 30, 30, and 30 Hz. This is paused pipeline evidence, not
+a detector-quality or motion validation. The preferred
 Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
 reliability deployment reduced worst-case synthetic registered-
 depth projection from 0.347 s to 0.085 s mean on PT; successful live updates

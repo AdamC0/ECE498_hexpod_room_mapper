@@ -1163,3 +1163,29 @@ endpoint deduplication, not a stalled TensorRT worker. `_object_hz` paces queued
 work and legacy focus recaptures; it is not a continuous detector frequency.
 Any later continuous preview/test mode must keep display-only repetitions from
 being counted as distinct landmark-confirmation observations.
+
+## Vectorize YOLO prediction filtering - 2026-10-26
+
+The full-stack TensorRT path remained much slower than its isolated benchmark:
+recent paused inference took 2.64-3.47 s even though PT was already in MAXN and
+`jetson_clocks` showed CPU, GPU, and memory clocks locked at their maximums.
+Clock tuning therefore had no remaining headroom. CPU load was high while the
+decoder selected a class and applied thresholds in Python for each of 8,400
+Objects365 predictions.
+
+Chosen: vectorize class argmax, confidence computation, class-specific
+thresholds, and allowed-class filtering with NumPy. Preserve ordered box
+conversion and class-aware NMS, and do not change the model, input resolution,
+confidence policy, landmark confirmation, or endpoint admission. A new
+regression covers allowed classes and priority thresholds. All 186 tests pass
+through the Windows host shim and natively on PT.
+
+With Hector and the complete RGB/depth/LiDAR stack live, three controlled
+paused TensorRT mapper restarts measured 1.12, 0.50, and 0.47 s inference, a
+0.50 s median. A later admitted endpoint completed in 0.22 s. The post-change
+rate sample was LiDAR 12.08 Hz, pose 12.11 Hz, RGB 29.83 Hz, native depth 30.03
+Hz, and registered depth 29.80 Hz. CPU was about 33 C and GPU about 29 C.
+Exactly one mapper was left `AUTO PAUSED` with command `stop`; Hector's map was
+preserved and no gait command or physical movement occurred. This validates a
+short no-motion pipeline run, not labeled classroom accuracy, long thermal
+soak, or physical motion.

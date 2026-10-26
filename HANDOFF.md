@@ -4,27 +4,28 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
-At the operator's request on 2026-10-26, the production launcher restarted one
-drive-enabled mapper with the optional `tensorrt_fp16` backend. It preserved
-the existing Hector map and verified `AUTO PAUSED` with command `stop`; live
-status reports `yolo26n-objv1-150.onnx (tensorrt_fp16)`. The Astra depth stack,
-which had remained stopped after the isolated benchmark, was relaunched while
-the mapper stayed paused. A fresh paused mapper survey then captured and
-processed one synchronized GPU snapshot: 2 detections, 2 tentative mapped
-tracks, 0 confirmed, and 3.07 s inference. Post-inference rates were LiDAR
-12.07 Hz, Hector pose 12.19 Hz, RGB 29.79 Hz, native depth 30.02 Hz, and
-registered depth 30.28 Hz. Depth reports clear and the temporary planner layer
-is live. Available memory was about 613 MB with roughly 1.0 GB swap in use;
-temperatures were low. The robot remains `AUTO PAUSED` with command `stop`, and
-no movement was commanded.
+At the operator's request on 2026-10-26, YOLO post-processing was vectorized so
+the 8,400 Objects365 predictions no longer perform per-row class selection and
+threshold filtering in Python. Box conversion, allowed-class filtering,
+class-specific thresholds, class-aware NMS, and output ordering are unchanged.
+All 186 tests pass on the host and natively on PT. With the full production
+stack live and clocks already locked at their maximums, three controlled paused
+TensorRT restarts measured 1.12, 0.50, and 0.47 s inference (0.50 s median),
+versus 2.64-3.47 s immediately before the change. A later admitted endpoint
+completed in 0.22 s. Post-change rates were LiDAR 12.08 Hz, Hector pose 12.11
+Hz, RGB 29.83 Hz, native depth 30.03 Hz, and registered depth 29.80 Hz.
+Temperatures remained low, with CPU around 33 C and GPU around 29 C. The robot
+has exactly one drive-enabled mapper on `tensorrt_fp16`, remains `AUTO PAUSED`
+with command `stop`, and no movement was commanded. This is no-motion pipeline
+evidence, not labeled-scene detector-quality or physical-motion validation.
 
-The live result remaining at `captured 1, processed 1` is expected. Default
-YOLO admission is one immutable synchronized snapshot per ready stationary
-survey endpoint, not continuous inference while paused. A second inference
-normally requires a new endpoint. `_object_hz` controls worker pacing and the
-opt-in legacy focus recapture interval; it does not turn the RGB stream into a
-continuous detector. If continuous stationary visualization is added later,
-do not let repeated preview frames inflate landmark confirmation counts.
+Default YOLO admission is one immutable synchronized snapshot per ready
+stationary survey endpoint, not continuous inference while paused. Another
+inference normally requires a new endpoint-ready event. `_object_hz` controls
+worker pacing and the opt-in legacy focus recapture interval; it does not turn
+the RGB stream into a continuous detector. If continuous stationary
+visualization is added later, do not let repeated preview frames inflate
+landmark confirmation counts.
 
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in
@@ -36,12 +37,13 @@ confidence delta was 0.023. This is standalone model evidence, not labeled
 classroom quality or full-stack sensor-rate evidence. GPU remains explicit
 opt-in, and checksum/load/warm-up/runtime failure switches permanently to CPU
 for that process. The original ONNX and YOLOv5n artifacts were not replaced.
-All 185 repository tests pass on the host and natively on PT. A drive-disabled,
+All 186 repository tests pass on the host and natively on PT. A drive-disabled,
 map/depth-disabled mapper reported the preferred model on `tensorrt_fp16` and
 shut down cleanly. Repeating startup through a path with no required engine
 metadata automatically selected the same preferred ONNX on CPU. Both checks
 remained `AUTO PAUSED` with command `stop`. Full-stack sensor-rate, memory, and
-thermal validation remains pending.
+thermal validation has a short paused full-stack pass; longer soak and labeled
+classroom validation remain pending.
 
 Deployed 2026-10-26: the production launcher now detects ROS node liveness
 from an actual XML-RPC reply rather than `rosnode ping`'s unreliable exit code.
