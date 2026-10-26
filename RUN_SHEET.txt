@@ -53,7 +53,7 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 199 host tests.
-  Deployed/native regression count: pending this revision; last deployed 186.
+  Deployed/native regression count: 199 tests.
   Tests do not publish robot movement.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
@@ -243,7 +243,7 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   PT ONLINE. Hector and exactly one drive-enabled, AUTO PAUSED mapper are live;
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native robot
-  suite before the stronger-validation deployment: 186 passing. The preferred Objects365 ONNX is active on TensorRT FP16;
+  suite: 199 passing. The preferred Objects365 ONNX is active on TensorRT FP16;
   controlled post-optimization paused samples were 1.12, 0.50, and 0.47 s.
   Latest sampled rates were scan 12.08 Hz, pose 12.11 Hz, RGB 29.83 Hz, native
   depth 30.03 Hz, and registered depth 29.80 Hz. Labeled-scene quality and a

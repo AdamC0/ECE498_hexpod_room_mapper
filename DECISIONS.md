@@ -1228,3 +1228,20 @@ during the one-second burst and competed with the controller timer. The worker
 now defers inference until endpoint acquisition closes; this does not lengthen
 the grace or delay route departure. A regression covers that ordering. The
 revised suite contains 199 tests.
+
+The exact revision then passed all 199 tests natively on PT. A paused endpoint
+acquired and processed five distinct frames with an empty queue afterward. Four
+consistent `sneakers` observations reached only 0.596 confidence and correctly
+remained pending under the 0.60 other-tier minimum; a 0.359 `bench` observation
+also remained pending. This validates enforcement of the conservative gates in
+one unlabeled live view, not detector classification quality.
+
+One drive-enabled TensorRT mapper was left `AUTO PAUSED` with command `stop`,
+and Hector was the only SLAM stack. Twenty-message samples measured scan/pose
+at 12.04/12.05 Hz and RGB/native-depth/registered-depth at
+29.77/29.83/29.89 Hz. Available RAM was 892 MB, CPU/GPU temperatures were
+34.0/30.5 C, and deployed runtime hashes matched the workstation. The
+production launcher initially false-failed by reading the first paused status
+before its stop publication and cleaned up the mapper; the identical mapper
+command was then started under Bash and explicitly verified paused/stopped.
+No gait command or physical motion occurred.

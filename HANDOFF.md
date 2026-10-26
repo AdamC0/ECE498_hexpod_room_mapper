@@ -16,8 +16,22 @@ candidate, pending objects cannot be navigation targets, and confirmed objects
 use only qualifying coordinates and remain fixed until the map/session is
 reset. Initial live validation exposed worker contention that admitted only two
 frames; inference is now deferred until the acquisition window closes. Final
-robot-native and no-drive live results are recorded below; do not infer
-detector quality from unit tests.
+robot-native and no-drive live validation passed all 199 tests and acquired,
+processed, and drained all five distinct frames with no replacement. The live
+scene produced four geometrically consistent `sneakers` observations at 0.596
+maximum confidence; it correctly remained pending because an other-tier hit
+must be at least 0.60. A 0.359 `bench` observation also remained pending. This
+is strong pipeline/gate evidence, not a labeled-scene detector-quality result.
+
+Exactly one drive-enabled mapper remains `AUTO PAUSED` with command `stop` on
+TensorRT FP16, with Hector as the only SLAM stack. Rates measured from 20
+message timestamps were 12.04 Hz scan, 12.05 Hz pose, 29.77 Hz RGB, 29.83 Hz
+native depth, and 29.89 Hz registered depth. Available RAM was 892 MB; CPU/GPU
+temperatures were 34.0/30.5 C. Runtime file hashes match the workstation. No
+motion command or physical movement occurred during deployment validation.
+The production launcher briefly false-failed because it sampled the initial
+paused status before the first stop command; it cleaned up its process, and the
+same production command was then started under Bash and explicitly verified.
 
 At the operator's request on 2026-10-26, YOLO post-processing was vectorized so
 the 8,400 Objects365 predictions no longer perform per-row class selection and
@@ -53,7 +67,7 @@ confidence delta was 0.023. This is standalone model evidence, not labeled
 classroom quality or full-stack sensor-rate evidence. GPU remains explicit
 opt-in, and checksum/load/warm-up/runtime failure switches permanently to CPU
 for that process. The original ONNX and YOLOv5n artifacts were not replaced.
-All 186 repository tests pass on the host and natively on PT. A drive-disabled,
+All 186 repository tests for that earlier revision passed on the host and natively on PT. A drive-disabled,
 map/depth-disabled mapper reported the preferred model on `tensorrt_fp16` and
 shut down cleanly. Repeating startup through a path with no required engine
 metadata automatically selected the same preferred ONNX on CPU. Both checks

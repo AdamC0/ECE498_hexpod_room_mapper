@@ -418,8 +418,9 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 199 tests pass through the host shim. Robot-native validation of the
-stronger object policy is recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
+All 199 tests pass through the host shim and natively on PT. No-drive live
+validation of the stronger object policy is recorded in `HANDOFF.md` and
+`RUN_SHEET.txt`. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later
