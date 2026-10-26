@@ -196,12 +196,18 @@ class ExploreMap:
         promoted = 0
         for cell in depth_occupied:
             count = self.depth_obstacle_hit_counts.get(cell, 0) + 1
-            self.depth_obstacle_hit_counts[cell] = count
+            self.depth_obstacle_hit_counts[cell] = min(count, promotion_confirmations)
             if count >= promotion_confirmations and cell not in self.persistent_depth_obstacles:
                 self.persistent_depth_obstacles.add(cell)
-                self.depth_obstacles.pop(cell, None)
-                self.depth_obstacle_clear_counts.pop(cell, None)
                 promoted += 1
+
+        # update_depth_obstacles() sees every current depth hit before the
+        # promotion tier does. Do not let later frames re-add an already
+        # persistent cell to the temporary mask, which would paint magenta
+        # over its black persistent occupancy in the web map.
+        for cell in self.persistent_depth_obstacles:
+            self.depth_obstacles.pop(cell, None)
+            self.depth_obstacle_clear_counts.pop(cell, None)
 
         # A current occupied endpoint protects its own cell and immediate
         # neighbors from grid quantization disagreement between the sensors.

@@ -219,6 +219,11 @@ class DepthOverlayTests(unittest.TestCase):
         planner_cell = explorer.to_cell(1.05, .05)
         self.assertEqual(result['promoted'], 1)
         self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+        # A later observation must not put the promoted cell back into the
+        # magenta temporary mask.
+        explorer.update_fused_observations(
+            [cell], [], [], [(0, 5)], now=13., ttl=5.,
+            promotion_confirmations=3, joint_clear_confirmations=2)
         self.assertFalse(explorer.depth_obstacle_mask(now=100.)[planner_cell])
         self.assertEqual(explorer.state[planner_cell], OCCUPIED)
 

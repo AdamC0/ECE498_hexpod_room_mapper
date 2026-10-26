@@ -1325,3 +1325,19 @@ One drive-enabled TensorRT mapper was restored `AUTO PAUSED` with command
 occurred. Promotion/clearing against a deliberately placed and removed object,
 raw-map comparison during that trial, and physical route behavior remain
 pending.
+
+## Keep promoted depth cells out of the temporary render mask - 2026-10-26
+
+The first live moving observation showed promotion counters increasing while
+the operator saw no magenta cells turn black. The fused planner did contain
+persistent occupancy, but each later depth frame passed the same hit through
+the legacy temporary-overlay updater before the promotion tier ran. Because an
+already-promoted cell was not removed again, it re-entered the temporary mask
+and the web renderer painted magenta over its black persistent state.
+
+Chosen: after every fused observation, remove every persistent depth cell from
+the temporary obstacle and temporary-clear dictionaries. Persistent occupancy
+continues to block planning and remains eligible only for joint depth/LiDAR
+clearing. Cap its promotion counter at the configured threshold. A regression
+now sends an additional occupied frame after promotion and requires that the
+cell remain absent from the magenta mask while staying occupied/black.
