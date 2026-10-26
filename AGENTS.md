@@ -24,9 +24,11 @@ Robot: `hiwonder@192.168.137.223`
 
 Robot project: `/home/hiwonder/room_mapper`
 
+Robot Passwords: hiwonder
+
 Web UI: `http://192.168.137.223:8000`
 
-Do not store or repeat the SSH password in project files. Real motion requires
+Real motion requires
 direct supervision. Prefer `_drive:=true _start_paused:=true` and confirm only
 one mapper process exists.
 
