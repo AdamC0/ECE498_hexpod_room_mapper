@@ -1137,5 +1137,9 @@ standalone acceleration and close numeric parity on those frames only. Labeled
 classroom quality, empty-scene coverage, memory/thermal behavior, automatic
 runtime fallback on PT, and paused drive-disabled full-stack sensor rates remain
 gates before ordinary use. No movement was commanded.
-All 185 repository tests pass through the host shim; robot-native execution of
-this revision remains pending.
+All 185 repository tests pass through the host shim and natively on PT. A
+drive-disabled, map/depth-disabled mapper reported the preferred model on
+`tensorrt_fp16` and shut down cleanly. A second startup referencing the valid
+engine through a path without its required metadata automatically reported the
+preferred ONNX on CPU. Both remained `AUTO PAUSED` with command `stop`. The
+full-stack sensor-rate/memory/thermal gate remains pending.

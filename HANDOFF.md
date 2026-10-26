@@ -20,8 +20,12 @@ confidence delta was 0.023. This is standalone model evidence, not labeled
 classroom quality or full-stack sensor-rate evidence. GPU remains explicit
 opt-in, and checksum/load/warm-up/runtime failure switches permanently to CPU
 for that process. The original ONNX and YOLOv5n artifacts were not replaced.
-All 185 repository tests pass on the host; robot-native execution of this
-revision remains pending.
+All 185 repository tests pass on the host and natively on PT. A drive-disabled,
+map/depth-disabled mapper reported the preferred model on `tensorrt_fp16` and
+shut down cleanly. Repeating startup through a path with no required engine
+metadata automatically selected the same preferred ONNX on CPU. Both checks
+remained `AUTO PAUSED` with command `stop`. Full-stack sensor-rate, memory, and
+thermal validation remains pending.
 
 Deployed 2026-10-26: the production launcher now detects ROS node liveness
 from an actual XML-RPC reply rather than `rosnode ping`'s unreliable exit code.

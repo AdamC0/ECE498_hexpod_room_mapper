@@ -53,7 +53,7 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 185 host tests.
-  Deployed/native regression count: 180 tests.
+  Deployed/native regression count: 185 tests.
   Tests do not publish robot movement.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
@@ -117,7 +117,7 @@ OPTIONAL TENSORRT YOLO (STANDALONE VALIDATED; FULL-STACK GATE PENDING):
       ./start_room_mapper.sh --yolo-backend tensorrt_fp16
       Confirm status explicitly reports (tensorrt_fp16), then check memory,
       temperature/throttling, failures, endpoint captures, and all sensor rates.
-  [ ] Force an invalid engine/checksum and confirm status reports (cpu) after
+  [x] Force an invalid engine/checksum and confirm status reports (cpu) after
       automatic rollback without changing either ONNX model.
 
   Rollback: stop the mapper, run ./start_room_mapper.sh with no backend option,

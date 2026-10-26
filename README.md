@@ -397,9 +397,11 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 185 tests pass through the host shim. The preceding 180-test revision
-passed natively on PT; native execution of the GPU revision remains a release
-gate. At the operator's request, the mapper, Hector, camera, and LiDAR were
+All 185 tests pass through the host shim and natively on PT. A drive-disabled,
+map/depth-disabled mapper startup reported the preferred model on
+`tensorrt_fp16`; a second startup with missing engine metadata automatically
+reported the same model on `cpu`. At the operator's request, the mapper,
+Hector, camera, and LiDAR were
 stopped for the isolated YOLO benchmark and have not been restarted. The
 preferred Objects365 ONNX and retained YOLOv5n remain unchanged. The earlier
 reliability deployment reduced worst-case synthetic registered-
