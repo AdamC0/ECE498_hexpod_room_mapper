@@ -202,6 +202,20 @@ deduplication behavior unchanged unless new evidence identifies a regression in
 those areas. None should be described as necessary until robot measurements
 support it.
 
+### Landmark confirmation policy to evaluate
+
+The operator asked whether landmarks should require fewer detections or use a
+confidence-based confirmation rule. Keep the current three-distinct-capture
+default until this is evaluated on labeled classroom scenes. A useful candidate
+is confirmation after two distinct settled captures whose class and projected
+map positions agree, while retaining a per-capture minimum confidence
+threshold. Do not confirm from one high-confidence detection alone: detector
+confidence is not necessarily a calibrated probability, and it does not verify
+consistent map placement. Compare false confirmations and missed landmarks
+against the current three-capture policy before changing the default. The
+current tracker retains the strongest observed confidence rather than
+aggregating a calibrated confidence across views.
+
 ## Jetson Nano GPU YOLO evaluation plan (implemented; full-stack gate pending)
 
 ### Goal and current findings
