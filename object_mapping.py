@@ -300,33 +300,59 @@ class YoloOnnxDetector:
         if rows.shape[1] not in (6, expected4, expected5):
             raise ValueError("YOLO output has %d values per prediction, but %d labels were "
                              "configured" % (rows.shape[1], len(self.labels)))
+        # Select the strongest class and reject low-confidence predictions in
+        # NumPy.  The Objects365 output has 8,400 rows and 150 classes; doing
+        # one argmax and several Python operations per row materially delays
+        # the otherwise fast TensorRT path when the mapping stack loads PT's
+        # four CPU cores.  Box conversion remains ordered below so observable
+        # decode and class-aware NMS behavior is unchanged.
+        end_to_end = rows.shape[1] == 6 and len(self.labels) != 2
+        if end_to_end:  # Exported output: x1 y1 x2 y2 score class.
+            finite_classes = np.isfinite(rows[:, 5])
+            class_ids_all = np.zeros(rows.shape[0], dtype=np.int64)
+            class_ids_all[finite_classes] = np.rint(
+                rows[finite_classes, 5]).astype(np.int64)
+            scores_all = rows[:, 4]
+            valid = finite_classes
+        elif rows.shape[1] == expected5:  # YOLOv5: cx cy w h objectness classes...
+            class_scores = rows[:, 5:]
+            class_ids_all = np.argmax(class_scores, axis=1)
+            scores_all = rows[:, 4] * class_scores[
+                np.arange(rows.shape[0]), class_ids_all]
+            valid = np.ones(rows.shape[0], dtype=bool)
+        else:  # YOLOv8: cx cy w h classes...
+            class_scores = rows[:, 4:]
+            class_ids_all = np.argmax(class_scores, axis=1)
+            scores_all = class_scores[np.arange(rows.shape[0]), class_ids_all]
+            valid = np.ones(rows.shape[0], dtype=bool)
+
+        valid &= (class_ids_all >= 0) & (class_ids_all < len(self.labels))
+        candidate_indices = np.flatnonzero(valid)
+        if candidate_indices.size:
+            candidate_classes = class_ids_all[candidate_indices]
+            thresholds = np.asarray([
+                self.threshold_for(label) for label in self.labels
+            ], dtype=np.float64)
+            keep = scores_all[candidate_indices] >= thresholds[candidate_classes]
+            allowed_labels = getattr(self, "allowed_labels", None)
+            if allowed_labels is not None:
+                allowed_classes = np.asarray([
+                    label.lower() in allowed_labels for label in self.labels
+                ], dtype=bool)
+                keep &= allowed_classes[candidate_classes]
+            candidate_indices = candidate_indices[keep]
+
         boxes, scores, class_ids = [], [], []
-        for row in rows:
-            end_to_end = row.size == 6 and len(self.labels) != 2
-            if end_to_end:  # Exported end-to-end output: x1 y1 x2 y2 score class.
-                class_id = int(round(float(row[5])))
-                if not 0 <= class_id < len(self.labels):
-                    continue
-                score = float(row[4])
+        for row_index in candidate_indices:
+            row = rows[row_index]
+            class_id = int(class_ids_all[row_index])
+            score = float(scores_all[row_index])
+            label = self.labels[class_id]
+            if end_to_end:
                 x1, y1, x2, y2 = [float(v) for v in row[:4]]
                 x = (x1 - left) / scale
                 y = (y1 - top) / scale
                 bw, bh = (x2 - x1) / scale, (y2 - y1) / scale
-            elif row.size == expected5:  # YOLOv5: cx cy w h objectness classes...
-                class_scores = row[5:]
-                class_id = int(np.argmax(class_scores))
-                score = float(row[4] * class_scores[class_id])
-            elif row.size == expected4:  # YOLOv8: cx cy w h classes...
-                class_scores = row[4:]
-                class_id = int(np.argmax(class_scores))
-                score = float(class_scores[class_id])
-            else:
-                continue
-            label = self.labels[class_id]
-            allowed_labels = getattr(self, "allowed_labels", None)
-            if ((allowed_labels is not None and label.lower() not in allowed_labels) or
-                    score < self.threshold_for(label)):
-                continue
             if not end_to_end:
                 cx, cy, bw, bh = [float(v) for v in row[:4]]
                 x = (cx - .5 * bw - left) / scale

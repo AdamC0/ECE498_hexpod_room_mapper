@@ -152,6 +152,26 @@ class ObjectMappingTests(unittest.TestCase):
         detections = detector._decode(output, 1., 0, 0, 640, 640)
         self.assertEqual({item['label'] for item in detections}, {'chair', 'desk'})
 
+    def test_vectorized_decode_preserves_allowed_classes_and_thresholds(self):
+        detector = YoloOnnxDetector.__new__(YoloOnnxDetector)
+        detector.labels = ['chair', 'desk', 'car']
+        detector.confidence, detector.nms = .45, .45
+        detector.class_thresholds = {'chair': .30, 'desk': .30}
+        detector.allowed_labels = {'chair', 'desk'}
+        output = np.zeros((1, 7, 4), np.float32)
+        output[0, :4, :] = np.array([
+            [80, 240, 400, 560], [80, 240, 400, 560],
+            [40, 40, 40, 40], [40, 40, 40, 40]
+        ], np.float32)
+        output[0, 4, 0] = .31  # allowed chair above its priority threshold
+        output[0, 5, 1] = .40  # allowed desk above its priority threshold
+        output[0, 6, 2] = .95  # disallowed car despite high confidence
+        output[0, 4, 3] = .29  # allowed chair below its priority threshold
+        detections = detector._decode(output, 1., 0, 0, 640, 640)
+        self.assertEqual([item['label'] for item in detections], ['chair', 'desk'])
+        np.testing.assert_allclose(
+            [item['confidence'] for item in detections], [.31, .40], rtol=0, atol=1e-6)
+
     def test_end_to_end_six_value_output_decode(self):
         detector = YoloOnnxDetector.__new__(YoloOnnxDetector)
         detector.labels = ['chair', 'desk', 'car']
