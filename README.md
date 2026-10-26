@@ -26,7 +26,8 @@ deployed or physically validated yet.
   distinct synchronized RGB/depth/intrinsics/TF snapshots before route
   departure. Acquisition may add at most `_object_snapshot_grace:=1.0`
   seconds; it never waits for inference. The asynchronous queue is bounded to
-  five pending snapshots and discards its oldest entry on overflow.
+  five pending snapshots and discards its oldest entry on overflow. The worker
+  begins inference only after that endpoint's acquisition window closes.
   Status reports captured, processed, replaced, and pending counts.
 - Objects, paths, robot pose, and requested/adjusted goals now share the exact
   active pan/zoom transform. Marker glyph sizes remain readable in pixels.
@@ -401,7 +402,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 198 tests and does not publish physical movement
+The repository suite contains 199 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -417,7 +418,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 198 tests pass through the host shim. Robot-native validation of the
+All 199 tests pass through the host shim. Robot-native validation of the
 stronger object policy is recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically

@@ -1222,3 +1222,9 @@ timestamps are enforced so a frozen pair cannot satisfy the burst. All 198 host
 tests pass and production modules compile. Robot-native, no-drive live pipeline,
 and labeled-scene detector-quality validation remain separate gates until the
 deployment record is appended.
+
+The first no-drive deployment acquired only two frames because inference began
+during the one-second burst and competed with the controller timer. The worker
+now defers inference until endpoint acquisition closes; this does not lengthen
+the grace or delay route departure. A regression covers that ordering. The
+revised suite contains 199 tests.

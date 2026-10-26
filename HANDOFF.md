@@ -4,8 +4,8 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
-The stronger autonomous landmark-validation revision is ready for deployment.
-All 198 tests pass on the Windows host and production modules compile. Each
+The stronger autonomous landmark-validation revision is deployed. All 199
+tests pass on the Windows host and production modules compile. Each
 settled endpoint now acquires at most five distinct synchronized frames within
 the existing one-second grace; inference remains asynchronous and the queue is
 bounded. Expected classroom classes require 3-of-4 strong, geometrically
@@ -14,9 +14,10 @@ consistent observations. Other Objects365 classes remain eligible but require
 create an observation, two consecutive same-view misses discard a pending
 candidate, pending objects cannot be navigation targets, and confirmed objects
 use only qualifying coordinates and remain fixed until the map/session is
-reset. Robot-native and no-drive live results
-for this revision are recorded below after deployment; do not infer detector
-quality from unit tests.
+reset. Initial live validation exposed worker contention that admitted only two
+frames; inference is now deferred until the acquisition window closes. Final
+robot-native and no-drive live results are recorded below; do not infer
+detector quality from unit tests.
 
 At the operator's request on 2026-10-26, YOLO post-processing was vectorized so
 the 8,400 Objects365 predictions no longer perform per-row class selection and

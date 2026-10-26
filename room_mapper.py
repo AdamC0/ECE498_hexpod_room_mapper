@@ -929,6 +929,15 @@ class RoomMapper:
             if now < next_run:
                 time.sleep(min(.05, next_run - now))
                 continue
+            # Finish the short endpoint acquisition before starting inference.
+            # TensorRT post-processing can otherwise contend for the GIL and
+            # prevent the control timer from collecting the remaining fresh
+            # frames inside the fixed one-second grace.
+            endpoint_key = self.object_endpoint_key
+            if (endpoint_key is not None and
+                    self.object_endpoint_done != endpoint_key):
+                time.sleep(.02)
+                continue
             with self.object_queue_lock:
                 snapshot = (self.object_pending_snapshots.pop(0)
                             if self.object_pending_snapshots else None)

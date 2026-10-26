@@ -69,6 +69,7 @@ class ObjectPipelineTests(unittest.TestCase):
         n.survey = SimpleNamespace(settled_at=98., required_stamp=99.9,
                                    localize=Mock())
         n.object_focus_enabled = False
+        n.object_hz = 2.0
         n.detector = SimpleNamespace(detect=Mock(side_effect=self.detections))
 
     @staticmethod
@@ -172,6 +173,29 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertFalse(n.capture_endpoint_snapshot(100.2))
         self.assertEqual(n.object_snapshots_captured, 1)
         self.assertEqual(len(n.object_pending_snapshots), 1)
+
+    def test_worker_waits_until_endpoint_acquisition_closes(self):
+        n = self.node
+        n.object_endpoint_key = ('endpoint', 1)
+        n.object_endpoint_done = None
+        n.enqueue_object_snapshot(n.capture_object_snapshot())
+        inferred = threading.Event()
+
+        def detect(frame):
+            inferred.set()
+            n.shutting_down = True
+            return self.detections(frame)
+
+        n.detector.detect.side_effect = detect
+        with patch('room_mapper.rospy.is_shutdown', return_value=False,
+                   create=True):
+            worker = threading.Thread(target=n.object_loop)
+            worker.start()
+            self.assertFalse(inferred.wait(.1))
+            n.object_endpoint_done = n.object_endpoint_key
+            self.assertTrue(inferred.wait(1.))
+            worker.join(1.)
+            self.assertFalse(worker.is_alive())
 
     def test_slow_inference_queue_keeps_five_newest_snapshots(self):
         n = self.node
