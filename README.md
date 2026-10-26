@@ -409,7 +409,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 203 tests and does not publish physical movement
+The repository suite contains 204 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -425,7 +425,7 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 203 tests pass through the host shim. Native/no-drive deployment results
+All 204 tests pass through the host shim. Native/no-drive deployment results
 for the preview revision are recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically

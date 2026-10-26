@@ -1053,8 +1053,13 @@ class RoomMapper:
             busy = bool(self.object_pending_snapshots)
         if busy or self.object_processing:
             return False
+        previous_status = getattr(self, "object_status", "waiting for preview")
         snapshot = self.capture_object_snapshot()
         if snapshot is None:
+            # Preview retries are opportunistic. Preserve the last completed
+            # inference result instead of presenting transient sync skew as a
+            # stopped detector.
+            self.object_status = previous_status
             return False
         snapshot["display_only"] = True
         self.enqueue_object_snapshot(snapshot)

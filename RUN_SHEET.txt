@@ -52,7 +52,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 203 host tests.
+  Repository regression count: 204 host tests.
   Deployed/native regression count: pending this revision; last deployed 199.
   Tests do not publish robot movement.
 

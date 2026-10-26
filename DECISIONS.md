@@ -1265,6 +1265,7 @@ second. Confirmed landmarks remain solid and session-persistent.
 
 Four regressions cover pending marker rendering, box expiry/motion clearing,
 preview isolation, and latest-only preview queueing; validation-reason checks
-were added to existing confidence and box-consistency tests. All 203 host tests
+were added to existing confidence and box-consistency tests. A fifth regression
+ensures transient preview sync retries retain the last completed status. All 204 host tests
 pass and production Python compiles. Robot-native and no-drive live validation
 remain separate deployment gates.

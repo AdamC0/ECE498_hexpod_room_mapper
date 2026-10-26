@@ -215,6 +215,17 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertEqual(n.object_detections_stamp, 100.)
         self.assertIn('preview:', n.object_status)
 
+    def test_preview_retry_preserves_last_completed_status(self):
+        n = self.node
+        n.object_status = 'preview: 2 detections; 0.30 s inference'
+        def no_snapshot():
+            n.object_status = 'waiting for sync'
+            return None
+        n.capture_object_snapshot = Mock(side_effect=no_snapshot)
+        self.assertFalse(n.capture_preview_snapshot(100.))
+        self.assertEqual(n.object_status,
+                         'preview: 2 detections; 0.30 s inference')
+
     def test_motion_immediately_clears_detection_overlay(self):
         n = self.node
         n.motion_pub = Mock()

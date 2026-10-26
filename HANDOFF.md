@@ -9,7 +9,8 @@ the conservative 3-of-4/4-of-5 validation gates but shows pending candidates as
 hollow amber map markers, reports the exact pending reason in the Objects tab,
 and runs display-only latest-frame inference while paused and settled. Preview
 frames cannot create, confirm, move, or remove tracks. Boxes clear immediately
-on motion and expire after one second without a new result. All 203 host tests
+on motion and expire after one second without a new result. Transient preview
+sync retries preserve the last completed inference status. All 204 host tests
 pass and production modules compile; robot-native and live behavior for this
 revision remain to be recorded below after deployment.
 
