@@ -55,7 +55,11 @@ fi
 mkdir -p "$LOG_DIR"
 
 node_is_live() {
-  rosnode ping -c 1 "$1" >/dev/null 2>&1
+  local ping_output
+  # ROS Melodic's rosnode ping may exit 0 even when it prints "unknown node".
+  # Require the success text emitted only after a real XML-RPC response.
+  ping_output="$(rosnode ping -c 1 "$1" 2>&1 || true)"
+  grep -q 'xmlrpc reply from' <<<"$ping_output"
 }
 
 topic_has_message() {

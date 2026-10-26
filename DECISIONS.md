@@ -992,14 +992,16 @@ and never resumes autonomy or issues a motion command.
 
 ### Recover an unresponsive Hector stack during startup - 2026-10-26
 
-The launcher previously treated a successful `/hector_mapping` ping as proof
-that the existing SLAM stack was healthy. A live node without
-`/slam_out_pose` therefore caused startup to time out, while its diagnostic
-incorrectly pointed to the launcher's Hector log even when that launcher had
-not started the existing process.
+The launcher previously treated the exit status of `rosnode ping -c 1` as
+proof that a node was live. On PT's ROS Melodic installation that command
+returns zero even when its output says the node is unknown, so an absent Hector
+was misclassified as running and startup timed out waiting for
+`/slam_out_pose`. Its diagnostic then incorrectly pointed to the launcher's
+Hector log even though the launcher had not started the nonexistent process.
 
-Chosen: require both a responsive Hector node and a fresh pose message before
-preserving its map. If pose output is absent, stop the owning
+Chosen: define node liveness by the real XML-RPC reply text rather than the
+unreliable command status, and require both a responsive Hector node and a
+fresh pose message before preserving its map. If pose output is absent, stop the owning
 `hex_map.launch` (or a manually started Hector node), wait for it to exit, and
 start the checked-in production stack with a fresh map. Apply the same recovery
 to an orphaned `hex_map.launch` whose Hector node is gone. Shutdown first uses
