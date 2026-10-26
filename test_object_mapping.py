@@ -35,6 +35,16 @@ class ObjectMappingTests(unittest.TestCase):
         result = sample_box_depth(depth, (10, 10, 90, 90), min_pixels=12)
         self.assertAlmostEqual(result[0], 1.75)
 
+    def test_depth_sampling_reports_surface_quality(self):
+        depth = np.full((100, 100), 2.0, np.float32)
+        distance, _, _, quality = sample_box_depth(
+            depth, (10, 10, 90, 90), min_pixels=24, return_quality=True)
+        self.assertEqual(distance, 2.0)
+        self.assertGreaterEqual(quality['valid_pixels'], 24)
+        self.assertEqual(quality['coverage'], 1.0)
+        self.assertEqual(quality['mad'], 0.0)
+        self.assertEqual(quality['inlier_ratio'], 1.0)
+
     def test_backproject_and_transform(self):
         k = (100, 0, 50, 0, 100, 40, 0, 0, 1)
         point = backproject(60, 20, 2, k)
@@ -62,6 +72,89 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertEqual(len(tracks), 1)
         self.assertEqual(tracks[0]['count'], 3)
         self.assertAlmostEqual(tracks[0]['x'], 1.0)
+
+    def test_expected_class_confirms_after_three_high_quality_hits(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        for observation, x in enumerate((1.00, 1.03, .98), 1):
+            tracker.update('chair', x, 2.0, .72, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        track = tracker.snapshot(True, 3)[0]
+        self.assertTrue(track['confirmed'])
+        self.assertEqual(track['tier'], 'expected')
+
+    def test_other_class_requires_four_stronger_hits(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        for observation in range(1, 4):
+            tracker.update('faucet', 1.0, 2.0, .82, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        self.assertEqual(tracker.snapshot(True, 3), [])
+        tracker.update('faucet', 1.01, 2.0, .80, 4,
+                       observation_id=4, validation_group=('endpoint', 1),
+                       box=(10, 10, 60, 80))
+        self.assertTrue(tracker.snapshot(True, 4)[0]['confirmed'])
+        self.assertEqual(tracker.snapshot(True, 4)[0]['tier'], 'other')
+
+    def test_high_count_does_not_override_low_confidence(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        for observation in range(1, 4):
+            tracker.update('chair', 1.0, 2.0, .60, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        self.assertEqual(tracker.snapshot(True, 3), [])
+
+    def test_high_confidence_does_not_override_box_inconsistency(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        boxes = ((10, 10, 60, 80), (100, 100, 150, 180), (10, 10, 60, 80))
+        for observation, box in enumerate(boxes, 1):
+            tracker.update('chair', 1.0, 2.0, .75, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1), box=box)
+        self.assertEqual(tracker.snapshot(True, 3), [])
+
+    def test_two_same_view_misses_remove_pending_candidate(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        group = ('endpoint', 1)
+        track = tracker.update('chair', 1.0, 2.0, .75, 1,
+                               observation_id=1, validation_group=group,
+                               box=(10, 10, 60, 80))
+        tracker.finish_observation(group, 2, [])
+        self.assertEqual(len(tracker.tracks), 1)
+        tracker.finish_observation(group, 3, [])
+        self.assertEqual(tracker.tracks, [])
+        self.assertIsNotNone(track)
+
+    def test_confirmed_track_persists_for_mapping_session(self):
+        tracker = ObjectTracker(max_age=30, priority_labels=['chair'])
+        for observation in range(1, 4):
+            tracker.update('chair', 1.0, 2.0, .75, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        tracker.prune(1000)
+        self.assertEqual(len(tracker.snapshot(True, 1000)), 1)
+
+    def test_confirmation_uses_only_qualifying_hits_and_freezes_position(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        group = ('endpoint', 1)
+        tracker.update('chair', 1.60, 2.0, .40, 1,
+                       observation_id=1, validation_group=group,
+                       box=(10, 10, 60, 80))
+        for observation, x in enumerate((1.00, 1.02, .98), 2):
+            tracker.update('chair', x, 2.0, .75, observation,
+                           observation_id=observation, validation_group=group,
+                           box=(10, 10, 60, 80))
+        track = tracker.snapshot(True, 4)[0]
+        self.assertAlmostEqual(track['x'], 1.0)
+        self.assertEqual(track['count'], 3)
+        tracker.update('chair', 1.50, 2.0, .35, 5,
+                       observation_id=5, validation_group=('endpoint', 2),
+                       box=(10, 10, 60, 80))
+        self.assertAlmostEqual(tracker.snapshot(True, 5)[0]['x'], 1.0)
 
     def test_tracker_rename_and_remove_are_persistent(self):
         tracker = ObjectTracker(merge_distance=.5, min_observations=1)

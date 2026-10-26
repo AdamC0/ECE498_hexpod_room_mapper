@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 from room_mapper import RoomMapper, SEARCH, HOLD, AVOID, FAULT, swept_circle_clearance
+from object_mapping import ObjectTracker
 from std_srvs.srv import Empty
 
 
@@ -134,6 +135,20 @@ class MapperTests(unittest.TestCase):
         n.battery_callback(raw, '/battery')
         self.assertEqual(n.battery_voltage, 12.6)
         self.assertEqual(n.battery_percentage, 100.0)
+
+    def test_pending_object_cannot_start_navigation(self):
+        n = self.node
+        n.object_lock = threading.Lock()
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        n.object_tracker.update('chair', 1., 2., .75, time.time(), observation_id=1,
+                                validation_group=('endpoint', 1),
+                                box=(10, 10, 60, 80))
+        n.web_pending = [('navigate_object', 1)]
+        n.stop_manual, n.start_navigation = Mock(), Mock()
+        n.handle_web()
+        n.start_navigation.assert_not_called()
+        n.stop_manual.assert_called_once_with(
+            'Object navigation blocked: landmark is still pending')
 
     def test_close_elevated_obstacle_is_detected(self):
         self.calibrate()

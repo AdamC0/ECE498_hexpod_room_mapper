@@ -1191,3 +1191,34 @@ repositioning the robot, which explains the changing Hector pose and additional
 settled endpoint captures; physical stillness was not independently observed.
 This validates a short paused pipeline run, not labeled classroom accuracy,
 long thermal soak, or commanded physical motion.
+
+## Strengthen autonomous landmark validation - 2026-10-26
+
+The operator prioritized avoiding false landmarks over early recall, allowed
+repeated observations from one stationary viewpoint when confidence is strong,
+gave common classroom items higher priority, kept unusual and movable objects
+eligible, and requested that confirmed objects persist for the mapping session.
+
+Chosen: acquire a bounded burst of at most five distinct synchronized
+RGB/registered-depth/TF snapshots during the existing one-second endpoint
+grace. Route departure never waits for inference, and the FIFO inference queue
+holds at most five pending snapshots. Expected classroom classes confirm from
+three qualifying detections in the latest four observations, with 0.50 minimum
+per-frame confidence and 0.65 median. Other model classes confirm from four in
+five, with 0.60 minimum and 0.75 median. Both tiers require pairwise projected
+position consistency and same-view box overlap; large classroom fixtures have
+a wider position tolerance. Depth must provide at least 24 samples, 15 percent
+central coverage, median absolute deviation no greater than 0.12 m, and at
+least 60 percent inliers. Two consecutive misses within the same endpoint burst
+remove a pending candidate. No one-frame confirmation exists.
+
+All model classes remain labelable and movable objects are not excluded.
+Confirmed tracks persist until map reset or SLAM-loss clearing; only pending
+tracks age out. Confirmation computes the stored coordinate only from its
+qualifying evidence and freezes that session landmark against later drift. The
+UI disables Navigate for pending objects and the controller
+also rejects a forged/stale pending-object navigation request. Distinct sensor
+timestamps are enforced so a frozen pair cannot satisfy the burst. All 198 host
+tests pass and production modules compile. Robot-native, no-drive live pipeline,
+and labeled-scene detector-quality validation remain separate gates until the
+deployment record is appended.

@@ -52,8 +52,8 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 186 host tests.
-  Deployed/native regression count: 186 tests.
+  Repository regression count: 198 host tests.
+  Deployed/native regression count: pending this revision; last deployed 186.
   Tests do not publish robot movement.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
@@ -128,11 +128,11 @@ OPTIONAL TENSORRT YOLO (SHORT FULL-STACK PAUSED GATE PASSED):
   and verify Detector reports (cpu). Remove only the exact gpu_trial engine and
   sidecar if desired. Do not resume autonomy during benchmark or rollback.
 
-  Expected capture cadence: default YOLO runs once per ready stationary survey
-  endpoint. Waiting at the same paused endpoint must leave snapshot counters
-  unchanged; `_object_hz` is not a continuous inference rate. Reach a new
-  endpoint for another normal mapping observation. Any future continuous
-  preview must not count repeated display frames as landmark confirmations.
+  Expected capture cadence: default YOLO acquires up to five distinct fresh
+  synchronized frame pairs during the one-second grace at each ready stationary
+  endpoint. It never waits for inference. Waiting at the same paused endpoint
+  after the burst must leave counters unchanged; `_object_hz` is worker pacing,
+  not a continuous inference rate. Repeated timestamps must not count.
 
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
@@ -198,11 +198,14 @@ OMNIDIRECTIONAL MOTION VALIDATION (DEPLOYED; PARTIALLY PHYSICALLY VALIDATED):
       not protected against unseen low, reflective, or transparent geometry.
 
 AUTONOMOUS OBJECT HANDLING:
-  By default, a tentative object does not stop mapping. It is confirmed after
-  three distinct settled captures and may remain pending for up to five
-  minutes. An immutable synchronized RGB/depth/TF snapshot may finish after
-  the next route begins. Legacy object_focus is opt-in; when enabled, it stops
-  for confirmation, two misses, or the 15 s limit before replanning.
+  A tentative object does not stop mapping. Expected classroom classes confirm
+  from 3 of 4 fresh frames when each confidence is >=0.50 and median is >=0.65.
+  Other model classes remain eligible but require 4 of 5 at >=0.60 each and
+  >=0.75 median. Both tiers also require coherent depth, stable same-view boxes,
+  and stable projected map positions. Two consecutive same-view misses remove
+  a pending candidate. Pending objects cannot be navigation targets. Confirmed
+  objects, including movable ones, persist until CLEAR MAP/SLAM loss. Legacy
+  object_focus remains opt-in; inference itself never delays route departure.
 
 BLOCKED ROUTES:
   The controller first stops. It rotates toward an open side when the 0.30 m
@@ -240,7 +243,7 @@ LIVE STATUS AT DOCUMENTATION UPDATE:
   PT ONLINE. Hector and exactly one drive-enabled, AUTO PAUSED mapper are live;
   RTAB-Map is stopped. RGB/depth/LiDAR, /slam_out_pose, /map, temporary depth
   planner cells, TF, battery telemetry, and the web UI are live. Native robot
-  suite: 186 passing. The preferred Objects365 ONNX is active on TensorRT FP16;
+  suite before the stronger-validation deployment: 186 passing. The preferred Objects365 ONNX is active on TensorRT FP16;
   controlled post-optimization paused samples were 1.12, 0.50, and 0.47 s.
   Latest sampled rates were scan 12.08 Hz, pose 12.11 Hz, RGB 29.83 Hz, native
   depth 30.03 Hz, and registered depth 29.80 Hz. Labeled-scene quality and a

@@ -53,7 +53,7 @@ def decode_depth_image(msg):
     return depth
 
 
-def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0):
+def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0, return_quality=False):
     """Return robust depth and sampling pixel from the central part of a box."""
     if depth is None:
         return None
@@ -69,7 +69,17 @@ def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0):
     roi = depth[iy1:iy2, ix1:ix2]
     valid = roi[(roi > 0.10) & (roi < max_depth) & np.isfinite(roi)]
     if valid.size >= min_pixels:
-        return float(np.median(valid)), .5 * (x1 + x2), .5 * (y1 + y2)
+        median = float(np.median(valid))
+        quality = {
+            "valid_pixels": int(valid.size),
+            "coverage": float(valid.size) / max(1, roi.size),
+            "mad": float(np.median(np.abs(valid - median))),
+            "inlier_ratio": float(np.mean(
+                np.abs(valid - median) <= max(.08, .08 * median))),
+            "fallback": False,
+        }
+        result = (median, .5 * (x1 + x2), .5 * (y1 + y2))
+        return result + (quality,) if return_quality else result
 
     # Dark/reflective objects can have a depth hole at the exact box center.
     # Fall back to the valid pixels nearest the center within an 80%-size box;
@@ -86,8 +96,18 @@ def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0):
     center_x, center_y = .5*(box[0]+box[2]) - bx1, .5*(box[1]+box[3]) - by1
     order = np.argsort((xx-center_x)**2 + (yy-center_y)**2)
     take = order[:max(min_pixels, int(math.ceil(.20*order.size)))]
-    return float(np.median(broad[yy[take], xx[take]])), \
-        .5 * (box[0] + box[2]), .5 * (box[1] + box[3])
+    values = broad[yy[take], xx[take]]
+    median = float(np.median(values))
+    quality = {
+        "valid_pixels": int(values.size),
+        "coverage": float(yy.size) / max(1, broad.size),
+        "mad": float(np.median(np.abs(values - median))),
+        "inlier_ratio": float(np.mean(
+            np.abs(values - median) <= max(.08, .08 * median))),
+        "fallback": True,
+    }
+    result = (median, .5 * (box[0] + box[2]), .5 * (box[1] + box[3]))
+    return result + (quality,) if return_quality else result
 
 
 def backproject(u, v, depth, k):
@@ -488,13 +508,42 @@ class TensorRtYoloDetector(YoloOnnxDetector):
         return self._decode(output, *geometry)
 
 
+def box_iou(a, b):
+    """Return intersection-over-union for two x1/y1/x2/y2 boxes."""
+    ax1, ay1, ax2, ay2 = [float(value) for value in a]
+    bx1, by1, bx2, by2 = [float(value) for value in b]
+    intersection = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * \
+        max(0.0, min(ay2, by2) - max(ay1, by1))
+    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+    union = area_a + area_b - intersection
+    return intersection / union if union > 0.0 else 0.0
+
+
 class ObjectTracker:
     """Merge repeated class observations into confirmed map landmarks."""
 
-    def __init__(self, merge_distance=.65, min_observations=3, max_age=120.0):
+    def __init__(self, merge_distance=.65, min_observations=3, max_age=120.0,
+                 priority_labels=None, expected_policy=None, other_policy=None,
+                 large_labels=None):
         self.merge_distance = float(merge_distance)
         self.min_observations = int(min_observations)
         self.max_age = float(max_age)
+        self.validation_enabled = priority_labels is not None
+        self.priority_labels = {str(label).strip().lower()
+                                for label in (priority_labels or [])}
+        self.large_labels = {str(label).strip().lower()
+                             for label in (large_labels or [])}
+        self.expected_policy = dict({
+            "hits": 3, "window": 4, "minimum_confidence": .50,
+            "median_confidence": .65, "position_tolerance": .25,
+            "large_position_tolerance": .50, "box_iou": .40,
+        }, **(expected_policy or {}))
+        self.other_policy = dict({
+            "hits": 4, "window": 5, "minimum_confidence": .60,
+            "median_confidence": .75, "position_tolerance": .20,
+            "large_position_tolerance": .35, "box_iou": .50,
+        }, **(other_policy or {}))
         self.tracks = []
         self.suppressed = []
         self.next_id = 1
@@ -504,23 +553,74 @@ class ObjectTracker:
         self.suppressed = []
         self.next_id = 1
 
-    def update(self, label, x, y, confidence, now=None, observation_id=None):
+    def _policy(self, label):
+        return (self.expected_policy if str(label).lower() in self.priority_labels
+                else self.other_policy)
+
+    def _confirmation_hits(self, track):
+        policy = self._policy(track["label"])
+        evidence = track.get("_evidence", [])[-int(policy["window"]):]
+        hits = [item for item in evidence
+                if item.get("hit") and
+                item["confidence"] >= float(policy["minimum_confidence"])]
+        if len(hits) < int(policy["hits"]):
+            return None
+        hits = hits[-int(policy["hits"]):]
+        if float(np.median([item["confidence"] for item in hits])) < \
+                float(policy["median_confidence"]):
+            return None
+        tolerance_key = ("large_position_tolerance"
+                         if track["label"].lower() in self.large_labels
+                         else "position_tolerance")
+        tolerance = float(policy[tolerance_key])
+        for index, first in enumerate(hits):
+            for second in hits[index + 1:]:
+                if math.hypot(first["x"] - second["x"],
+                              first["y"] - second["y"]) > tolerance:
+                    return None
+                if (first.get("group") == second.get("group") and
+                        first.get("box") is not None and second.get("box") is not None and
+                        box_iou(first["box"], second["box"]) < float(policy["box_iou"])):
+                    return None
+        return hits
+
+    def _confirmation_ready(self, track):
+        return self._confirmation_hits(track) is not None
+
+    def update(self, label, x, y, confidence, now=None, observation_id=None,
+               validation_group=None, box=None):
         now = time.time() if now is None else float(now)
         self.prune(now)
         if any(item[0] == label and math.hypot(item[1] - x, item[2] - y) <=
                self.merge_distance for item in self.suppressed):
             return None
-        candidates = [t for t in self.tracks if t["label"] == label]
+        # A single frame may contain several instances of the same class. Do
+        # not let a track already updated by this observation absorb another
+        # detection and make that second object disappear.
+        candidates = [t for t in self.tracks if t["label"] == label and
+                      (observation_id is None or
+                       t.get("last_observation") != observation_id)]
         track = min(candidates, key=lambda t: math.hypot(t["x"] - x, t["y"] - y)) \
             if candidates else None
         if track is None or math.hypot(track["x"] - x, track["y"] - y) > self.merge_distance:
             track = {"id": self.next_id, "label": label, "x": float(x), "y": float(y),
-                     "confidence": float(confidence), "count": 1, "m2": 0.0,
-                     "last_seen": now, "last_observation": observation_id}
+                     "confidence": float(confidence), "count": 0, "m2": 0.0,
+                     "last_seen": now, "last_observation": None,
+                     "confirmed": False, "tier": ("expected" if label.lower() in
+                                                    self.priority_labels else "other"),
+                     "_evidence": [], "_validation_group": validation_group,
+                     "_last_validation_observation": None, "_consecutive_misses": 0}
             self.next_id += 1
             self.tracks.append(track)
-            return track
         if observation_id is not None and track["last_observation"] == observation_id:
+            return track
+        if track.get("confirmed"):
+            # A confirmed landmark represents the validated session location.
+            # Later weak/nearby detections may refresh its visibility but must
+            # not drift its stored map coordinate.
+            track["last_seen"] = now
+            track["last_observation"] = observation_id
+            track["confidence"] = max(float(confidence), track["confidence"] * .98)
             return track
         old_x, old_y = track["x"], track["y"]
         n = track["count"] + 1
@@ -531,7 +631,55 @@ class ObjectTracker:
         track["count"], track["last_seen"] = n, now
         track["last_observation"] = observation_id
         track["confidence"] = max(float(confidence), track["confidence"] * .98)
+        if self.validation_enabled:
+            track["_validation_group"] = validation_group
+            track["_last_validation_observation"] = observation_id
+            track["_consecutive_misses"] = 0
+            track["_evidence"].append({
+                "hit": True, "observation_id": observation_id,
+                "confidence": float(confidence), "x": float(x), "y": float(y),
+                "group": validation_group, "box": tuple(box) if box is not None else None,
+            })
+            window = int(self._policy(label)["window"])
+            track["_evidence"] = track["_evidence"][-window:]
+            confirmation_hits = self._confirmation_hits(track)
+            if confirmation_hits is not None:
+                xs = np.asarray([item["x"] for item in confirmation_hits], dtype=float)
+                ys = np.asarray([item["y"] for item in confirmation_hits], dtype=float)
+                track["x"], track["y"] = float(np.mean(xs)), float(np.mean(ys))
+                track["count"] = len(confirmation_hits)
+                track["m2"] = float(np.sum((xs - track["x"]) ** 2 +
+                                           (ys - track["y"]) ** 2))
+                track["confidence"] = max(item["confidence"]
+                                          for item in confirmation_hits)
+                track["confirmed"] = True
+        else:
+            track["confirmed"] = track["count"] >= self.min_observations
         return track
+
+    def finish_observation(self, validation_group, observation_id, seen_track_ids):
+        """Record misses only for pending tracks being validated in this view."""
+        if not self.validation_enabled:
+            return
+        seen_track_ids = set(seen_track_ids)
+        remove = []
+        for track in self.tracks:
+            if (track.get("confirmed") or track["id"] in seen_track_ids or
+                    track.get("_validation_group") != validation_group or
+                    track.get("_last_validation_observation") == observation_id):
+                continue
+            track["_last_validation_observation"] = observation_id
+            track["_consecutive_misses"] = track.get("_consecutive_misses", 0) + 1
+            track["_evidence"].append({
+                "hit": False, "observation_id": observation_id,
+                "group": validation_group,
+            })
+            window = int(self._policy(track["label"])["window"])
+            track["_evidence"] = track["_evidence"][-window:]
+            if track["_consecutive_misses"] >= 2:
+                remove.append(track["id"])
+        if remove:
+            self.tracks = [track for track in self.tracks if track["id"] not in remove]
 
     def rename(self, track_id, name):
         """Set a display name without changing the detector class used to merge."""
@@ -563,15 +711,19 @@ class ObjectTracker:
 
     def prune(self, now=None):
         now = time.time() if now is None else float(now)
-        self.tracks = [t for t in self.tracks if now - t["last_seen"] <= self.max_age]
+        self.tracks = [t for t in self.tracks
+                       if t.get("confirmed") or now - t["last_seen"] <= self.max_age]
 
     def snapshot(self, confirmed_only=True, now=None):
         self.prune(now)
         result = []
         for track in self.tracks:
-            if confirmed_only and track["count"] < self.min_observations:
+            confirmed = track.get("confirmed", track["count"] >= self.min_observations)
+            if confirmed_only and not confirmed:
                 continue
-            item = dict(track)
+            item = {key: value for key, value in track.items()
+                    if not key.startswith("_")}
+            item["confirmed"] = confirmed
             item["name"] = track.get("name", track["label"])
             item["position_std"] = math.sqrt(track["m2"] / max(1, track["count"] - 1))
             result.append(item)

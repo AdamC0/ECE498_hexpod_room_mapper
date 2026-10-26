@@ -8,7 +8,7 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Reliability fixes implemented; deployment pending (2026-10-25)
+## Reliability and object-validation behavior (2026-10-26)
 
 The repository now implements the three approved reliability priorities, but
 the robot still runs the earlier 163-test build. Do not treat these changes as
@@ -22,10 +22,11 @@ deployed or physically validated yet.
   depth collision decisions are untouched. The defaults are configurable with
   `_depth_map_clear_observations:=2` and
   `_depth_map_protected_range:=0.60`.
-- Each ready stationary endpoint captures at most one immutable synchronized
-  RGB/depth/intrinsics/TF snapshot before route departure. Acquisition may add
-  at most `_object_snapshot_grace:=1.0` seconds; it never waits for inference.
-  One inference may run while one newest endpoint snapshot remains pending.
+- Each ready stationary endpoint captures a bounded burst of up to five
+  distinct synchronized RGB/depth/intrinsics/TF snapshots before route
+  departure. Acquisition may add at most `_object_snapshot_grace:=1.0`
+  seconds; it never waits for inference. The asynchronous queue is bounded to
+  five pending snapshots and discards its oldest entry on overflow.
   Status reports captured, processed, replaced, and pending counts.
 - Objects, paths, robot pose, and requested/adjusted goals now share the exact
   active pan/zoom transform. Marker glyph sizes remain readable in pixels.
@@ -62,9 +63,10 @@ backend fails, startup automatically falls back to CPU and then to the retained
 `models/yolov5n.onnx` model. Existing model files are never overwritten.
 
 YOLO is endpoint-triggered, not a continuous video detector. Each ready
-stationary survey admits at most one synchronized RGB/depth/TF snapshot. After
-that snapshot is captured, remaining paused at the same endpoint does not run
-YOLO again; another normal inference is admitted at a new survey endpoint.
+stationary survey admits one bounded five-frame synchronized RGB/depth/TF
+burst. Only distinct sensor timestamps count. After that burst, remaining
+paused at the same endpoint does not run YOLO again; another normal burst is
+admitted at a new survey endpoint.
 Consequently, `_object_hz` limits queued processing and legacy focus recapture
 frequency—it is not a continuous-preview frame rate. This prevents duplicate
 frames from consuming inference resources or being treated as additional
@@ -195,8 +197,16 @@ medium, charging, stale, and unavailable telemetry.
 - Independent translation and rotation sliders adjust both manual and
   autonomous gait commands from 50% to 200%. They start at 100% after a mapper
   restart and do not alter collision distances, footprint, or dead-man timing.
-- Detected objects are listed in the Objects tab and may be navigated to,
-  renamed, or removed. Three distinct settled observations confirm a landmark.
+- Detected objects are listed in the Objects tab. Pending objects may be
+  renamed or removed but cannot be navigation targets. Expected classroom
+  classes require three qualifying detections in four fresh frames (each at
+  least 0.50 confidence and median at least 0.65). Every other model class
+  remains eligible but requires four in five (each at least 0.60 and median at
+  least 0.75) with tighter box and map-position agreement. Depth coverage,
+  surface consistency, and inlier gates apply before either tier can create an
+  observation. Two consecutive same-view misses remove a pending candidate;
+  confirmed landmarks use only qualifying hits for their stored coordinate,
+  remain fixed for the mapping session, and clear with the map.
 - During stationary surveys, tentative objects remain nonblocking by default.
   The legacy `object_focus` behavior is opt-in; when enabled, motion stops until
   the object is confirmed, missed twice, or the 15-second limit expires.
@@ -391,7 +401,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 186 tests and does not publish physical movement
+The repository suite contains 198 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -407,7 +417,8 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 186 tests pass through the host shim and natively on PT. A drive-disabled,
+All 198 tests pass through the host shim. Robot-native validation of the
+stronger object policy is recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later

@@ -348,9 +348,67 @@ class RoomMapper:
         self.object_merge_distance = float(rospy.get_param("~object_merge_distance", 0.65))
         self.object_min_observations = int(rospy.get_param("~object_min_observations", 3))
         self.object_track_max_age = float(rospy.get_param("~object_track_max_age", 300.0))
+        self.object_burst_frames = int(rospy.get_param("~object_burst_frames", 5))
+        self.object_burst_interval = float(rospy.get_param("~object_burst_interval", 0.18))
+        self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
+        self.object_expected_window = int(rospy.get_param("~object_expected_window", 4))
+        self.object_expected_min_confidence = float(rospy.get_param(
+            "~object_expected_min_confidence", 0.50))
+        self.object_expected_median_confidence = float(rospy.get_param(
+            "~object_expected_median_confidence", 0.65))
+        self.object_other_hits = int(rospy.get_param("~object_other_hits", 4))
+        self.object_other_window = int(rospy.get_param("~object_other_window", 5))
+        self.object_other_min_confidence = float(rospy.get_param(
+            "~object_other_min_confidence", 0.60))
+        self.object_other_median_confidence = float(rospy.get_param(
+            "~object_other_median_confidence", 0.75))
+        self.object_expected_position_tolerance = float(rospy.get_param(
+            "~object_expected_position_tolerance", 0.25))
+        self.object_other_position_tolerance = float(rospy.get_param(
+            "~object_other_position_tolerance", 0.20))
+        self.object_large_position_tolerance = float(rospy.get_param(
+            "~object_large_position_tolerance", 0.50))
+        self.object_expected_box_iou = float(rospy.get_param(
+            "~object_expected_box_iou", 0.40))
+        self.object_other_box_iou = float(rospy.get_param(
+            "~object_other_box_iou", 0.50))
+        self.object_depth_min_pixels = int(rospy.get_param(
+            "~object_depth_min_pixels", 24))
+        self.object_depth_min_coverage = float(rospy.get_param(
+            "~object_depth_min_coverage", 0.15))
+        self.object_depth_max_mad = float(rospy.get_param(
+            "~object_depth_max_mad", 0.12))
+        self.object_depth_min_inlier_ratio = float(rospy.get_param(
+            "~object_depth_min_inlier_ratio", 0.60))
+        large_classes = rospy.get_param("~object_large_classes", [
+            "desk", "dining table", "coffee table", "side table",
+            "blackboard/whiteboard", "monitor/tv", "cabinet/shelf"])
+        if isinstance(large_classes, str):
+            large_classes = large_classes.split(",")
+        self.object_large_classes = [str(item).strip() for item in large_classes
+                                     if str(item).strip()]
         if (not 1 <= self.object_min_observations <= 20 or
                 not math.isfinite(self.object_track_max_age) or
-                not 30.0 <= self.object_track_max_age <= 3600.0):
+                not 30.0 <= self.object_track_max_age <= 3600.0 or
+                not 2 <= self.object_burst_frames <= 8 or
+                not .05 <= self.object_burst_interval <= .5 or
+                not 1 <= self.object_expected_hits <= self.object_expected_window <= 8 or
+                not 1 <= self.object_other_hits <= self.object_other_window <= 8 or
+                self.object_expected_window > self.object_burst_frames or
+                self.object_other_window > self.object_burst_frames or
+                not 0.01 <= self.object_expected_min_confidence <= \
+                    self.object_expected_median_confidence <= .99 or
+                not 0.01 <= self.object_other_min_confidence <= \
+                    self.object_other_median_confidence <= .99 or
+                not .05 <= self.object_expected_position_tolerance <= .65 or
+                not .05 <= self.object_other_position_tolerance <= .65 or
+                not .05 <= self.object_large_position_tolerance <= 1.0 or
+                not .05 <= self.object_expected_box_iou <= .95 or
+                not .05 <= self.object_other_box_iou <= .95 or
+                self.object_depth_min_pixels < 12 or
+                not .01 <= self.object_depth_min_coverage <= 1.0 or
+                not .01 <= self.object_depth_max_mad <= 1.0 or
+                not .05 <= self.object_depth_min_inlier_ratio <= 1.0):
             raise ValueError("object confirmation/retention parameters are invalid")
         self.object_focus_enabled = bool(rospy.get_param("~object_focus_enabled", False))
         self.object_focus_seconds = float(rospy.get_param("~object_focus_seconds", 15.0))
@@ -447,9 +505,33 @@ class RoomMapper:
         self.battery_stamp = 0.0
         self.battery_source = "waiting for battery telemetry"
         self.object_lock = threading.Lock()
+        expected_policy = {
+            "hits": self.object_expected_hits,
+            "window": self.object_expected_window,
+            "minimum_confidence": self.object_expected_min_confidence,
+            "median_confidence": self.object_expected_median_confidence,
+            "position_tolerance": self.object_expected_position_tolerance,
+            "large_position_tolerance": self.object_large_position_tolerance,
+            "box_iou": self.object_expected_box_iou,
+        }
+        other_policy = {
+            "hits": self.object_other_hits,
+            "window": self.object_other_window,
+            "minimum_confidence": self.object_other_min_confidence,
+            "median_confidence": self.object_other_median_confidence,
+            "position_tolerance": self.object_other_position_tolerance,
+            "large_position_tolerance": min(
+                self.object_large_position_tolerance,
+                max(self.object_other_position_tolerance, .35)),
+            "box_iou": self.object_other_box_iou,
+        }
         self.object_tracker = ObjectTracker(self.object_merge_distance,
                                             self.object_min_observations,
-                                            self.object_track_max_age)
+                                            self.object_track_max_age,
+                                            priority_labels=self.object_priority_classes,
+                                            expected_policy=expected_policy,
+                                            other_policy=other_policy,
+                                            large_labels=self.object_large_classes)
         self.object_detections = []
         self.registered_depth = None
         self.registered_depth_stamp = 0.0
@@ -472,13 +554,16 @@ class RoomMapper:
         self.active_yolo_backend = ""
         self.object_processing = False
         self.object_queue_lock = threading.Lock()
-        self.object_pending_snapshot = None
+        self.object_pending_snapshots = []
         self.object_snapshots_captured = 0
         self.object_snapshots_processed = 0
         self.object_snapshots_replaced = 0
         self.object_endpoint_key = None
         self.object_endpoint_deadline = 0.0
         self.object_endpoint_done = None
+        self.object_endpoint_captured = 0
+        self.object_endpoint_next_capture = 0.0
+        self.object_endpoint_observations = set()
         self.object_focus_id = None
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
@@ -845,8 +930,8 @@ class RoomMapper:
                 time.sleep(min(.05, next_run - now))
                 continue
             with self.object_queue_lock:
-                snapshot = self.object_pending_snapshot
-                self.object_pending_snapshot = None
+                snapshot = (self.object_pending_snapshots.pop(0)
+                            if self.object_pending_snapshots else None)
             if snapshot is None:
                 time.sleep(.05)
                 continue
@@ -934,15 +1019,16 @@ class RoomMapper:
             }
 
     def enqueue_object_snapshot(self, snapshot):
-        """Queue one immutable observation, retaining only the newest pending one."""
+        """Queue bounded immutable observations and discard the oldest overflow."""
         with self.object_queue_lock:
-            if self.object_pending_snapshot is not None:
+            if len(self.object_pending_snapshots) >= self.object_burst_frames:
+                self.object_pending_snapshots.pop(0)
                 self.object_snapshots_replaced += 1
-            self.object_pending_snapshot = snapshot
+            self.object_pending_snapshots.append(snapshot)
             self.object_snapshots_captured += 1
 
     def capture_endpoint_snapshot(self, now):
-        """Capture at most once per ready survey, with a bounded sensor grace."""
+        """Capture a short fresh-frame burst within the bounded endpoint grace."""
         if self.detector is None:
             return True
         key = (getattr(self.survey, "settled_at", 0.0),
@@ -952,16 +1038,38 @@ class RoomMapper:
         if self.object_endpoint_key != key:
             self.object_endpoint_key = key
             self.object_endpoint_deadline = now + self.object_snapshot_grace
+            self.object_endpoint_captured = 0
+            self.object_endpoint_next_capture = now
+            self.object_endpoint_observations = set()
+        if now < self.object_endpoint_next_capture:
+            return False
         snapshot = self.capture_object_snapshot()
         if snapshot is not None:
+            observation = tuple(snapshot["stamps"])
+            if observation in self.object_endpoint_observations:
+                if now >= self.object_endpoint_deadline:
+                    self.object_endpoint_done = key
+                    self.object_status = (
+                        "endpoint burst captured %d/%d distinct frames within %.2f s grace" %
+                        (self.object_endpoint_captured, self.object_burst_frames,
+                         self.object_snapshot_grace))
+                    return True
+                return False
+            self.object_endpoint_observations.add(observation)
+            snapshot["validation_group"] = key
             self.enqueue_object_snapshot(snapshot)
-            self.object_endpoint_done = key
-            self.object_endpoint_deadline = 0.0
-            return True
+            self.object_endpoint_captured += 1
+            self.object_endpoint_next_capture = now + self.object_burst_interval
+            if self.object_endpoint_captured >= self.object_burst_frames:
+                self.object_endpoint_done = key
+                self.object_endpoint_deadline = 0.0
+                return True
         if now >= self.object_endpoint_deadline:
             self.object_endpoint_done = key
-            self.object_status = ("endpoint snapshot skipped after %.2f s acquisition grace" %
-                                  self.object_snapshot_grace)
+            self.object_status = ("endpoint burst captured %d/%d distinct frames within %.2f s grace" %
+                                  (self.object_endpoint_captured,
+                                   self.object_burst_frames,
+                                   self.object_snapshot_grace))
             return True
         return False
 
@@ -981,6 +1089,7 @@ class RoomMapper:
         generation = snapshot["motion_generation"]
         map_generation = snapshot["map_generation"]
         observation_id = snapshot.get("observation_id", stamps[0])
+        validation_group = snapshot.get("validation_group", ("legacy",))
         # Set this under the control lock so legacy focus mode can keep its
         # original inference hold without affecting default nonblocking mode.
         with self.control_lock:
@@ -1003,11 +1112,21 @@ class RoomMapper:
         inference_seconds = time.time() - inference_started
         for detection in detections:
             detection["map_point"] = None
-            sample = sample_box_depth(depth, detection["box"])
+            depth_min_pixels = getattr(self, "object_depth_min_pixels", 24)
+            sample = sample_box_depth(depth, detection["box"],
+                                      min_pixels=depth_min_pixels,
+                                      return_quality=True)
             if sample is not None:
-                distance, u, v = sample
+                distance, u, v, quality = sample
                 detection["depth"] = distance
-                if transform is not None:
+                detection["depth_quality"] = quality
+                quality_ok = (
+                    quality["valid_pixels"] >= depth_min_pixels and
+                    quality["coverage"] >= getattr(self, "object_depth_min_coverage", .15) and
+                    quality["mad"] <= getattr(self, "object_depth_max_mad", .12) and
+                    quality["inlier_ratio"] >= getattr(
+                        self, "object_depth_min_inlier_ratio", .60))
+                if transform is not None and quality_ok:
                     detection["map_point"] = transform_point(backproject(u, v, distance, k),
                                                               *transform)
         # Serialize commit with motion, shutdown, and pose-loss track clearing.
@@ -1051,15 +1170,21 @@ class RoomMapper:
                 return
             mapped = 0
             updated_tracks = []
+            seen_track_ids = []
             for detection in detections:
                 point = detection["map_point"]
                 if point is not None:
                     track = self.object_tracker.update(
                         detection["label"], point[0], point[1],
-                        detection["confidence"], now, observation_id=observation_id)
+                        detection["confidence"], now, observation_id=observation_id,
+                        validation_group=validation_group,
+                        box=detection["box"])
                     if track is not None:
                         updated_tracks.append(track)
+                        seen_track_ids.append(track["id"])
                         mapped += 1
+            self.object_tracker.finish_observation(
+                validation_group, observation_id, seen_track_ids)
             self.object_detections = detections
             confirmed = len(self.object_tracker.snapshot(True, now))
             self.object_status = ("%d detections, %d mapped, %d confirmed; %.2f s inference" %
@@ -1076,11 +1201,11 @@ class RoomMapper:
                     getattr(self, "phase", "") in ("go", "user_go", "goal_reached",
                                                     "goal_stopped", "goal_cancelled")):
                 return
-            minimum = getattr(self.object_tracker, "min_observations", 2)
             candidate = next((track for track in updated_tracks
-                              if track["count"] < minimum), None)
+                              if not track.get("confirmed", False)), None)
             if candidate is None:
                 return
+            minimum = int(self.object_tracker._policy(candidate["label"])["hits"])
             self.object_focus_id = candidate["id"]
             self.object_focus_label = candidate["label"]
             self.object_focus_deadline = now + getattr(self, "object_focus_seconds", 15.0)
@@ -1094,8 +1219,7 @@ class RoomMapper:
 
         target = next((track for track in self.object_tracker.tracks
                        if track["id"] == focus_id), None)
-        minimum = getattr(self.object_tracker, "min_observations", 2)
-        if target is not None and target["count"] >= minimum:
+        if target is not None and target.get("confirmed", False):
             self.finish_object_focus_locked(True, now)
             return
         if not any(track["id"] == focus_id for track in updated_tracks):
@@ -1435,7 +1559,7 @@ class RoomMapper:
         self.map_generation = getattr(self, "map_generation", 0) + 1
         if hasattr(self, "object_queue_lock"):
             with self.object_queue_lock:
-                self.object_pending_snapshot = None
+                self.object_pending_snapshots = []
 
     def send_actual(self, cmd):
         if cmd == self.last_cmd:
@@ -2171,6 +2295,8 @@ class RoomMapper:
                 target = next((item for item in objects if item["id"] == cmd[1]), None)
                 if target is None:
                     self.stop_manual("Object navigation failed: object no longer exists")
+                elif not target.get("confirmed", False):
+                    self.stop_manual("Object navigation blocked: landmark is still pending")
                 else:
                     self.start_navigation(target["x"], target["y"],
                                           target.get("name", target["label"]),
@@ -2227,11 +2353,11 @@ class RoomMapper:
         if hasattr(self, "object_queue_lock"):
             with self.object_queue_lock:
                 queue_line = ("Object snapshots: captured %d, processed %d, replaced %d, "
-                              "pending %s" %
+                              "pending %d" %
                               (self.object_snapshots_captured,
                                self.object_snapshots_processed,
                                self.object_snapshots_replaced,
-                               "yes" if self.object_pending_snapshot is not None else "no"))
+                               len(self.object_pending_snapshots)))
         else:
             queue_line = "Object snapshots: unavailable"
         return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\n%s\nObjects: %s\n%s\n%s\nLast: %s" % (
@@ -2270,7 +2396,7 @@ class RoomMapper:
             self.shutting_down = True
             if hasattr(self, "object_queue_lock"):
                 with self.object_queue_lock:
-                    self.object_pending_snapshot = None
+                    self.object_pending_snapshots = []
             self.timer.shutdown()
             self.last_cmd = None
             try:

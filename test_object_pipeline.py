@@ -53,14 +53,19 @@ class ObjectPipelineTests(unittest.TestCase):
         n.object_detections = []
         n.object_processing = False
         n.object_queue_lock = threading.Lock()
-        n.object_pending_snapshot = None
+        n.object_pending_snapshots = []
         n.object_snapshots_captured = 0
         n.object_snapshots_processed = 0
         n.object_snapshots_replaced = 0
         n.object_snapshot_grace = 1.0
+        n.object_burst_frames = 5
+        n.object_burst_interval = .18
         n.object_endpoint_key = None
         n.object_endpoint_deadline = 0.0
         n.object_endpoint_done = None
+        n.object_endpoint_captured = 0
+        n.object_endpoint_next_capture = 0.0
+        n.object_endpoint_observations = set()
         n.survey = SimpleNamespace(settled_at=98., required_stamp=99.9,
                                    localize=Mock())
         n.object_focus_enabled = False
@@ -80,6 +85,27 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertEqual(tracks[0]['count'], 3)
         np.testing.assert_allclose(n.object_detections[0]['map_point'],
                                    (1., 4.065, .07), atol=1e-6)
+
+    def test_expected_class_validation_confirms_from_same_settled_view(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        for stamp in (99.9, 99.95, 100.):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            snapshot = n.capture_object_snapshot()
+            snapshot['validation_group'] = ('endpoint', 1)
+            n.process_object_snapshot(snapshot)
+        tracks = n.object_tracker.snapshot(True, 100.)
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0]['tier'], 'expected')
+
+    def test_poor_depth_support_cannot_create_validation_track(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        n.registered_depth[:] = 0.
+        n.registered_depth[49:52, 49:52] = 2.
+        n.process_objects()
+        self.assertEqual(n.object_tracker.tracks, [])
+        self.assertIsNone(n.object_detections[0]['map_point'])
 
     def test_auto_mapping_focuses_until_candidate_is_confirmed(self):
         n = self.node
@@ -125,17 +151,29 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertEqual(n.object_tracker.snapshot(True, 100.), [])
         self.assertEqual(n.object_tracker.tracks[0]['count'], 1)
 
-    def test_endpoint_admits_at_most_one_snapshot(self):
+    def test_endpoint_admits_bounded_fresh_frame_burst(self):
         n = self.node
-        self.assertTrue(n.capture_endpoint_snapshot(100.))
-        first = n.object_pending_snapshot
-        self.assertIsNotNone(first)
-        self.assertTrue(n.capture_endpoint_snapshot(100.))
-        self.assertIs(n.object_pending_snapshot, first)
-        self.assertEqual(n.object_snapshots_captured, 1)
+        for index in range(5):
+            stamp = 99.90 + index * .02
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            self.assertEqual(n.capture_endpoint_snapshot(100. + index * .2),
+                             index == 4)
+        self.assertEqual(len(n.object_pending_snapshots), 5)
+        self.assertTrue(all(item['validation_group'] == (98., 99.9)
+                            for item in n.object_pending_snapshots))
+        self.assertEqual(n.object_snapshots_captured, 5)
         self.assertEqual(n.object_snapshots_replaced, 0)
+        self.assertTrue(n.capture_endpoint_snapshot(101.))
+        self.assertEqual(n.object_snapshots_captured, 5)
 
-    def test_slow_inference_keeps_newest_later_endpoint_pending(self):
+    def test_endpoint_does_not_count_repeated_sensor_timestamps(self):
+        n = self.node
+        self.assertFalse(n.capture_endpoint_snapshot(100.))
+        self.assertFalse(n.capture_endpoint_snapshot(100.2))
+        self.assertEqual(n.object_snapshots_captured, 1)
+        self.assertEqual(len(n.object_pending_snapshots), 1)
+
+    def test_slow_inference_queue_keeps_five_newest_snapshots(self):
         n = self.node
         started, release = threading.Event(), threading.Event()
         def slow_detect(frame):
@@ -149,15 +187,18 @@ class ObjectPipelineTests(unittest.TestCase):
         worker.start()
         self.assertTrue(started.wait(1.))
         try:
-            for index, stamp in enumerate((99.95, 100.0), 1):
-                n.survey = SimpleNamespace(settled_at=98. + index,
-                                           required_stamp=stamp)
-                n.camera_stamp = n.registered_depth_stamp = stamp
-                n.t_camera = n.t_registered_depth = stamp
-                self.assertTrue(n.capture_endpoint_snapshot(100.))
-            self.assertEqual(n.object_snapshots_captured, 2)
+            snapshots = []
+            for index in range(6):
+                item = dict(active)
+                item['stamps'] = (99.90 + index * .01,) * 2
+                item['observation_id'] = item['stamps'][0]
+                snapshots.append(item)
+                n.enqueue_object_snapshot(item)
+            self.assertEqual(n.object_snapshots_captured, 6)
             self.assertEqual(n.object_snapshots_replaced, 1)
-            self.assertEqual(n.object_pending_snapshot['stamps'], (100., 100.))
+            self.assertEqual(len(n.object_pending_snapshots), 5)
+            self.assertAlmostEqual(n.object_pending_snapshots[0]['stamps'][0], 99.91)
+            self.assertAlmostEqual(n.object_pending_snapshots[-1]['stamps'][0], 99.95)
         finally:
             release.set()
             worker.join(2.)
@@ -170,15 +211,15 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertFalse(n.capture_endpoint_snapshot(100.9))
         self.assertTrue(n.capture_endpoint_snapshot(101.))
         self.assertEqual(n.capture_object_snapshot.call_count, 3)
-        self.assertIn('skipped after 1.00 s', n.object_status)
+        self.assertIn('captured 0/5 distinct frames within 1.00 s grace', n.object_status)
 
     def test_map_generation_change_purges_and_invalidates_snapshot(self):
         n = self.node
         snapshot = n.capture_object_snapshot()
         n.enqueue_object_snapshot(snapshot)
-        self.assertIsNotNone(n.object_pending_snapshot)
+        self.assertEqual(len(n.object_pending_snapshots), 1)
         n.clear_object_tracks()
-        self.assertIsNone(n.object_pending_snapshot)
+        self.assertEqual(n.object_pending_snapshots, [])
         self.assertEqual(n.map_generation, 1)
         n.process_object_snapshot(snapshot)
         self.assertEqual(n.object_tracker.tracks, [])
@@ -282,14 +323,14 @@ class ObjectPipelineTests(unittest.TestCase):
     def test_shutdown_during_inference_discards_result(self):
         n = self.node
         n.timer, n.send = Mock(), Mock()
-        n.object_pending_snapshot = {'queued': True}
+        n.object_pending_snapshots = [{'queued': True}]
         def infer(frame):
             n.shutdown()
             return self.detections(frame)
         n.detector.detect.side_effect = infer
         n.process_objects()
         n.send.assert_called_once_with(('stop',))
-        self.assertIsNone(n.object_pending_snapshot)
+        self.assertEqual(n.object_pending_snapshots, [])
         self.assertEqual(n.object_tracker.tracks, [])
 
     def test_slow_inference_can_commit_snapshot_while_robot_stays_still(self):
@@ -333,7 +374,8 @@ class ObjectPipelineTests(unittest.TestCase):
         n = self.node
         n.detector.detect.side_effect = lambda frame: self.detections(frame) * 2
         n.process_objects()
-        self.assertEqual(n.object_tracker.tracks[0]['count'], 1)
+        self.assertEqual(len(n.object_tracker.tracks), 2)
+        self.assertEqual([track['count'] for track in n.object_tracker.tracks], [1, 1])
 
 
 if __name__ == '__main__':

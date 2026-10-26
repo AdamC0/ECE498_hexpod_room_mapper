@@ -4,6 +4,20 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
+The stronger autonomous landmark-validation revision is ready for deployment.
+All 198 tests pass on the Windows host and production modules compile. Each
+settled endpoint now acquires at most five distinct synchronized frames within
+the existing one-second grace; inference remains asynchronous and the queue is
+bounded. Expected classroom classes require 3-of-4 strong, geometrically
+consistent observations. Other Objects365 classes remain eligible but require
+4-of-5 with higher confidence and tighter geometry. Poor depth support cannot
+create an observation, two consecutive same-view misses discard a pending
+candidate, pending objects cannot be navigation targets, and confirmed objects
+use only qualifying coordinates and remain fixed until the map/session is
+reset. Robot-native and no-drive live results
+for this revision are recorded below after deployment; do not infer detector
+quality from unit tests.
+
 At the operator's request on 2026-10-26, YOLO post-processing was vectorized so
 the 8,400 Objects365 predictions no longer perform per-row class selection and
 threshold filtering in Python. Box conversion, allowed-class filtering,
@@ -21,13 +35,12 @@ repositioned the robot during later observation, explaining the changed Hector
 pose and additional endpoint captures. This is paused pipeline evidence, not
 labeled-scene detector-quality or commanded physical-motion validation.
 
-Default YOLO admission is one immutable synchronized snapshot per ready
-stationary survey endpoint, not continuous inference while paused. Another
-inference normally requires a new endpoint-ready event. `_object_hz` controls
-worker pacing and the opt-in legacy focus recapture interval; it does not turn
-the RGB stream into a continuous detector. If continuous stationary
-visualization is added later, do not let repeated preview frames inflate
-landmark confirmation counts.
+Default YOLO admission is one bounded burst of up to five distinct immutable
+synchronized snapshots per ready stationary survey endpoint, not continuous
+inference while paused. Another burst normally requires a new endpoint-ready
+event. `_object_hz` controls worker pacing and the opt-in legacy focus recapture
+interval; it does not turn the RGB stream into a continuous detector. Repeated
+sensor timestamps are rejected and cannot inflate landmark confirmation.
 
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in
@@ -206,19 +219,11 @@ deduplication behavior unchanged unless new evidence identifies a regression in
 those areas. None should be described as necessary until robot measurements
 support it.
 
-### Landmark confirmation policy to evaluate
+### Superseded landmark-confirmation proposal
 
-The operator asked whether landmarks should require fewer detections or use a
-confidence-based confirmation rule. Keep the current three-distinct-capture
-default until this is evaluated on labeled classroom scenes. A useful candidate
-is confirmation after two distinct settled captures whose class and projected
-map positions agree, while retaining a per-capture minimum confidence
-threshold. Do not confirm from one high-confidence detection alone: detector
-confidence is not necessarily a calibrated probability, and it does not verify
-consistent map placement. Compare false confirmations and missed landmarks
-against the current three-capture policy before changing the default. The
-current tracker retains the strongest observed confidence rather than
-aggregating a calibrated confidence across views.
+This proposal is retained as history. It was superseded on 2026-10-26 by the
+more conservative two-tier 3-of-4/4-of-5 policy described in the live
+checkpoint and newest decision entry. No class confirms from one detection.
 
 ## Jetson Nano GPU YOLO evaluation plan (implemented; full-stack gate pending)
 
@@ -406,9 +411,9 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   autonomous gait output without changing any sensor or planning threshold.
 - The web UI includes a header battery percentage badge with voltage and
   charging details plus clear stale/unavailable states.
-- The deployed update requires three distinct settled captures for a
-  landmark. Inference finishes asynchronously and does not enter blocking
-  `object_focus` unless the legacy mode is explicitly enabled.
+- Landmark validation uses the bounded, confidence/depth/geometry-gated burst
+  described in the live checkpoint. Inference finishes asynchronously and does
+  not enter blocking `object_focus` unless legacy mode is explicitly enabled.
 - Object capture remains stationary; inference completion may occur during the
   next route because image-time TF and registered depth were snapshotted.
 
@@ -467,7 +472,8 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
 - depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL
-- object confirmation: 3 distinct settled observations
+- object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
+  depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses
 - weak turn tolerance: fault after 3 consecutive bursts below 3 degrees
 - pose jump guard: 0.25 m / 20 degrees
