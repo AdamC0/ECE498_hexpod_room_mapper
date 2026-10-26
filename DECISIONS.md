@@ -1355,3 +1355,17 @@ native-depth stop, manual-drive bypass behavior, or recovery geometry. The
 larger inflation can make narrow passages unreachable; that is preferable to
 planning paths whose nominal clearance lets the legs clip objects. Supervised
 route validation around measured obstacles remains required.
+
+## Allow slower Hector TF only while settled - 2026-10-26
+
+After a fresh map reset, external TF lookup was healthy but Hector's latest
+`map -> jethexa/base_link` transform repeatedly preceded registered depth by
+about 0.6 seconds. The fixed 0.5 s cache limit therefore rejected every depth
+projection and prevented the newly requested promotion behavior.
+
+Chosen: allow up to 1.0 s TF age only when the mapper is stopped and its settle
+interval has elapsed. Moving registered-depth projection retains the strict
+0.5 s maximum. Promotion and joint clearing already require settled,
+synchronized sensor observations, so they cannot use the relaxed path during
+motion. The settled limit is configurable with
+`_depth_map_settled_tf_max_age:=1.0`; values outside 0.5-2.0 s are rejected.

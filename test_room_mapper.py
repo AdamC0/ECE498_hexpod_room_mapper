@@ -889,6 +889,7 @@ class MapperTests(unittest.TestCase):
         n.depth_map_promotion_observations = 6
         n.depth_map_joint_clear_observations = 4
         n.depth_lidar_sync_tolerance = .35
+        n.depth_map_settled_tf_max_age = 1.
         n.depth_map_ttl = 30.
         n.commanded_moving, n.settle_until = False, 90.
         n.lidar_fusion_stamp = 99.1
@@ -912,6 +913,8 @@ class MapperTests(unittest.TestCase):
             [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
             now=100., ttl=30., temporary_clear_confirmations=2,
             promotion_confirmations=6, joint_clear_confirmations=4)
+        n.tf_buffer.lookup.assert_called_once_with(
+            'map', 'camera', 99., max_age=1.)
         n.explorer.update_depth_obstacles.assert_not_called()
         self.assertEqual(n.depth_map_last_cleared, 3)
         self.assertIn('promoted 2', n.depth_map_status)

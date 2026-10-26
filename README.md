@@ -28,7 +28,9 @@ occluded, or unsynchronized observations cannot promote or jointly clear a
 cell. The defaults are configurable with
 `_depth_map_promotion_observations:=6`,
 `_depth_map_joint_clear_observations:=4`, and
-`_depth_lidar_sync_tolerance:=0.35`.
+`_depth_lidar_sync_tolerance:=0.35`. Settled projection accepts Hector TF up to
+`_depth_map_settled_tf_max_age:=1.0` second old; moving projection retains the
+strict 0.5-second limit.
 
 All 211 host and robot-native tests pass, including synthetic LiDAR ray
 projection, promotion, one-sensor rejection, occupied-neighbor veto,

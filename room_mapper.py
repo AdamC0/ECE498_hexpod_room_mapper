@@ -277,6 +277,8 @@ class RoomMapper:
             "~depth_map_joint_clear_observations", 4))
         self.depth_lidar_sync_tolerance = float(rospy.get_param(
             "~depth_lidar_sync_tolerance", 0.35))
+        self.depth_map_settled_tf_max_age = float(rospy.get_param(
+            "~depth_map_settled_tf_max_age", 1.0))
         self.lidar_fusion_decimation = int(rospy.get_param(
             "~lidar_fusion_decimation", 2))
         self.lidar_fusion_min_rays = int(rospy.get_param(
@@ -294,6 +296,8 @@ class RoomMapper:
                 not 2 <= self.depth_map_joint_clear_observations <= 100 or
                 not math.isfinite(self.depth_lidar_sync_tolerance) or
                 not .05 <= self.depth_lidar_sync_tolerance <= 1.0 or
+                not math.isfinite(self.depth_map_settled_tf_max_age) or
+                not .5 <= self.depth_map_settled_tf_max_age <= 2.0 or
                 not 1 <= self.lidar_fusion_decimation <= 32 or
                 not 1 <= self.lidar_fusion_min_rays <= 20 or
                 not math.isfinite(self.depth_map_protected_range) or
@@ -870,9 +874,14 @@ class RoomMapper:
         if not frame or stamp <= 0:
             self.depth_map_status = "registered depth has no valid frame/time"
             return
+        settled = (not getattr(self, 'commanded_moving', False) and
+                   now >= getattr(self, 'settle_until', 0.0))
+        tf_max_age = (getattr(self, 'depth_map_settled_tf_max_age', 1.0)
+                      if settled else .5)
         try:
             with self.object_lock:
-                transform = self.tf_buffer.lookup(self.map_frame, frame, stamp, max_age=.5)
+                transform = self.tf_buffer.lookup(
+                    self.map_frame, frame, stamp, max_age=tf_max_age)
             occupied_cells, observed_free_cells = project_depth_cells(
                 depth, k, transform, cell=self.explorer.cell,
                 decimation=self.depth_map_decimation,
@@ -880,8 +889,6 @@ class RoomMapper:
                 height_min=self.depth_map_height_min, height_max=self.depth_map_height_max,
                 min_points=self.depth_map_min_points,
                 protected_range=self.depth_map_protected_range)
-            settled = (not getattr(self, 'commanded_moving', False) and
-                       now >= getattr(self, 'settle_until', 0.0))
             with self.map_lock:
                 lidar_stamp = getattr(self, 'lidar_fusion_stamp', 0.0)
                 lidar_age = abs(stamp - lidar_stamp)
