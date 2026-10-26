@@ -2,7 +2,18 @@
 
 Date: 2026-10-25
 
-Status: proposed only; no behavior in this plan has been implemented or deployed.
+Status: all three priorities implemented and host-tested in separate commits;
+robot deployment, native tests, no-drive measurements, and physical validation
+remain pending.
+
+Implementation commits:
+
+- `a201e37` - conservative registered-depth free-space clearing.
+- `5d82570` - endpoint snapshot admission and bounded inference queue.
+- `6cd0253` - scale-correct world-overlay rendering.
+
+The combined workstation suite contains 176 passing tests. This is not robot,
+sensor, detector-quality, SLAM-motion, or physically observed evidence.
 
 ## Goals and priority
 

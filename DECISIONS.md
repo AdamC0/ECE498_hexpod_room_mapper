@@ -989,3 +989,37 @@ repository in `~/.room_mapper_logs/`.
 The Windows `start_room_mapper.cmd` wrapper runs that launcher over SSH and
 opens the dashboard only after verification succeeds. It stores no password
 and never resumes autonomy or issues a motion command.
+
+## Implement the approved reliability plan - 2026-10-25
+
+The three approved reliability priorities were implemented as separately
+reviewable commits in their required order. `a201e37` extends registered-depth
+projection with clustered valid-ray free evidence and clears a temporary
+planner cell only after two consecutive clear observations. Current occupied
+evidence vetoes clearing; invalid, occluded, out-of-view, and behind-surface
+geometry cannot clear. The timestamped camera origin defines a protected
+0.60 m near field, and the 30 s TTL remains the fallback. Clearing changes only
+the temporary overlay, never Hector occupancy or native-depth collision state.
+
+`5d82570` splits endpoint snapshot admission from inference. Every eligible
+survey admits at most one immutable synchronized RGB/depth/intrinsics/TF/map-
+generation observation, with at most 1.0 s acquisition grace. A single worker
+runs inference while retaining only the newest pending endpoint snapshot;
+captured, processed, replaced, and pending counts are reported. Map reset,
+SLAM invalidation, shutdown, stale TF/result age, and repeated timestamps retain
+explicit rejection paths. Three observations remain required, and default
+exploration never waits for inference. The opt-in legacy focus workflow keeps
+queued recapture support.
+
+`6cd0253` removes the default scale from world-to-screen conversion and routes
+path, robot, object, requested-goal, and adjusted-goal positions through the
+active viewport transform. Marker glyph sizes remain fixed in pixels.
+
+The host suite increased from 163 to 176 tests and passes through
+`host_test_runner.py`; production modules compile. Synthetic coverage includes
+removed/occluded/invalid depth sequences, protected near-field cells, LiDAR
+preservation, route reopening, a blocked slow detector across later endpoints,
+queue replacement/invalidation, and exact overlay positions at 25/50/100 px/m
+with pan. These results are repository-only. PT remains on the earlier
+163-test build; native tests, target performance, no-drive live evidence, and
+physical validation are pending.

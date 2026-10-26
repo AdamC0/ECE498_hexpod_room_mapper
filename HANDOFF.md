@@ -19,18 +19,15 @@ later route activity the operator intentionally moved both speed sliders to
 the active route and left the mapper `AUTO PAUSED` with command `stop`. Do not
 infer completion of the still-pending beyond-45-degree or obstacle-gate trials.
 
-## Approved next work - implementation not started
+## Reliability update implemented - deployment pending
 
 The operator reported three issues: mapped object markers do not follow map
 zoom, old magenta registered-depth obstacles remain after an object is moved,
 and fast exploration can leave too few settled object captures for confirmed
-landmarks. The reviewed implementation sequence is recorded in
-`RELIABILITY_FIX_PLAN.md` and has been pushed. No code or robot deployment for
-these fixes has started.
+landmarks. All three priorities in `RELIABILITY_FIX_PLAN.md` are implemented in
+separate commits, but none has been deployed to PT:
 
-Implement in this order:
-
-1. Add conservative free-space evidence to the temporary registered-depth
+1. `a201e37` adds conservative free-space evidence to the temporary registered-depth
    planner layer. Clear a magenta cell only after two consecutive valid depth
    observations disprove it. Preserve all cells within at least 0.60 m of the
    registered-depth camera because close geometry may be beneath its useful
@@ -38,17 +35,25 @@ Implement in this order:
    timestamped camera-to-map transform. Invalid, occluded, out-of-view, and
    behind-surface cells continue to rely on the 30 s TTL. Never clear Hector's
    LiDAR occupancy or the native-depth collision state.
-2. Capture one immutable synchronized RGB/depth/intrinsics/TF snapshot as each
+2. `5d82570` captures one immutable synchronized RGB/depth/intrinsics/TF snapshot as each
    stationary survey becomes ready, then process it asynchronously. The
    operator accepted one active inference plus the newest pending snapshot,
    three distinct observations for confirmation, and up to 1.0 s of endpoint
    grace to acquire synchronized data. Exploration must not wait for inference.
-3. Pass the active map scale to object and goal world-to-screen conversions so
+3. `6cd0253` passes the active map scale to every world-to-screen conversion so
    markers retain the correct position through zoom and pan.
 
-Keep each change separately reviewable and follow the plan's host, no-drive,
-native, and supervised validation gates. The near-field depth protection is a
-safety requirement, not an optional tuning suggestion.
+The combined host suite has 176 passing tests. Python compilation also passes.
+This is workstation-only evidence: robot-native tests, target projection cost,
+no-drive depth clearing, endpoint timing, and all physical validation remain
+pending. Deploy first with `_drive:=false`; keep each evidence category
+separate. The near-field depth protection is a safety requirement, not an
+optional tuning suggestion.
+
+At the last live check, PT still ran the prior build with exactly one
+drive-enabled mapper `AUTO PAUSED`, command `stop`, Hector only, a live depth
+planner overlay, and about 12.34 V / 91%. No new reliability code was copied to
+the robot and no motion was commanded during implementation.
 
 The first post-deployment boot had USB enumeration error `-71`, no LiDAR
 device, and no RGB/depth frames. The documented in-place RGB recovery could

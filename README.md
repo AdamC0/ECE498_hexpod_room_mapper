@@ -8,6 +8,33 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
+## Reliability fixes implemented; deployment pending (2026-10-25)
+
+The repository now implements the three approved reliability priorities, but
+the robot still runs the earlier 163-test build. Do not treat these changes as
+deployed or physically validated yet.
+
+- Registered-depth projection now emits occupied and positively observed-free
+  cells. A temporary magenta obstacle clears only after two consecutive valid
+  clear observations. Any current low-surface evidence wins, missing/invalid/
+  occluded views fall back to the 30 s TTL, and cells within 0.60 m of the
+  timestamped camera origin are never ray-cleared. Hector occupancy and native
+  depth collision decisions are untouched. The defaults are configurable with
+  `_depth_map_clear_observations:=2` and
+  `_depth_map_protected_range:=0.60`.
+- Each ready stationary endpoint captures at most one immutable synchronized
+  RGB/depth/intrinsics/TF snapshot before route departure. Acquisition may add
+  at most `_object_snapshot_grace:=1.0` seconds; it never waits for inference.
+  One inference may run while one newest endpoint snapshot remains pending.
+  Status reports captured, processed, replaced, and pending counts.
+- Objects, paths, robot pose, and requested/adjusted goals now share the exact
+  active pan/zoom transform. Marker glyph sizes remain readable in pixels.
+
+All 176 host tests pass, including synthetic removed/occluded/invalid depth,
+slow-detector queueing, map-reset invalidation, and 50%/100%/200% panned map
+views. Robot-native, no-drive, sensor-timing, and supervised motion gates in
+`RUN_SHEET.txt` remain pending.
+
 ## Smooth routing and classroom detection update (deployed; partially motion-validated)
 
 The repository now attacks the observed move-for-seconds/wait-for-about-20-
@@ -321,7 +348,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The updated suite contains 163 tests and does not publish physical movement
+The repository suite contains 176 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -337,7 +364,8 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 163 tests pass natively on PT. The current live stack uses Hector, not
+The previously deployed 163-test suite passes natively on PT; the new 176-test
+suite has not run there yet. The current live stack uses Hector, not
 RTAB-Map, with one drive-enabled `AUTO PAUSED` mapper and command `stop`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary
 depth planner layer, battery telemetry, and the web interface are live. The

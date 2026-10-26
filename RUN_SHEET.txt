@@ -50,7 +50,27 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Current regression count: 163 tests. Tests do not publish robot movement.
+  Repository regression count: 176 host tests.
+  Deployed/native regression count: 163 tests until the pending release gate.
+  Tests do not publish robot movement.
+
+RELIABILITY UPDATE (IMPLEMENTED IN REPOSITORY; NOT DEPLOYED):
+  [x] Pass all 176 tests with host_test_runner.py and compile production Python.
+  [x] Keep depth clearing, snapshot queueing, and map scaling in separate commits.
+  [ ] Deploy with _drive:=false; run all 176 tests natively on PT.
+  [ ] Measure registered-depth projection cost and confirm RGB/depth/LiDAR/pose
+      rates remain healthy with the preferred detector active.
+  [ ] With a matte measured low object beyond 0.60 m, confirm magenta cells add,
+      remain for occluded/invalid views, then clear after two valid farther views.
+  [ ] Confirm cells within 0.60 m of the timestamped camera origin do not
+      ray-clear and still rely on the 30 s TTL. Confirm LiDAR-black cells remain.
+  [ ] Paused/no-drive, cross multiple endpoint-ready events and confirm status
+      counters for captured/processed/replaced/pending snapshots. Route departure
+      may wait at most 1.0 s for synchronized acquisition and never for YOLO.
+  [ ] Verify object/requested/adjusted markers remain attached to map features at
+      50%, 100%, and 200% zoom plus pan/center operations.
+  [ ] Only after the no-drive gates, restart one mapper with _drive:=true
+      _start_paused:=true and perform supervised motion validation.
 
 SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   [x] Before copying models, keep models/yolov5n.onnx in place for rollback.
