@@ -530,7 +530,7 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 ## Important current calibration
 
 - `body_radius = 0.30 m`
-- planner margin `0.03 m`; total mapped clearance `0.33 m`
+- planner leg-clearance margin `0.13 m`; total mapped clearance `0.43 m`
 - `waypoint_tolerance = 0.12 m`; thinned waypoint spacing about `0.20 m`
 - `lidar_stop = body_radius + 0.15 = 0.45 m`
 - `depth_stop = 0.60 m`

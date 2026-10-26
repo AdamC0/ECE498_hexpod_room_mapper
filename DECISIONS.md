@@ -1341,3 +1341,17 @@ continues to block planning and remains eligible only for joint depth/LiDAR
 clearing. Cap its promotion counter at the configured threshold. A regression
 now sends an additional occupied frame after promotion and requires that the
 cell remain absent from the magenta mask while staying occupied/black.
+
+## Add ten centimetres of planner leg clearance - 2026-10-26
+
+The operator observed the leg envelope clipping nearby objects even though
+the robot's centerline motion was correct. Chosen: retain the measured 0.30 m
+circular body/leg footprint and increase only the planner's outside margin
+from 0.03 m to 0.13 m. Planned paths and clicked/object goals therefore require
+0.43 m center-to-mapped-obstacle clearance by default.
+
+This does not change Hector, the 0.45 m LiDAR emergency envelope, the 0.60 m
+native-depth stop, manual-drive bypass behavior, or recovery geometry. The
+larger inflation can make narrow passages unreachable; that is preferable to
+planning paths whose nominal clearance lets the legs clip objects. Supervised
+route validation around measured obstacles remains required.

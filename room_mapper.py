@@ -443,7 +443,7 @@ class RoomMapper:
 
         self.explorer = ExploreMap(
             robot_radius=self.body_radius,
-            margin=float(rospy.get_param("~map_margin", 0.03)),
+            margin=float(rospy.get_param("~map_margin", 0.13)),
             occupied_threshold=int(rospy.get_param("~occupied_threshold", 75)),
             frontier_goal_distance=float(rospy.get_param(
                 "~frontier_goal_distance", 1.50)),

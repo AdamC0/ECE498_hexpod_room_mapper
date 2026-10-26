@@ -18,7 +18,7 @@ UNKNOWN, FREE, OCCUPIED = 0, 1, 2
 
 
 class ExploreMap:
-    def __init__(self, size_m=25.6, cell=0.10, robot_radius=0.30, margin=0.03,
+    def __init__(self, size_m=25.6, cell=0.10, robot_radius=0.30, margin=0.13,
                  occupied_threshold=75, frontier_goal_distance=1.50,
                  frontier_max_distance=3.0):
         self.size_m = float(size_m)

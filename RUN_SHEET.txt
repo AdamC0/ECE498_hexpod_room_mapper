@@ -195,7 +195,7 @@ HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
 
 CURRENT SAFETY CALIBRATION:
   Robot footprint radius:             0.30 m
-  Planner margin / total clearance:   0.03 m / 0.33 m
+  Planner margin / total clearance:   0.13 m / 0.43 m
   LiDAR emergency stop:               0.45 m
   Depth stop:                          0.60 m
   Ignore depth at or below:            0.00 m
@@ -216,7 +216,7 @@ WEB CONTROLS:
   W/S: forward/reverse. A/D: strafe. Q/E or left/right arrows: rotate.
   Manual commands require direct sight; release/blur/dead-man stops motion.
   Translation/rotation sliders: independent 50-200% gait scaling; 100% default.
-  Map click: routes through known, 0.33 m-clear space.
+  Map click: routes through known, 0.43 m-clear space.
   Map wall colors: black = LiDAR; magenta = temporary depth-only obstacle.
   Map wheel/+/-: zoom. Drag: pan. CENTER: reset zoom and follow robot.
   Objects tab: navigate, rename, or remove a landmark.

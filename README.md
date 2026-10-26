@@ -207,8 +207,8 @@ medium, charging, stale, and unavailable telemetry.
 - Active paths use continuous translation and turning without timed observation
   stops. Heading progress is checked during turns. Recovery retains bounded
   motion; stationary surveys at route endpoints require three scans over two seconds.
-- Routing models the robot as a 0.30 m radius circle. The planner adds a 0.03 m
-  margin, so mapped obstacles require 0.33 m clearance.
+- Routing models the robot as a 0.30 m radius circle. The planner adds a 0.13 m
+  leg-clearance margin, so mapped obstacles require 0.43 m center clearance.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
   tolerance to reduce corner cutting.
 - A blocked autonomous route may rotate toward an open side or reverse when

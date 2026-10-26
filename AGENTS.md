@@ -42,7 +42,7 @@ one mapper process exists.
   `visual_slam.launch` is non-production and must remain
   drive-disabled if used for research comparison. Never run both SLAM stacks.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
-  0.03 m margin.
+  0.13 m leg-clearance margin.
 - `room_mapper.py` handles continuous path gait commands, bounded recovery,
   sensor safety, omnidirectional manual control, clicked routes, and autonomous
   object focus.
