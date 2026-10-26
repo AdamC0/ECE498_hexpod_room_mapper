@@ -38,6 +38,7 @@ class ExploreMap:
         self.state = np.full((self.n, self.n), UNKNOWN, np.uint8)
         self.slam_state = self.state.copy()
         self.depth_obstacles = {}
+        self.depth_obstacle_clear_counts = {}
         self.depth_obstacle_ttl = 30.0
         self._depth_overlay_active = False
         self.have_map = False
@@ -48,6 +49,7 @@ class ExploreMap:
         self.state.fill(UNKNOWN)
         self.slam_state.fill(UNKNOWN)
         self.depth_obstacles.clear()
+        self.depth_obstacle_clear_counts.clear()
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -85,24 +87,56 @@ class ExploreMap:
         self._apply_depth_obstacles(rebase=False)
         self.have_map = True
 
-    def update_depth_obstacles(self, world_cells, now=None, ttl=30.0):
+    def update_depth_obstacles(self, world_cells, now=None, ttl=30.0,
+                               observed_free_cells=None, clear_confirmations=2):
         """Overlay temporary depth obstacles without changing the LiDAR map.
 
         Cells are expressed in the same world-aligned grid as ``self.cell``.
         Expiration prevents moved objects and stale camera data from becoming
-        permanent walls.
+        permanent walls. ``observed_free_cells`` contains only cells positively
+        traversed by valid depth rays. A live overlay cell is removed after the
+        configured number of consecutive clear observations.
         """
         now = time.time() if now is None else float(now)
         ttl = float(ttl)
+        clear_confirmations = int(clear_confirmations)
         if not math.isfinite(now) or not math.isfinite(ttl) or ttl <= 0:
             raise ValueError('Depth obstacle time and TTL must be valid')
+        if not 1 <= clear_confirmations <= 10:
+            raise ValueError('Depth clear confirmations must be between 1 and 10')
         self.depth_obstacle_ttl = ttl
+        occupied = set()
         for world_r, world_c in world_cells:
             r = int(world_r + self.half / self.cell)
             c = int(world_c + self.half / self.cell)
             if self.inside(r, c):
+                occupied.add((r, c))
                 self.depth_obstacles[(r, c)] = now
+                self.depth_obstacle_clear_counts.pop((r, c), None)
+
+        observed_free = set()
+        for world_r, world_c in observed_free_cells or ():
+            r = int(world_r + self.half / self.cell)
+            c = int(world_c + self.half / self.cell)
+            if self.inside(r, c) and (r, c) not in occupied:
+                observed_free.add((r, c))
+
+        # A missing, invalid, occluded, or out-of-view update cannot extend a
+        # clear streak. Only consecutive positive observations may delete.
+        for cell in list(self.depth_obstacle_clear_counts):
+            if cell not in observed_free or cell not in self.depth_obstacles:
+                del self.depth_obstacle_clear_counts[cell]
+        cleared = 0
+        for cell in observed_free.intersection(self.depth_obstacles):
+            count = self.depth_obstacle_clear_counts.get(cell, 0) + 1
+            if count >= clear_confirmations:
+                del self.depth_obstacles[cell]
+                self.depth_obstacle_clear_counts.pop(cell, None)
+                cleared += 1
+            else:
+                self.depth_obstacle_clear_counts[cell] = count
         self._apply_depth_obstacles(now)
+        return cleared
 
     def _apply_depth_obstacles(self, now=None, rebase=True):
         if not self._depth_overlay_active and not self.depth_obstacles:
@@ -111,6 +145,9 @@ class ExploreMap:
         cutoff = now - self.depth_obstacle_ttl
         self.depth_obstacles = {cell: stamp for cell, stamp in self.depth_obstacles.items()
                                 if stamp >= cutoff}
+        self.depth_obstacle_clear_counts = {
+            cell: count for cell, count in self.depth_obstacle_clear_counts.items()
+            if cell in self.depth_obstacles}
         if rebase:
             self.state = self.slam_state.copy()
         for r, c in self.depth_obstacles:

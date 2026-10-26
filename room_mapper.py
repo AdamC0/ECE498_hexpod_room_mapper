@@ -22,7 +22,7 @@ from sensor_msgs.msg import BatteryState, CameraInfo, Image, LaserScan
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, Trigger
 
-from depth_mapping import project_obstacle_cells
+from depth_mapping import project_depth_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TransformCache, YoloOnnxDetector, backproject,
@@ -240,12 +240,20 @@ class RoomMapper:
         self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
         self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
         self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 30.0))
+        self.depth_map_clear_observations = int(rospy.get_param(
+            "~depth_map_clear_observations", 2))
+        self.depth_map_protected_range = float(rospy.get_param(
+            "~depth_map_protected_range", self.depth_stop))
         if (not math.isfinite(self.depth_map_hz) or self.depth_map_hz <= 0 or
                 not 1 <= self.depth_map_decimation <= 32 or
                 not 0 < self.depth_map_range_min < self.depth_map_range_max or
                 not 0 <= self.depth_map_height_min < self.depth_map_height_max or
                 self.depth_map_min_points < 1 or
-                not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0):
+                not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0 or
+                not 1 <= self.depth_map_clear_observations <= 10 or
+                not math.isfinite(self.depth_map_protected_range) or
+                not self.depth_stop <= self.depth_map_protected_range <=
+                    self.depth_map_range_max):
             raise ValueError("depth map parameters are outside safe bounds")
         self.object_hz = float(rospy.get_param("~object_hz", 2.0))
         self.rgb_processing_hz = float(rospy.get_param("~rgb_processing_hz", 10.0))
@@ -415,6 +423,7 @@ class RoomMapper:
         self.t_registered_depth = 0.0
         self.t_depth_map = 0.0
         self.depth_map_status = "waiting for registered depth"
+        self.depth_map_last_cleared = 0
         self.depth_map_frame = ""
         self.depth_map_k = None
         self.depth_map_info_size = None
@@ -661,19 +670,27 @@ class RoomMapper:
         try:
             with self.object_lock:
                 transform = self.tf_buffer.lookup(self.map_frame, frame, stamp, max_age=.5)
-            cells = project_obstacle_cells(
+            occupied_cells, observed_free_cells = project_depth_cells(
                 depth, k, transform, cell=self.explorer.cell,
                 decimation=self.depth_map_decimation,
                 range_min=self.depth_map_range_min, range_max=self.depth_map_range_max,
                 height_min=self.depth_map_height_min, height_max=self.depth_map_height_max,
-                min_points=self.depth_map_min_points)
+                min_points=self.depth_map_min_points,
+                protected_range=self.depth_map_protected_range)
             with self.map_lock:
-                self.explorer.update_depth_obstacles(cells, now, self.depth_map_ttl)
+                cleared = self.explorer.update_depth_obstacles(
+                    occupied_cells, now, self.depth_map_ttl,
+                    observed_free_cells=observed_free_cells,
+                    clear_confirmations=self.depth_map_clear_observations)
                 count = self.explorer.depth_obstacle_count(now)
             self.t_depth_map = now
             self.depth_map_frame = frame
-            self.depth_map_status = "%d temporary obstacle cells (%.0f s hold)" % (
-                count, self.depth_map_ttl)
+            self.depth_map_last_cleared = cleared
+            self.depth_map_status = ("%d temporary obstacle cells (%.0f s hold); "
+                                     "cleared %d this update" %
+                                     (count, self.depth_map_ttl, cleared))
+            if cleared:
+                rospy.loginfo("Registered depth cleared %d disproven planner cells", cleared)
         except (KeyError, ValueError) as exc:
             self.depth_map_status = "projection unavailable: %s" % exc
             rospy.logwarn_throttle(5, "Depth obstacle map unavailable: %s", exc)

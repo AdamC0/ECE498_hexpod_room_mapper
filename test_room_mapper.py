@@ -781,6 +781,42 @@ class MapperTests(unittest.TestCase):
         n.call_reset_service.assert_called_once_with()
         n.clear_object_tracks.assert_called_once_with()
 
+    def test_depth_map_reports_and_forwards_confirmed_clears(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.data_lock, n.object_lock, n.map_lock = (threading.Lock(),
+                                                  threading.Lock(),
+                                                  threading.Lock())
+        n.depth_map_k = (100., 0., 0., 0., 100., 0., 0., 0., 1.)
+        n.depth_map_info_size = (1, 1)
+        n.depth_map_decimation = 4
+        n.depth_map_range_min, n.depth_map_range_max = .15, 2.
+        n.depth_map_height_min, n.depth_map_height_max = .025, .5
+        n.depth_map_min_points = 3
+        n.depth_map_protected_range = .6
+        n.depth_map_clear_observations = 2
+        n.depth_map_ttl = 30.
+        n.map_frame = 'map'
+        n.tf_buffer = Mock()
+        n.tf_buffer.lookup.return_value = ((0., 0., .2), (0., 0., 0., 1.))
+        n.explorer = Mock(cell=.1)
+        n.explorer.update_depth_obstacles.return_value = 3
+        n.explorer.depth_obstacle_count.return_value = 5
+        n.message_time = Mock(return_value=99.)
+        msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
+        with patch('room_mapper.time.time', return_value=100.), \
+                patch('room_mapper.project_depth_cells',
+                      return_value=([(0, 1)], [(0, 2)])) as project, \
+                patch('room_mapper.rospy.loginfo') as loginfo:
+            n.update_depth_obstacle_map(np.ones((1, 1), np.float32), msg)
+        project.assert_called_once()
+        n.explorer.update_depth_obstacles.assert_called_once_with(
+            [(0, 1)], 100., 30., observed_free_cells=[(0, 2)],
+            clear_confirmations=2)
+        self.assertEqual(n.depth_map_last_cleared, 3)
+        self.assertIn('5 temporary obstacle cells', n.depth_map_status)
+        self.assertIn('cleared 3 this update', n.depth_map_status)
+        loginfo.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()
