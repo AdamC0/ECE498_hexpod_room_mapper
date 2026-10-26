@@ -254,19 +254,19 @@ class MapPresentationTests(unittest.TestCase):
             expected = to_screen(point[0], point[1], center[0], center[1], scale)
 
             path_call = next(call for call in polylines.call_args_list
-                             if call.args[3] == (230, 140, 40))
-            self.assertEqual(tuple(path_call.args[1][0][0]), expected)
+                             if call[0][3] == (230, 140, 40))
+            self.assertEqual(tuple(path_call[0][1][0][0]), expected)
             body_call = next(call for call in circle.call_args_list
-                             if call.args[3] == (30, 210, 230))
+                             if call[0][3] == (30, 210, 230))
             object_call = next(call for call in circle.call_args_list
-                               if call.args[3] == (0, 165, 255))
-            self.assertEqual(body_call.args[1], expected)
-            self.assertEqual(object_call.args[1], expected)
-            self.assertEqual(object_call.args[2], 6)
-            self.assertEqual(marker.call_args_list[0].args[1], expected)
-            self.assertEqual(marker.call_args_list[0].args[4], 16)
-            self.assertEqual(marker.call_args_list[1].args[1], expected)
-            self.assertEqual(marker.call_args_list[1].args[4], 18)
+                               if call[0][3] == (0, 165, 255))
+            self.assertEqual(body_call[0][1], expected)
+            self.assertEqual(object_call[0][1], expected)
+            self.assertEqual(object_call[0][2], 6)
+            self.assertEqual(marker.call_args_list[0][0][1], expected)
+            self.assertEqual(marker.call_args_list[0][0][4], 16)
+            self.assertEqual(marker.call_args_list[1][0][1], expected)
+            self.assertEqual(marker.call_args_list[1][0][4], 18)
 
 
 class HectorLaunchTests(unittest.TestCase):
