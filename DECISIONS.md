@@ -1001,14 +1001,22 @@ Hector log even though the launcher had not started the nonexistent process.
 
 Chosen: define node liveness by the real XML-RPC reply text rather than the
 unreliable command status, and require both a responsive Hector node and a
-fresh pose message before preserving its map. If pose output is absent, stop the owning
-`hex_map.launch` (or a manually started Hector node), wait for it to exit, and
-start the checked-in production stack with a fresh map. Apply the same recovery
-to an orphaned `hex_map.launch` whose Hector node is gone. Shutdown first uses
-SIGINT, then explicitly stops only the four nodes owned by `hex_map.launch` and
-escalates only the exact matching launch process if it remains wedged. This
-recovery issues no gait command; the mapper still starts drive-enabled,
-stopped, and `AUTO PAUSED`.
+fresh pose message before preserving its map. If pose output is absent, stop
+the owning `hex_map.launch` (or a manually started Hector node), wait for it to
+exit, and start the checked-in production stack with a fresh map. Apply the
+same recovery to an orphaned `hex_map.launch` whose Hector node is gone.
+Shutdown first uses SIGINT, then explicitly stops only the four nodes owned by
+`hex_map.launch` and escalates only the exact matching launch process if it
+remains wedged. This recovery issues no gait command; the mapper still starts
+drive-enabled, stopped, and `AUTO PAUSED`.
+
+The fix was deployed and exercised against a deliberately started Hector node
+that responded to ping but produced no pose because it lacked the production
+TF stack. The launcher removed it, started `hex_map.launch`, received live
+`/slam_out_pose` and `/map`, and started exactly one mapper `AUTO PAUSED` with
+command `stop`. Re-running the launcher preserved the single stopped mapper.
+All 180 tests pass on the host and natively on PT. This was startup and sensor
+evidence only; no motion command or physical movement occurred.
 
 ## Implement the approved reliability plan - 2026-10-25
 

@@ -1,8 +1,17 @@
 # JetHexa Room Mapper - Agent Handoff
 
-Updated: 2026-10-25
+Updated: 2026-10-26
 
 ## Live checkpoint
+
+Deployed 2026-10-26: the production launcher now detects ROS node liveness
+from an actual XML-RPC reply rather than `rosnode ping`'s unreliable exit code.
+An injected, pingable Hector instance without pose output was removed; the
+launcher then started the production Hector stack, received `/slam_out_pose`
+and `/map`, and started exactly one mapper `AUTO PAUSED` with command `stop`.
+A second launcher invocation preserved that single stopped mapper. All 180
+tests pass natively on PT and on the Windows host. No motion command or
+physical movement occurred during this validation.
 
 Deployed 2026-10-25: PT now runs the rear-swept-clearance revision through
 `5dca682`. All 180 tests pass on the Windows host and natively on PT. Exactly one
