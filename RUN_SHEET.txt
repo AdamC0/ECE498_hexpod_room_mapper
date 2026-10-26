@@ -53,15 +53,18 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 211 host tests.
-  Deployed/native regression count: 204 tests passed on PT.
+  Deployed/native regression count: 211 tests passed on PT.
   Tests do not publish robot movement.
 
-DYNAMIC FUSED OCCUPANCY (REPOSITORY ONLY; DEPLOYMENT GATES PENDING):
+DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
   [x] Pass all 211 host tests and compile production Python.
   [x] Keep raw Hector /map, scan integration, pose, and update policy unchanged.
-  [ ] Pass all 211 tests natively on PT with the mapper stopped.
-  [ ] Start drive-disabled and paused; verify synchronized LiDAR fusion status,
+  [x] Pass all 211 tests natively on PT with the mapper stopped.
+  [x] Start drive-disabled and paused; verify synchronized LiDAR fusion status,
       sensor rates, CPU load, TF health, and no gait command.
+      Live: 25 cells promoted and survived the old TTL; zero Hector cells were
+      suppressed. Scan/pose were 12.17/12.33 Hz and RGB/native/registered depth
+      were 30.0/29.67/29.5 Hz. Temperature was about 32 C. No fusion/TF errors.
   [ ] Place a matte low object 0.60-2.0 m away. Confirm magenta becomes black
       only after six settled paired observations and survives the 30 s TTL.
   [ ] Remove it and confirm four joint depth/LiDAR free observations turn the

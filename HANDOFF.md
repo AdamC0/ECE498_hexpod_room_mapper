@@ -2,7 +2,7 @@
 
 Updated: 2026-10-26
 
-## Dynamic fused occupancy implemented - deployment pending
+## Dynamic fused occupancy deployed - measured-object validation pending
 
 The repository now promotes a temporary depth obstacle to session-persistent
 black occupancy after six settled depth observations paired with fresh LiDAR.
@@ -19,11 +19,18 @@ and disappears on `CLEAR MAP` or mapper restart. Unconfirmed depth cells retain
 their existing two-observation depth clear and 30 s TTL behavior. The web map
 uses magenta for unconfirmed depth and black for persistent fused occupancy.
 
-All 211 host tests pass and production modules compile. Synthetic tests cover
-LiDAR occupied/free projection, promotion, single-sensor rejection, occupied
-neighbor veto, joint clearing, immediate reappearance, reset, and rendering.
-Robot-native, paused live fusion, measured moved-object, and all motion checks
-remain pending. Do not represent this revision as deployed yet.
+All 211 host and robot-native tests pass and production modules compile.
+Synthetic tests cover LiDAR occupied/free projection, promotion, single-sensor
+rejection, occupied-neighbor veto, joint clearing, immediate reappearance,
+reset, and rendering. Commit `878267e` was deployed with matching runtime
+hashes. A drive-disabled paused run promoted 25 current-scene cells; the same
+25 remained beyond the former 30 s TTL, and no Hector-black cell was
+suppressed. Rates were 12.17 Hz scan, 12.33 Hz pose, 30.0 Hz RGB, 29.67 Hz
+native depth, and 29.5 Hz registered depth; temperature was about 32 C. No
+fusion/TF errors were found. One drive-enabled TensorRT mapper was restored
+`AUTO PAUSED` with command `stop`, preserving Hector's map. No movement was
+commanded. A measured moved-object promotion/clear/reappearance trial and all
+physical-motion checks remain pending.
 
 ## Live checkpoint
 

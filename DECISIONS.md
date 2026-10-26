@@ -1312,3 +1312,16 @@ no-return rays, promotion, TTL survival, single-sensor rejection, neighbor
 veto, joint clearing, raw-Hector preservation, immediate reappearance, reset,
 and map colors. Robot-native, paused live fusion, measured moved-object, and
 physical-motion validation remain pending.
+
+The exact commit `878267e` then passed all 211 tests natively on PT. A paused
+drive-disabled full-stack run promoted 25 current-scene depth cells; those 25
+remained after the previous 30 s TTL, and zero Hector cells were suppressed.
+Six-second samples measured scan/pose at 12.17/12.33 Hz and RGB/native-depth/
+registered-depth at 30.0/29.67/29.5 Hz. Available memory was 741 MB and the
+sampled temperature was about 32 C. Logs contained no fusion-projection, TF,
+thread, or traceback errors. Runtime hashes matched the workstation files.
+One drive-enabled TensorRT mapper was restored `AUTO PAUSED` with command
+`stop`, preserving Hector's live map. No gait command or physical movement
+occurred. Promotion/clearing against a deliberately placed and removed object,
+raw-map comparison during that trial, and physical route behavior remain
+pending.

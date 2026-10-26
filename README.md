@@ -8,7 +8,7 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
-## Dynamic depth/LiDAR occupancy fusion (repository revision)
+## Dynamic depth/LiDAR occupancy fusion (deployed; measured-object gate pending)
 
 The planner and web map now maintain a session-persistent fused occupancy
 layer downstream of Hector. Six settled registered-depth observations promote
@@ -30,10 +30,15 @@ cell. The defaults are configurable with
 `_depth_map_joint_clear_observations:=4`, and
 `_depth_lidar_sync_tolerance:=0.35`.
 
-All 211 host tests pass, including synthetic LiDAR ray projection, promotion,
-one-sensor rejection, occupied-neighbor veto, moved-object clearing,
-reappearance, reset, and map-color cases. Robot-native, paused live fusion,
-measured-object, and physical-motion validation remain pending.
+All 211 host and robot-native tests pass, including synthetic LiDAR ray
+projection, promotion, one-sensor rejection, occupied-neighbor veto,
+moved-object clearing, reappearance, reset, and map-color cases. In a paused
+drive-disabled live check, 25 cells promoted and remained after the old 30 s
+TTL while no Hector cells were suppressed. Sensor rates remained about 12 Hz
+for scan/pose and 30 Hz for RGB/native/registered depth. The exact revision is
+now running drive-enabled but `AUTO PAUSED` with command `stop`; no motion was
+commanded. Measured-object clearing and physical-motion validation remain
+pending.
 
 ## Reliability and object-validation behavior (2026-10-26)
 

@@ -35,8 +35,11 @@ one mapper process exists.
 ## Current architecture
 
 - YDLIDAR G4 raw `/scan` feeds Hector, which owns pose and the persistent map.
-- Registered depth adds short-lived low-obstacle cells to the planner copy; it
-  never feeds Hector. `visual_slam.launch` is non-production and must remain
+- Registered depth adds low-obstacle cells to a fused planner copy. Six
+  settled observations paired with LiDAR promote a temporary cell for the
+  mapping session; four joint free observations can remove it or suppress a
+  stale Hector-black cell downstream. It never writes into Hector.
+  `visual_slam.launch` is non-production and must remain
   drive-disabled if used for research comparison. Never run both SLAM stacks.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
   0.03 m margin.
@@ -57,7 +60,8 @@ one mapper process exists.
 - Depth stop: 0.60 m.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
-- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL.
+- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height; unconfirmed cells
+  have a 30 s TTL, while promoted cells persist for the mapping session.
 - Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
   or no previous valid result still faults.
 - Map pose jump: 0.25 m / 20 degrees.
