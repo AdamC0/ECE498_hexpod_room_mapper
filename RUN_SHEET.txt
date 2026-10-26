@@ -52,7 +52,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 214 host tests.
+  Repository regression count: 215 host tests.
   Deployed/native regression count: 214 tests passed on PT.
   Tests do not publish robot movement.
 
@@ -66,7 +66,7 @@ DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
       suppressed. Scan/pose were 12.17/12.33 Hz and RGB/native/registered depth
       were 30.0/29.67/29.5 Hz. Temperature was about 32 C. No fusion/TF errors.
   [ ] Place a matte low object 0.60-2.0 m away. Confirm magenta becomes black
-      only after three settled paired observations and survives the 30 s TTL.
+      only after three settled paired observations and survives temporary TTL.
   [ ] Remove it and confirm four joint depth/LiDAR free observations turn the
       fused cell white. Repeat for a movable LiDAR-height object previously
       black in Hector, while verifying raw /map is byte-for-byte unchanged.
@@ -111,7 +111,7 @@ RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
   [ ] With a matte measured low object beyond 0.60 m, confirm magenta cells add,
       remain for occluded/invalid views, then clear after two valid farther views.
   [ ] Confirm cells within 0.60 m of the timestamped camera origin do not
-      ray-clear and still rely on the 30 s TTL. Confirm LiDAR-black cells remain.
+      ray-clear and still rely on the 5 s TTL. Confirm LiDAR-black cells remain.
   [ ] Paused/no-drive, cross multiple endpoint-ready events and confirm status
       counters for captured/processed/replaced/pending snapshots. Route departure
       may wait at most 1.0 s for synchronized acquisition and never for YOLO.
@@ -207,7 +207,7 @@ HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   [x] Operator confirmed correct movement and substantially improved map.
   [ ] Place a measured low object in view and confirm the depth planner count
       rises at the correct map location without marking clear floor occupied.
-  [ ] Move the object and confirm its planner cells clear after the 30 s TTL.
+  [ ] Move the object and confirm unconfirmed planner cells clear within 5 s.
 
   RTAB-Map is non-production after its first motion test failed the expected
   LiDAR map/robot-position behavior. Never run it alongside Hector and keep it
@@ -222,7 +222,7 @@ CURRENT SAFETY CALIBRATION:
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
   Depth planner range / height:        0.15-2.0 m / 0.025-0.50 m
-  Depth planner obstacle lifetime:     30 s
+  Unconfirmed depth obstacle lifetime: 5 s
   Manual dead-man:                     0.55 s
 
   Close depth is no longer excluded; invalid/dropout regions remain stop inputs.

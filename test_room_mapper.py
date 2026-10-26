@@ -456,6 +456,18 @@ class MapperTests(unittest.TestCase):
         self.assertGreater(n.manual_until, time.time())
         n.send.assert_not_called()
 
+    def test_resume_rejects_invalid_slam_map_and_requests_clear(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.paused, n.map_trusted = True, False
+        n.manual_cmd, n.manual_until = None, 0.
+        n.phase, n.web_msg = 'go', ''
+        n.web_pending = [('resume',)]
+        n.send = Mock()
+        n.handle_web()
+        self.assertTrue(n.paused)
+        n.send.assert_called_once_with(('stop',))
+        self.assertIn('CLEAR MAP', n.web_msg)
+
     def test_web_speed_command_updates_both_limits(self):
         n = RoomMapper.__new__(RoomMapper)
         n.web_pending = [('speed', 125., 80.)]
@@ -842,6 +854,7 @@ class MapperTests(unittest.TestCase):
         n.explorer.reset.assert_called_once_with()
         self.assertEqual(n.path, [])
         self.assertEqual(n.phase, 'survey')
+        self.assertEqual(n.state_reason, 'fresh map survey')
         self.assertEqual(n.web_map_center, (1., 2.))
         self.assertTrue(n.map_trusted)
         self.assertEqual(n.motion_generation, 8)

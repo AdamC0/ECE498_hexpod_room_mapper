@@ -43,7 +43,7 @@ class ExploreMap:
         self.persistent_depth_obstacles = set()
         self.suppressed_slam_obstacles = set()
         self.joint_clear_counts = {}
-        self.depth_obstacle_ttl = 30.0
+        self.depth_obstacle_ttl = 5.0
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -95,7 +95,7 @@ class ExploreMap:
         self._apply_depth_obstacles(rebase=False)
         self.have_map = True
 
-    def update_depth_obstacles(self, world_cells, now=None, ttl=30.0,
+    def update_depth_obstacles(self, world_cells, now=None, ttl=5.0,
                                observed_free_cells=None, clear_confirmations=2):
         """Overlay temporary depth obstacles without changing the LiDAR map.
 
@@ -148,9 +148,9 @@ class ExploreMap:
 
     def update_fused_observations(self, depth_occupied_cells,
                                   depth_free_cells, lidar_occupied_cells,
-                                  lidar_free_cells, now=None, ttl=30.0,
+                                  lidar_free_cells, now=None, ttl=5.0,
                                   temporary_clear_confirmations=2,
-                                  promotion_confirmations=6,
+                                  promotion_confirmations=3,
                                   joint_clear_confirmations=4):
         """Fuse depth occupancy with live LiDAR without altering ``slam_state``.
 

@@ -61,7 +61,7 @@ one mapper process exists.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
 - Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height; unconfirmed cells
-  have a 30 s TTL, while promoted cells persist for the mapping session.
+  have a 5 s TTL, while promoted cells persist for the mapping session.
 - Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
   or no previous valid result still faults.
 - Map pose jump: 0.25 m / 20 degrees.
@@ -121,6 +121,11 @@ physical motion as pending supervised tests. The battery was subsequently
 recharged; the latest value is recorded below.
 
 ## Latest validation
+
+The stale-magenta recovery candidate has 215 passing host tests. It lowers only
+the unconfirmed-cell TTL to 5 s and makes `RESUME` reject an invalid SLAM map
+with an explicit `CLEAR MAP` instruction. Robot-native validation and deployment
+are pending; the robot is paused on a freshly cleared Hector frame.
 
 The low-leg follow-up was deployed on 2026-10-26 at commit `f13f296`. All 214
 tests pass on the Windows host and natively on PT. The promotion threshold is

@@ -1408,3 +1408,28 @@ SLAM stack. A paused live check reported 3 temporary and 28 persistent depth
 cells with no fusion/TF errors in the current log. No movement command or
 physical movement occurred during deployment; the table/chair-leg route still
 requires direct supervised validation.
+
+## Bound stale magenta occupancy and expose invalid-map recovery - 2026-10-26
+
+The robot stopped indefinitely in the reported scene. Live status showed the
+immediate cause was a latched Hector pose-jump fault, not obstacle proximity;
+the map-frame shift also made depth cells appear inconsistent with the camera.
+Logs additionally showed repeated active-route invalidation while changing
+magenta observations caused rapid stop/replan loops.
+
+Chosen: retain immediate planner blocking and the two-positive-view clear rule,
+but reduce the fallback lifetime of unconfirmed depth cells to 5 seconds.
+Repeated current hits continue refreshing a real obstacle, while a transient
+or motion-misregistered hit can no longer block planning for half a minute.
+Three settled LiDAR-paired hits still promote occupancy to session-persistent
+black, so the shorter temporary lifetime does not weaken confirmed obstacles.
+
+The 0.25 m / 20 degree SLAM jump latch remains unchanged. `RESUME` now refuses
+an invalid map, keeps the robot stopped, and explicitly directs the operator to
+`CLEAR MAP`; clearing sets the displayed reason to a fresh-map survey. This
+avoids the previous misleading `Resumed` message while navigation remained
+correctly faulted.
+
+All 215 host tests pass, including the invalid-map resume regression and the
+new default-expiry boundary. Robot-native validation, deployment, and directly
+supervised motion remain pending.

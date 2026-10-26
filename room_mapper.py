@@ -268,7 +268,7 @@ class RoomMapper:
         self.depth_map_height_min = float(rospy.get_param("~depth_map_height_min", 0.025))
         self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
         self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
-        self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 30.0))
+        self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 5.0))
         self.depth_map_clear_observations = int(rospy.get_param(
             "~depth_map_clear_observations", 2))
         self.depth_map_promotion_observations = int(rospy.get_param(
@@ -2406,6 +2406,7 @@ class RoomMapper:
         self.object_focus_next_capture = 0.0
         self.phase, self.phase_start = "survey", now
         self.state, self.state_start = SEARCH, now
+        self.state_reason = "fresh map survey"
         self.web_map_center = pose[:2] if pose else None
         self.clear_object_tracks()
         self.web_msg = "Map and object landmarks cleared; PAUSED for a fresh survey"
@@ -2419,9 +2420,15 @@ class RoomMapper:
                 self.cancel_navigation()
             elif cmd[0] == "resume":
                 self.manual_cmd, self.manual_until = None, 0.0
-                if self.phase in ("goal_reached", "goal_stopped", "goal_cancelled"):
-                    self.phase = "plan"
-                self.paused, self.web_msg = False, "Resumed"
+                if not getattr(self, 'map_trusted', True):
+                    self.paused = True
+                    self.send(("stop",))
+                    self.web_msg = ("Cannot resume: SLAM map is invalid; use CLEAR MAP "
+                                    "to start a fresh frame")
+                else:
+                    if self.phase in ("goal_reached", "goal_stopped", "goal_cancelled"):
+                        self.phase = "plan"
+                    self.paused, self.web_msg = False, "Resumed"
             elif cmd[0] == "clear_map":
                 self.reset_mapping()
             elif cmd[0] == "manual" and len(cmd) == 2:

@@ -4,6 +4,12 @@ Updated: 2026-10-26
 
 ## Dynamic fused occupancy deployed - measured-object validation pending
 
+The latest stale-magenta candidate lowers unconfirmed depth occupancy from a
+30 s to a 5 s fallback lifetime; two positive clear views still remove it
+sooner, while confirmed black occupancy remains session-persistent. `RESUME`
+now refuses a latched invalid SLAM frame and directs the operator to `CLEAR MAP`.
+All 215 host tests pass; robot-native validation and deployment are pending.
+
 Follow-up live diagnosis found that promoted cells were being re-added to the
 temporary render mask on their next depth hit, so magenta visually covered the
 correct persistent black state. Commit `732ac55` removes persistent cells from
@@ -40,7 +46,7 @@ data cannot promote or jointly clear cells.
 Raw Hector `/map`, localization, scan integration, and update parameters are
 unchanged. Hector-black clearing is maintained only as a fused-map suppression
 and disappears on `CLEAR MAP` or mapper restart. Unconfirmed depth cells retain
-their existing two-observation depth clear and 30 s TTL behavior. The web map
+their two-observation depth clear behavior and use a 5 s TTL. The web map
 uses magenta for unconfirmed depth and black for persistent fused occupancy.
 
 The current 214-test suite passes on both the host and robot.
@@ -197,7 +203,7 @@ separate commits and are now deployed to PT:
    registered-depth camera because close geometry may be beneath its useful
    view, even while the robot faces the cell. Determine distance from the
    timestamped camera-to-map transform. Invalid, occluded, out-of-view, and
-   behind-surface cells continue to rely on the 30 s TTL. Never clear Hector's
+   behind-surface cells continue to rely on the 5 s TTL. Never clear Hector's
    LiDAR occupancy or the native-depth collision state.
 2. `5d82570` captures one immutable synchronized RGB/depth/intrinsics/TF snapshot as each
    stationary survey becomes ready, then process it asynchronously. The
@@ -561,7 +567,7 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - close-depth exclusion is disabled (`0.00 m`)
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
-- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 30 s TTL
+- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 5 s temporary TTL
 - object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
   depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses

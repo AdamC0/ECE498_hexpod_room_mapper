@@ -110,8 +110,8 @@ class DepthOverlayTests(unittest.TestCase):
         self.assertEqual(explorer.state[center], FREE)
         explorer.update_depth_obstacles([(0, 0)], now=10.)
         self.assertEqual(explorer.state[center], OCCUPIED)
-        self.assertEqual(explorer.depth_obstacle_count(now=39.9), 1)
-        self.assertEqual(explorer.depth_obstacle_count(now=40.1), 0)
+        self.assertEqual(explorer.depth_obstacle_count(now=14.9), 1)
+        self.assertEqual(explorer.depth_obstacle_count(now=15.1), 0)
         self.assertEqual(explorer.state[center], FREE)
 
     def test_depth_mask_identifies_only_live_overlay_cells(self):
@@ -120,8 +120,8 @@ class DepthOverlayTests(unittest.TestCase):
         explorer.update_from_slam(raw.ravel(), 40, 40, .05, -1., -1.)
         explorer.update_depth_obstacles([(0, 0)], now=10.)
         center = explorer.to_cell(.05, .05)
-        self.assertTrue(explorer.depth_obstacle_mask(now=39.9)[center])
-        self.assertFalse(explorer.depth_obstacle_mask(now=40.1).any())
+        self.assertTrue(explorer.depth_obstacle_mask(now=14.9)[center])
+        self.assertFalse(explorer.depth_obstacle_mask(now=15.1).any())
 
     def test_new_slam_update_keeps_live_depth_overlay(self):
         explorer = ExploreMap(size_m=2., cell=.1)

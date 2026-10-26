@@ -35,7 +35,8 @@ strict 0.5-second limit.
 Active routes continuously recheck the next 0.80 m against this fused planner
 map, stopping and replanning if new low-obstacle occupancy blocks the path.
 
-All 214 host and robot-native tests pass, including synthetic LiDAR ray
+All 215 host tests pass; the previous 214-test revision passed robot-native.
+Coverage includes synthetic LiDAR ray
 projection, promotion, one-sensor rejection, occupied-neighbor veto,
 moved-object clearing, reappearance, reset, and map-color cases. In a paused
 drive-disabled live check, 25 cells promoted and remained after the old 30 s
@@ -55,7 +56,7 @@ deployed or physically validated yet.
 - Registered-depth projection now emits occupied and positively observed-free
   cells. A temporary magenta obstacle clears only after two consecutive valid
   clear observations. Any current low-surface evidence wins, missing/invalid/
-  occluded views fall back to the 30 s TTL, and cells within 0.60 m of the
+  occluded views fall back to the 5 s TTL, and cells within 0.60 m of the
   timestamped camera origin are never ray-cleared. Hector occupancy and native
   depth collision decisions are untouched. The defaults are configurable with
   `_depth_map_clear_observations:=2` and
@@ -172,8 +173,8 @@ reachable frontiers and known-free space directly.
 Hector is again authoritative for robot pose and the persistent LiDAR room map.
 Registered depth is projected through timestamped TF into a temporary planner
 layer for geometry 0.025-0.50 m above the floor and 0.15-2.0 m from the camera.
-Depth cells expire after 30 s, retaining low obstacles through the camera's
-close-range blind area without making moved objects permanent walls.
+Unconfirmed depth cells expire after 5 s, retaining low obstacles through brief
+camera gaps without making transient observations long-lived walls.
 The depth layer does not feed Hector and therefore cannot move the robot marker
 or distort the LiDAR map.
 
@@ -283,7 +284,7 @@ cells and also projects YOLO detections into the map.
   reported `upper-only` mode; floor-bump detection is then unavailable.
 - The registered-depth planner layer is independent of that per-row floor
   calibration. It rejects points below 0.025 m as floor and above 0.50 m and
-  keeps only clustered cells. Unconfirmed observations use the existing 30 s
+  keeps only clustered cells. Unconfirmed observations use a 5 s
   hold and render magenta. Repeated settled observations with synchronized
   LiDAR promote them to session-persistent black cells. Only repeated positive
   free rays from both sensors can clear persistent fused occupancy. This can
@@ -450,7 +451,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 214 tests and does not publish physical movement
+The repository suite contains 215 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
