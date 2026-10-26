@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from depth_mapping import project_depth_cells, project_obstacle_cells, quaternion_matrix
+from depth_mapping import (_clustered_cells, project_depth_cells,
+                           project_obstacle_cells, quaternion_matrix)
 from map_explore import ExploreMap, FREE, OCCUPIED
 
 
@@ -25,6 +26,12 @@ class DepthProjectionTests(unittest.TestCase):
 
     def test_identity_quaternion_matrix(self):
         np.testing.assert_allclose(quaternion_matrix((0., 0., 0., 1.)), np.eye(3))
+
+    def test_packed_clustering_counts_distinct_rays_with_signed_cells(self):
+        cells = _clustered_cells(
+            [-2, -2, -2, -2, 1], [-3, -3, -3, -3, 4], 3,
+            ray_ids=[0, 0, 1, 2, 3])
+        self.assertEqual(cells, {(-2, -3)})
 
     def test_clustered_above_floor_points_become_one_cell(self):
         depth = np.full((8, 8), .20, np.float32)

@@ -35,16 +35,24 @@ def _clustered_cells(rows, cols, min_points, ray_ids=None):
         return set()
     rows = np.asarray(rows, dtype=np.int64)
     cols = np.asarray(cols, dtype=np.int64)
-    if ray_ids is None:
-        bins = np.column_stack((rows, cols))
-    else:
+    min_row, min_col = int(rows.min()), int(cols.min())
+    width = int(cols.max()) - min_col + 1
+    # Packing the two grid indices into one integer is substantially faster on
+    # PT's older NumPy than np.unique(..., axis=0), while decoding to the exact
+    # same signed row/column pairs.  The projected map spans only a few dozen
+    # cells, so the int64 key has ample headroom.
+    cell_keys = (rows - min_row) * width + (cols - min_col)
+    if ray_ids is not None:
         # Ray marching can place several samples from one ray in the same cell.
         # Count that as one observation so a single pixel cannot clear a cell.
-        bins = np.column_stack((rows, cols, np.asarray(ray_ids, dtype=np.int64)))
-        bins = np.unique(bins, axis=0)[:, :2]
-    unique, counts = np.unique(bins, axis=0, return_counts=True)
-    return {tuple(int(value) for value in item)
-            for item, count in zip(unique, counts) if count >= int(min_points)}
+        ray_ids = np.asarray(ray_ids, dtype=np.int64)
+        ray_stride = int(ray_ids.max()) + 1
+        ray_cell_keys = cell_keys * ray_stride + ray_ids
+        cell_keys = np.unique(ray_cell_keys) // ray_stride
+    unique, counts = np.unique(cell_keys, return_counts=True)
+    accepted = unique[counts >= int(min_points)]
+    return {(int(key // width) + min_row, int(key % width) + min_col)
+            for key in accepted}
 
 
 def project_depth_cells(depth, k, transform, cell=0.10, decimation=4,
