@@ -2,10 +2,9 @@
 
 Date: 2026-10-25
 
-Status: all three priorities are deployed in a drive-disabled mapper. All 177
-tests pass on the host and natively on PT, and no-drive sensor/performance checks
-pass. Measured-object, multi-endpoint, and supervised-motion validation remain
-pending.
+Status: all three priorities are deployed. The later rear-sweep recovery update
+brings the host suite to 180 passing tests; its robot-native gate is pending.
+Measured-object, multi-endpoint, and supervised-motion validation remain pending.
 
 Implementation commits:
 
@@ -15,8 +14,9 @@ Implementation commits:
 - `bd3aee0` - target-side packed clustering optimization after the first
   no-drive run exposed excessive projection load.
 
-The combined suite contains 177 passing tests on both the workstation and PT.
-This is not detector-quality, SLAM-motion, or physically observed evidence.
+The reliability deployment's 177-test suite passed on the workstation and PT.
+The current 180-test repository suite passes on the workstation and awaits its
+native gate. This is not detector-quality, SLAM-motion, or physical evidence.
 
 ## No-drive deployment gate - 2026-10-25
 

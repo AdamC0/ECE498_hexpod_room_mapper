@@ -38,6 +38,25 @@ except ImportError:
 SEARCH, HOLD, AVOID, FAULT, DONE = "SEARCH", "HOLD", "AVOID", "FAULT", "DONE"
 
 
+def swept_circle_clearance(points, direction, radius):
+    """Return travel before 2-D points enter a moving circular envelope."""
+    points = np.asarray(points, dtype=np.float64)
+    if points.size == 0:
+        return float("inf")
+    if points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all():
+        raise ValueError("Swept-clearance points must be finite x/y pairs")
+    if not math.isfinite(direction) or not math.isfinite(radius) or radius <= 0:
+        raise ValueError("Swept-clearance direction/radius is invalid")
+    forward = points[:, 0] * math.cos(direction) + points[:, 1] * math.sin(direction)
+    lateral = -points[:, 0] * math.sin(direction) + points[:, 1] * math.cos(direction)
+    intersects = (forward > 0) & (np.abs(lateral) < radius)
+    if not intersects.any():
+        return float("inf")
+    lateral = lateral[intersects]
+    boundary = np.sqrt(np.maximum(0.0, radius * radius - lateral * lateral))
+    return float(np.min(forward[intersects] - boundary))
+
+
 class RoomMapper:
     def __init__(self):
         rospy.init_node("room_mapper", anonymous=True, log_level=rospy.INFO)
@@ -171,11 +190,17 @@ class RoomMapper:
         self.look_seconds = float(rospy.get_param("~look_seconds", 12.0))
         self.hold_seconds = float(rospy.get_param("~hold_seconds", 2.0))
         self.avoid_seconds = float(rospy.get_param("~avoid_seconds", 2.0))
-        self.reverse_seconds = float(rospy.get_param("~reverse_seconds", 1.0))
+        # Reverse only one full gait cycle, then stop and reassess. Required
+        # rear clearance is computed from the swept LiDAR envelope below.
+        self.reverse_seconds = float(rospy.get_param("~reverse_seconds", 0.5))
+        self.reverse_clearance_margin = float(rospy.get_param(
+            "~reverse_clearance_margin", 0.02))
         self.reverse_after_turn_seconds = float(rospy.get_param(
             "~reverse_after_turn_seconds", 2.5))
         if (not math.isfinite(self.reverse_seconds) or
                 not 0.3 <= self.reverse_seconds <= 3.0 or
+                not math.isfinite(self.reverse_clearance_margin) or
+                not 0.0 <= self.reverse_clearance_margin <= 0.20 or
                 not math.isfinite(self.reverse_after_turn_seconds) or
                 not 1.0 <= self.reverse_after_turn_seconds <= 10.0):
             raise ValueError("reverse timing is outside the supported range")
@@ -1073,6 +1098,13 @@ class RoomMapper:
             "back": sector(np.abs(angles) >= math.radians(150)),
             "near_front": sector(np.abs(angles) <= math.radians(60)),
             "near_back": sector(np.abs(angles) >= math.radians(120)),
+            # Distance the robot center may translate backward before any
+            # return enters the same 0.45 m envelope used by the emergency
+            # LiDAR stop. Unlike a broad radial sector minimum, this correctly
+            # handles objects near the rear corners of the circular footprint.
+            "rear_path_clearance": swept_circle_clearance(
+                np.column_stack((x, y)), math.pi,
+                getattr(self, "lidar_stop", self.body_radius + 0.15)),
             "nearest": sector(np.ones(len(angles), dtype=bool)),
             "heads": heads, "free": free,
         }
@@ -1802,10 +1834,15 @@ class RoomMapper:
                             depth_near < rotation_clearance)
         rear = min(lidar.get("back", float("inf")),
                    lidar.get("near_back", float("inf")))
-        rear_clearance = self.lidar_stop + 0.20
+        rear_path_clearance = lidar.get(
+            "rear_path_clearance", rear - self.lidar_stop)
+        speed_scale = getattr(self, "translation_speed_percent", 100.0) / 100.0
+        reverse_travel = (getattr(self, "stride", 40.0) / 1000.0 * speed_scale *
+                          self.reverse_seconds / max(getattr(self, "step_time", 0.5), 0.1))
+        rear_clearance = reverse_travel + getattr(self, "reverse_clearance_margin", 0.02)
         # Rearward travel has LiDAR coverage but no depth-camera view of the
         # floor. Never reverse in response to a possible bump/dropout alarm.
-        rear_clear = (rear >= rear_clearance and
+        rear_clear = (rear_path_clearance >= rear_clearance and
                       self.depth_source not in ("floor-bump", "depth dropout / too close"))
         reason = ("depth %.2f m (%s)" % (depth_near, self.depth_source)
                   if depth_blocked else "LiDAR fallback %.2f m" % front)
@@ -1821,9 +1858,9 @@ class RoomMapper:
                                      "obstacle remains", now, pose):
                 pass
             elif now - self.state_start > self.hold_seconds:
-                self.web_msg = ("Blocked safely: rotation footprint occupied and rear "
-                                "clearance %.2f m is below %.2f m" %
-                                (rear, rear_clearance))
+                self.web_msg = ("Blocked safely: rotation footprint occupied and rear swept "
+                                "travel %.2f m is below %.2f m required" %
+                                (rear_path_clearance, rear_clearance))
             return
         if self.state == AVOID:
             if self.recovery_action == "back":

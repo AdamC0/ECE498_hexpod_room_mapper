@@ -2,6 +2,7 @@
 
 No ROS node is started and no motion commands are published.
 """
+import math
 import threading
 import time
 import unittest
@@ -10,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import numpy as np
-from room_mapper import RoomMapper, SEARCH, HOLD, AVOID, FAULT
+from room_mapper import RoomMapper, SEARCH, HOLD, AVOID, FAULT, swept_circle_clearance
 from std_srvs.srv import Empty
 
 
@@ -58,8 +59,11 @@ class MapperTests(unittest.TestCase):
         n.path, n.view, n.paused = [(1, 0)], {}, False
         n.manual_cmd, n.manual_until, n.manual_deadman = None, 0., .55
         n.depth_stop, n.lidar_stop, n.body_radius = 0.60, 0.40, 0.25
-        n.reverse_seconds = 1.0
+        n.reverse_seconds = .5
+        n.reverse_clearance_margin = .02
         n.reverse_after_turn_seconds = 2.5
+        n.stride, n.step_time = 40., .5
+        n.translation_speed_percent = n.rotation_speed_percent = 100.
         n.slam_stale, n.map_trusted = 2.5, True
         n.drive, n.pose_guard_start = False, 0.
         n.commanded_moving, n.last_cmd = False, None
@@ -366,6 +370,43 @@ class MapperTests(unittest.TestCase):
         n.control_step()
         self.assertEqual(n.recovery_action, 'spin')
         n.send.assert_called_with(('spin', n.avoid_dir), interrupt_object=True)
+
+    def test_rear_corner_uses_swept_circle_instead_of_radial_cutoff(self):
+        corner_angle = math.radians(-150.)
+        corner = np.array([[.596 * math.cos(corner_angle),
+                            .596 * math.sin(corner_angle)]])
+        direct = np.array([[-.55, 0.]])
+        self.assertGreater(swept_circle_clearance(corner, math.pi, .45), .17)
+        self.assertAlmostEqual(swept_circle_clearance(direct, math.pi, .45), .10)
+
+    def test_speed_scaled_rear_sweep_allows_corner_but_not_short_path(self):
+        n = self.controller()
+        n.translation_speed_percent = 200.
+        n.depth[20:55, 20:80] = .55
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = .17
+        n.control_step()
+        self.assertEqual(n.recovery_action, 'back')
+
+        n = self.controller()
+        n.translation_speed_percent = 200.
+        n.depth[20:55, 20:80] = .55
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = .09
+        n.control_step()
+        self.assertEqual(n.state, HOLD)
+        self.assertIsNone(n.recovery_action)
+
+    def test_depth_dropout_still_prohibits_swept_clear_reverse(self):
+        n = self.controller()
+        n.floor_zero_frac = 0.
+        n.depth[55:95, 20:80] = 0.
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = 2.
+        n.control_step()
+        self.assertEqual(n.depth_source, 'depth dropout / too close')
+        self.assertEqual(n.state, HOLD)
+        self.assertIsNone(n.recovery_action)
 
     def test_manual_deadman_stops_expired_command(self):
         n = self.controller()

@@ -254,9 +254,11 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
   left/center/right depth clearance.
 - Recovery follows the selected route's turn direction when that side remains
   clear, then falls back to combined depth/LiDAR side clearance.
-- A front obstacle that persists through 2.5 seconds of turning now escalates
-  to a one-second reverse escape when rear LiDAR clearance is at least 0.65 m.
-  Floor-bump and depth-dropout alarms still prohibit autonomous reversing.
+- A front obstacle that persists through 2.5 seconds of turning escalates to a
+  0.5 s reverse escape only when its speed-scaled travel plus 0.02 m fits in a
+  rear LiDAR swept-circle path retaining the 0.45 m emergency envelope. This
+  replaces the over-conservative fixed 0.65 m radial-sector cutoff. Floor-bump
+  and depth-dropout alarms still prohibit autonomous reversing.
 - Map JPEG responses carry their rendered center/scale; browser clicks return
   that snapshot, preventing pose drift between render and click conversion.
 - Removed the click-to-navigate confirmation dialog.

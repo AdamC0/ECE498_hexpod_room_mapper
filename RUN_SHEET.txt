@@ -50,7 +50,7 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 177 host tests.
+  Repository regression count: 180 host tests.
   Deployed/native regression count: 177 tests.
   Tests do not publish robot movement.
 
@@ -173,8 +173,11 @@ AUTONOMOUS OBJECT HANDLING:
 
 BLOCKED ROUTES:
   The controller first stops. It rotates toward an open side when the 0.30 m
-  swept footprint is clear. If rotation is constrained and rear LiDAR has at
-  least lidar_stop + 0.20 m, it reverses briefly. It holds if neither is safe.
+  swept footprint is clear. If rotation is constrained, it uses exact rear
+  swept-circle clearance rather than a broad radial sector. A 0.5 s reverse is
+  allowed only when its speed-scaled travel plus 0.02 m remains outside the
+  0.45 m LiDAR envelope. It holds if neither route is safe; floor-bump and
+  depth-dropout alarms always prohibit autonomous reverse.
 
 FAULTS:
   insufficient valid depth in upper band:

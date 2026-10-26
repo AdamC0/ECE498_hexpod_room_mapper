@@ -140,8 +140,11 @@ medium, charging, stale, and unavailable telemetry.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
   tolerance to reduce corner cutting.
 - A blocked autonomous route may rotate toward an open side or reverse when
-  rotation is constrained and rear LiDAR clearance is available. This applies
-  to mapping and clicked/object routes. Cancel Route stops and pauses a route.
+  rotation is constrained and rear LiDAR swept-path clearance is available.
+  Reverse recovery lasts one 0.5 s gait cycle, then reassesses; required travel
+  clearance scales with translation speed while retaining the 0.45 m circular
+  LiDAR envelope and a 0.02 m margin. This applies to mapping and clicked/object
+  routes. Cancel Route stops and pauses a route.
 - If the front remains blocked after 2.5 seconds of turning, corner recovery
   escalates to the same guarded reverse escape when rear LiDAR is clear.
 - One weak turn no longer invalidates SLAM. Three consecutive turn bursts with
@@ -348,7 +351,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 177 tests and does not publish physical movement
+The repository suite contains 180 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
@@ -364,7 +367,9 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 177 tests pass both through the host shim and natively on PT. The current
+All 180 tests pass through the host shim. The currently deployed 177-test
+revision passes natively on PT; the rear-sweep update still requires its native
+deployment gate. The current
 live stack uses Hector, not RTAB-Map, with one drive-disabled `AUTO PAUSED`
 mapper and command `stop`. RGB,
 native and registered depth, LiDAR, `/slam_out_pose`, `/map`, the temporary

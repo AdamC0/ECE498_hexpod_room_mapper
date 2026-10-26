@@ -1054,3 +1054,25 @@ near-field retention, multiple endpoint captures while inference is busy,
 visual landmark alignment, detector quality, and all motion remain pending.
 Exactly one drive-disabled mapper was left `AUTO PAUSED`; no gait command or
 physical motion occurred.
+
+## Replace fixed rear cutoff with a swept path - 2026-10-25
+
+The operator reported that the 0.65 m rear-clearance requirement left the robot
+stuck despite visible room. Autonomy was paused before diagnosis. The live scan
+placed the limiting return about 0.60 m away at -150 degrees: only 0.516 m
+rearward but 0.298 m lateral. The central rear corridor measured 0.688-0.771 m.
+The old minimum over the entire 120-240 degree sector therefore treated a
+corner return as though it were directly behind the robot.
+
+Chosen: calculate how far the robot center can move backward before any LiDAR
+point enters the circular 0.45 m emergency envelope. Require that swept-path
+distance to exceed the predicted reverse travel at the active translation
+speed plus 0.02 m. Shorten recovery from 1.0 s to one complete 0.5 s gait cycle,
+then stop and reassess. A directly rear obstacle still blocks; a corner point
+outside the swept circle no longer creates a false fixed-distance veto.
+Floor-bump and depth-dropout alarms continue to prohibit autonomous reverse.
+
+Three regressions cover corner geometry, speed-scaled path admission versus a
+short direct path, and retention of the depth-dropout prohibition. All 180 host
+tests pass and production Python compiles. Robot-native and physical validation
+remain pending; the robot stayed paused and no motion was commanded.

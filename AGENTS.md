@@ -67,9 +67,10 @@ one mapper process exists.
   and two-miss limit.
 - YOLO inference does not hold active path motion. Stationary surveys can
   focus on detections before planning the next route.
-- Persistent front blockage escalates from turning to a one-second reverse
-  after 2.5 s only with at least 0.65 m rear LiDAR clearance; floor-bump and
-  depth-dropout alarms prohibit reverse.
+- Persistent front blockage escalates from turning to a 0.5 s reverse after
+  2.5 s only when the speed-scaled reverse distance plus 0.02 m fits inside a
+  LiDAR swept-circle path that retains the 0.45 m emergency envelope.
+  Floor-bump and depth-dropout alarms prohibit reverse.
 - Active paths use continuous translation and turning with live heading-progress
   checks; YOLO does not interrupt paths. Recovery retains bounded bursts.
 - Do not report a map completion/known percentage. The configured occupancy
