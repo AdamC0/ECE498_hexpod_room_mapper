@@ -972,3 +972,20 @@ manual collision protection (manual movement bypasses autonomous obstacle
 gates), low/reflective/transparent obstacles, or the upper-only depth system as
 fully safe. The existing 163-test host and robot-native results are unchanged;
 no code changed and tests were not rerun for this documentation-only update.
+
+## Add an idempotent production startup launcher - 2026-10-25
+
+Routine startup previously required several manual SSH commands and made it
+easy to omit LiDAR recovery, use the wrong ROS workspace, or accidentally
+start a duplicate mapper. The production `start_room_mapper.sh` launcher now
+checks the ROS master, restores `/scan` when necessary, refuses to coexist
+with visual SLAM, starts Hector only when absent, and starts exactly one mapper
+with drive enabled but autonomy paused. It verifies the web status contains
+`AUTO PAUSED` and command `stop`; failed mapper verification stops the mapper
+it just launched. A live Hector map is preserved by default, while
+`--fresh-map` is the explicit reset path. Runtime logs stay outside the
+repository in `~/.room_mapper_logs/`.
+
+The Windows `start_room_mapper.cmd` wrapper runs that launcher over SSH and
+opens the dashboard only after verification succeeds. It stores no password
+and never resumes autonomy or issues a motion command.

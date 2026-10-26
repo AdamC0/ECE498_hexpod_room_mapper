@@ -31,3 +31,6 @@ backup_local_pre_robot_sync_*/
 models/*.onnx
 models/*.pt
 models/*.engine
+
+# Runtime logs from the standalone launcher (when redirected locally).
+.room_mapper_logs/

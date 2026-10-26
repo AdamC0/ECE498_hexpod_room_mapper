@@ -328,6 +328,20 @@ The deployed suite passes all 145 tests on the robot.
 
 ## Restart procedure
 
+Use the checked-in production launcher for routine startup:
+
+```bash
+cd ~/room_mapper
+./start_room_mapper.sh
+```
+
+It verifies ROS, restores LiDAR scanning when needed, rejects visual SLAM,
+starts Hector only when absent, and starts exactly one drive-enabled mapper in
+`AUTO PAUSED` with command `stop`. A live Hector map is preserved by default;
+`--fresh-map` explicitly resets it. Logs are written outside the repository at
+`~/.room_mapper_logs/`. The Windows `start_room_mapper.cmd` wrapper invokes
+this script over SSH and opens the dashboard after successful verification.
+
 After a full robot reboot, camera/depth normally return automatically. LiDAR
 may advertise `/scan` without emitting messages; call:
 

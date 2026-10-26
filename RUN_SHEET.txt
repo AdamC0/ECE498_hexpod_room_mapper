@@ -21,6 +21,17 @@ STARTUP AFTER A ROBOT REBOOT:
   Battery source is /voltage (std_msgs/Float32), 9.8 V empty / 12.6 V full.
   Audible battery_low_alarm launch includes are disabled in both controller
   variants; retain /voltage and the website's visual low-battery warning.
+
+  Preferred automated startup on the robot:
+  cd ~/room_mapper && ./start_room_mapper.sh
+
+  From Windows, double-click start_room_mapper.cmd. It invokes the same robot
+  script over SSH and opens the web UI after startup verifies AUTO PAUSED and
+  command stop. Neither launcher resumes autonomy or commands motion. The
+  robot script preserves a live Hector map by default; use --fresh-map only
+  when deliberately discarding it. Logs are in ~/.room_mapper_logs/.
+
+  Manual troubleshooting sequence:
   source /opt/ros/melodic/setup.bash
   rosservice call /start_scan '{}'
   roslaunch ~/room_mapper/hex_map.launch

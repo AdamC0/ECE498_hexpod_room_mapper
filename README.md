@@ -207,6 +207,26 @@ fields, so `success=False` alone is not evidence of failure.
 The robot is `hiwonder@192.168.137.223`; the project is
 `/home/hiwonder/room_mapper`. Do not store the SSH password in this project.
 
+For the normal production startup, run the launcher on the robot:
+
+```bash
+cd ~/room_mapper
+./start_room_mapper.sh
+```
+
+It restores `/scan` when necessary, starts Hector if it is not already live,
+and starts exactly one drive-enabled mapper with autonomy paused. If Hector is
+already live, its current map is preserved; pass `--fresh-map` to deliberately
+reset it. The launcher refuses to run alongside visual SLAM, verifies
+`AUTO PAUSED` and command `stop`, and writes logs to
+`~/.room_mapper_logs/`. It never resumes autonomous motion.
+
+From a Windows checkout, double-click `start_room_mapper.cmd` to run the same
+launcher over SSH and open the web dashboard. SSH may prompt for the robot
+password if key authentication is not configured; the password is not stored.
+
+The equivalent manual sequence is retained below for troubleshooting.
+
 ```bash
 # LiDAR (after reboot, /start_scan may also be required)
 roslaunch jethexa_peripherals lidar.launch publish_tf:=false
