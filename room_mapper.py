@@ -272,7 +272,7 @@ class RoomMapper:
         self.depth_map_clear_observations = int(rospy.get_param(
             "~depth_map_clear_observations", 2))
         self.depth_map_promotion_observations = int(rospy.get_param(
-            "~depth_map_promotion_observations", 6))
+            "~depth_map_promotion_observations", 3))
         self.depth_map_joint_clear_observations = int(rospy.get_param(
             "~depth_map_joint_clear_observations", 4))
         self.depth_lidar_sync_tolerance = float(rospy.get_param(
@@ -904,7 +904,7 @@ class RoomMapper:
                         now=now, ttl=self.depth_map_ttl,
                         temporary_clear_confirmations=self.depth_map_clear_observations,
                         promotion_confirmations=getattr(
-                            self, 'depth_map_promotion_observations', 6),
+                            self, 'depth_map_promotion_observations', 3),
                         joint_clear_confirmations=getattr(
                             self, 'depth_map_joint_clear_observations', 4))
                     cleared = (result['cleared_temporary'] +
@@ -2291,6 +2291,15 @@ class RoomMapper:
         elif self.phase in ("go", "user_go"):
             cmd = self.follow_path(pose)
             route_clearance = self.command_lidar_clearance(lidar, cmd)
+            if hasattr(self, 'map_lock'):
+                with self.map_lock:
+                    path_check = getattr(self.explorer, 'path_prefix_clear', None)
+                    fused_path_clear = (path_check(pose, self.path)
+                                        if callable(path_check) else True)
+            else:
+                path_check = getattr(self.explorer, 'path_prefix_clear', None)
+                fused_path_clear = (path_check(pose, self.path)
+                                    if callable(path_check) else True)
             if cmd is None:
                 if self.phase == "user_go":
                     label = self.user_goal[2] if self.user_goal else "selected goal"
@@ -2306,6 +2315,12 @@ class RoomMapper:
                 self.path = []
                 self.set_state(HOLD, "planned path blocked (%s)" % reason)
                 self.phase = "plan"
+            elif not fused_path_clear:
+                self.send(("stop",))
+                self.path = []
+                self.phase = "plan"
+                self.set_state(HOLD, "planned path invalidated by fused obstacle map")
+                self.web_msg = "Route replanning: newly mapped obstacle blocks the path"
             elif route_clearance < self.lidar_stop:
                 self.send(("stop",))
                 self.path = []

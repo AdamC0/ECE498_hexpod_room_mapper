@@ -299,6 +299,26 @@ class DepthOverlayTests(unittest.TestCase):
         self.assertFalse(explorer.persistent_depth_obstacles)
         self.assertFalse(explorer.suppressed_slam_obstacles)
 
+    def test_new_depth_obstacle_invalidates_active_path_prefix(self):
+        explorer = ExploreMap(size_m=4., cell=.1, robot_radius=.1, margin=.05)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        pose = (-.75, .05, 0.)
+        path, _ = explorer.plan_to_point(pose, (.75, .05))
+        self.assertTrue(explorer.path_prefix_clear(pose, path))
+        explorer.update_depth_obstacles([(0, -2)], now=10.)
+        with patch('map_explore.time.time', return_value=11.):
+            self.assertFalse(explorer.path_prefix_clear(pose, path))
+
+    def test_path_prefix_allows_motion_that_does_not_reduce_existing_clearance(self):
+        explorer = ExploreMap(size_m=4., cell=.1, robot_radius=.1, margin=.05)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        explorer.update_depth_obstacles([(0, -8)], now=10.)
+        pose = (-.65, .05, 0.)
+        with patch('map_explore.time.time', return_value=11.):
+            self.assertTrue(explorer.path_prefix_clear(pose, [(.75, .05)]))
+
 
 if __name__ == '__main__':
     unittest.main()

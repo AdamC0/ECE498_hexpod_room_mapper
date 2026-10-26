@@ -1378,3 +1378,25 @@ beside remaining magenta cells. Exactly one drive-enabled mapper was left
 `AUTO PAUSED` with command `stop`; no physical movement was commanded during
 these deployments. Measured promotion/removal and supervised 0.43 m route
 clearance remain pending.
+
+## Promote low obstacles sooner and invalidate active paths - 2026-10-26
+
+The operator reported that the robot continued toward the table and chair legs
+currently in front of it. Lowering the persistence threshold alone would not
+correct that behavior: temporary magenta occupancy already blocks new plans,
+but a continuous route was not checked again after its initial map snapshot.
+
+Chosen: reduce the default promotion requirement from six to three settled,
+LiDAR-paired depth observations. At the nominal 2 Hz fusion rate this takes
+about 1.5 seconds. Also sample the next 0.80 m of every active route at half-map-
+cell spacing against the latest fused planner map. New occupancy, unknown map,
+or decreasing obstacle clearance below the clearance already available at the
+robot causes an immediate stop and return to planning. Allowing clearance that
+does not decrease lets the robot escape when it starts closer than the nominal
+0.43 m planning radius.
+
+This changes neither raw Hector mapping nor LiDAR integration. Temporary
+magenta cells remain planner obstacles before promotion, and the 0.30 m body
+radius plus 0.13 m margin remains unchanged. Host tests cover mid-route fused
+obstacle invalidation and movement away from pre-existing close occupancy;
+robot-native and directly supervised table/chair-leg validation remain pending.

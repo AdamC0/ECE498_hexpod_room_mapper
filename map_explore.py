@@ -316,6 +316,51 @@ class ExploreMap:
         ok = (self.state == FREE) & (distance > self.clearance)
         return ok
 
+    def path_prefix_clear(self, pose, path, horizon=0.80):
+        """Return whether the immediate planned path remains safe in this map.
+
+        Paths are planned from a snapshot, but registered depth can add a low
+        obstacle while continuous translation is already active. Sample the
+        next portion at half-cell spacing and reject occupancy, unknown space,
+        or decreasing clearance below what is available at the robot now.
+        """
+        if not path:
+            return True
+        horizon = float(horizon)
+        if not math.isfinite(horizon) or horizon <= 0:
+            raise ValueError('Path validation horizon must be positive')
+        start = (float(pose[0]), float(pose[1]))
+        sr, sc = self.to_cell(*start)
+        if not self.inside(sr, sc):
+            return False
+        distance = self.obstacle_distance()
+        baseline = min(float(distance[sr, sc]), self.clearance)
+        previous = start
+        remaining = horizon
+        step = self.cell * 0.5
+        for target in path:
+            tx, ty = float(target[0]), float(target[1])
+            length = math.hypot(tx - previous[0], ty - previous[1])
+            if length <= 1e-9:
+                previous = (tx, ty)
+                continue
+            checked = min(length, remaining)
+            samples = max(1, int(math.ceil(checked / step)))
+            for index in range(1, samples + 1):
+                travel = min(checked, index * step)
+                ratio = travel / length
+                x = previous[0] + (tx - previous[0]) * ratio
+                y = previous[1] + (ty - previous[1]) * ratio
+                r, c = self.to_cell(x, y)
+                if (not self.inside(r, c) or self.state[r, c] != FREE or
+                        float(distance[r, c]) + 1e-6 < baseline):
+                    return False
+            remaining -= checked
+            if remaining <= 1e-9:
+                break
+            previous = (tx, ty)
+        return True
+
     def plan_to_point(self, pose, target, standoff=0.0, max_cells=60000):
         """Plan through connected known-free space toward an arbitrary point.
 

@@ -11,7 +11,7 @@ offline web dashboard at `http://192.168.137.223:8000`.
 ## Dynamic depth/LiDAR occupancy fusion (deployed; measured-object gate pending)
 
 The planner and web map now maintain a session-persistent fused occupancy
-layer downstream of Hector. Six settled registered-depth observations promote
+layer downstream of Hector. Three settled registered-depth observations promote
 an unconfirmed magenta cell to persistent black occupancy, but only while a
 timestamp-aligned settled LiDAR scan is also available. Four consecutive
 observations in which both valid depth rays and distinct LiDAR rays traverse a
@@ -26,13 +26,16 @@ depth cells and Hector suppressions last only for the current mapping session
 and reset with `CLEAR MAP` or mapper restart. Missing, stale, moving, invalid,
 occluded, or unsynchronized observations cannot promote or jointly clear a
 cell. The defaults are configurable with
-`_depth_map_promotion_observations:=6`,
+`_depth_map_promotion_observations:=3`,
 `_depth_map_joint_clear_observations:=4`, and
 `_depth_lidar_sync_tolerance:=0.35`. Settled projection accepts Hector TF up to
 `_depth_map_settled_tf_max_age:=1.0` second old; moving projection retains the
 strict 0.5-second limit.
 
-All 211 host and robot-native tests pass, including synthetic LiDAR ray
+Active routes continuously recheck the next 0.80 m against this fused planner
+map, stopping and replanning if new low-obstacle occupancy blocks the path.
+
+All 214 host tests pass, including synthetic LiDAR ray
 projection, promotion, one-sensor rejection, occupied-neighbor veto,
 moved-object clearing, reappearance, reset, and map-color cases. In a paused
 drive-disabled live check, 25 cells promoted and remained after the old 30 s
@@ -446,7 +449,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 211 tests and does not publish physical movement
+The repository suite contains 214 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 

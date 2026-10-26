@@ -243,6 +243,18 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.state, HOLD)
         self.assertEqual(n.path, [])
 
+    def test_new_fused_obstacle_stops_and_replans_active_path(self):
+        n = self.controller()
+        n.explorer.path_prefix_clear = Mock(return_value=False)
+        n.follow_path = Mock(return_value=('forward',))
+        n.control_step()
+        n.explorer.path_prefix_clear.assert_called_once_with(n.pose, [(1, 0)])
+        n.send.assert_called_once_with(('stop',))
+        self.assertEqual(n.state, HOLD)
+        self.assertEqual(n.phase, 'plan')
+        self.assertEqual(n.path, [])
+        self.assertIn('newly mapped obstacle', n.web_msg)
+
     def test_manual_forward_bypasses_autonomous_pipeline_and_keeps_auto_paused(self):
         n = self.controller()
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
@@ -886,7 +898,7 @@ class MapperTests(unittest.TestCase):
         n.depth_map_min_points = 3
         n.depth_map_protected_range = .6
         n.depth_map_clear_observations = 2
-        n.depth_map_promotion_observations = 6
+        n.depth_map_promotion_observations = 3
         n.depth_map_joint_clear_observations = 4
         n.depth_lidar_sync_tolerance = .35
         n.depth_map_settled_tf_max_age = 1.
@@ -912,7 +924,7 @@ class MapperTests(unittest.TestCase):
         n.explorer.update_fused_observations.assert_called_once_with(
             [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
             now=100., ttl=30., temporary_clear_confirmations=2,
-            promotion_confirmations=6, joint_clear_confirmations=4)
+            promotion_confirmations=3, joint_clear_confirmations=4)
         n.tf_buffer.lookup.assert_called_once_with(
             'map', 'camera', 99., max_age=1.)
         n.explorer.update_depth_obstacles.assert_not_called()

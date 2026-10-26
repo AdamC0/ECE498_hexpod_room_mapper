@@ -16,12 +16,18 @@ Hector cell; the rendered map visibly separated black and magenta cells.
 
 At the operator's request, commit `e7cee65` also increases the planner's
 outside leg margin by 0.10 m: the unchanged 0.30 m footprint plus 0.13 m margin
-now requires 0.43 m center clearance from mapped obstacles. All 211 host and
-robot-native tests pass after these changes. Exactly one drive-enabled mapper
-is `AUTO PAUSED` with command `stop`; no deployment motion was commanded.
+now requires 0.43 m center clearance from mapped obstacles.
+
+The follow-up table/chair-leg report lowered promotion from six observations
+to three and added continuous validation of the next 0.80 m of an active path
+against the fused planner map. A newly projected obstacle now stops the active
+command and returns the controller to planning instead of letting it continue
+on the older path snapshot. All 214 host tests pass. Robot-native validation
+and deployment of this follow-up are pending. The deployed mapper remains
+`AUTO PAUSED` with command `stop`.
 
 The repository now promotes a temporary depth obstacle to session-persistent
-black occupancy after six settled depth observations paired with fresh LiDAR.
+black occupancy after three settled depth observations paired with fresh LiDAR.
 Four consecutive settled observations must contain positive free rays from
 both sensors before a promoted cell or stale Hector-black cell becomes free in
 the downstream planner/display map. Any current occupied endpoint from either
@@ -35,7 +41,8 @@ and disappears on `CLEAR MAP` or mapper restart. Unconfirmed depth cells retain
 their existing two-observation depth clear and 30 s TTL behavior. The web map
 uses magenta for unconfirmed depth and black for persistent fused occupancy.
 
-All 211 host and robot-native tests pass and production modules compile.
+The previously deployed 211-test suite passed on host and robot. The current
+214-test suite passes on the host and awaits robot-native validation.
 Synthetic tests cover LiDAR occupied/free projection, promotion, single-sensor
 rejection, occupied-neighbor veto, joint clearing, immediate reappearance,
 reset, and rendering. Commit `878267e` was deployed with matching runtime

@@ -52,12 +52,12 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 211 host tests.
+  Repository regression count: 214 host tests.
   Deployed/native regression count: 211 tests passed on PT.
   Tests do not publish robot movement.
 
 DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
-  [x] Pass all 211 host tests and compile production Python.
+  [x] Pass all 214 host tests and compile production Python.
   [x] Keep raw Hector /map, scan integration, pose, and update policy unchanged.
   [x] Pass all 211 tests natively on PT with the mapper stopped.
   [x] Start drive-disabled and paused; verify synchronized LiDAR fusion status,
@@ -66,7 +66,7 @@ DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
       suppressed. Scan/pose were 12.17/12.33 Hz and RGB/native/registered depth
       were 30.0/29.67/29.5 Hz. Temperature was about 32 C. No fusion/TF errors.
   [ ] Place a matte low object 0.60-2.0 m away. Confirm magenta becomes black
-      only after six settled paired observations and survives the 30 s TTL.
+      only after three settled paired observations and survives the 30 s TTL.
   [ ] Remove it and confirm four joint depth/LiDAR free observations turn the
       fused cell white. Repeat for a movable LiDAR-height object previously
       black in Hector, while verifying raw /map is byte-for-byte unchanged.
@@ -85,6 +85,15 @@ PROMOTION RENDER + LEG CLEARANCE FOLLOW-UP (DEPLOYED; MOTION PENDING):
   [x] Pass all 211 tests on host and PT and leave exactly one mapper paused/stopped.
   [ ] Directly supervise routes beside measured obstacles and verify the legs
       retain the added 0.10 m clearance without making required aisles unusable.
+
+LOW-LEG ACTIVE-ROUTE FOLLOW-UP (HOST VALIDATED; DEPLOYMENT PENDING):
+  [x] Lower depth/LiDAR promotion from six settled observations to three.
+  [x] Recheck the next 0.80 m of every active route against the fused map;
+      stop and replan when newly projected low occupancy blocks that prefix.
+  [x] Pass all 214 host tests and compile production Python.
+  [ ] Pass all 214 tests natively on PT and deploy with autonomy paused.
+  [ ] Directly supervise a route toward the currently visible table/chair legs;
+      verify the robot stops/replans and retains 0.43 m center clearance.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
   [x] Pass all 177 tests with host_test_runner.py and compile production Python.
