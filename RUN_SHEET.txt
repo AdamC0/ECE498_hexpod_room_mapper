@@ -77,6 +77,15 @@ DYNAMIC FUSED OCCUPANCY (DEPLOYED; MEASURED-OBJECT GATES PENDING):
   [ ] Only after no-drive measured-object checks, restore one drive-enabled
       mapper AUTO PAUSED and perform directly supervised route validation.
 
+PROMOTION RENDER + LEG CLEARANCE FOLLOW-UP (DEPLOYED; MOTION PENDING):
+  [x] Keep persistent depth cells out of the magenta temporary mask on every
+      post-promotion frame; paused live status showed 5 temporary / 9 persistent.
+  [x] Allow 1.0 s depth-map TF age only while settled; retain 0.5 s in motion.
+  [x] Increase planner margin from 0.03 m to 0.13 m for 0.43 m total clearance.
+  [x] Pass all 211 tests on host and PT and leave exactly one mapper paused/stopped.
+  [ ] Directly supervise routes beside measured obstacles and verify the legs
+      retain the added 0.10 m clearance without making required aisles unusable.
+
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
   [x] Pass all 177 tests with host_test_runner.py and compile production Python.
   [x] Keep depth clearing, snapshot queueing, and map scaling in separate commits.

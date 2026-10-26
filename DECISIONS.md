@@ -1369,3 +1369,12 @@ interval has elapsed. Moving registered-depth projection retains the strict
 synchronized sensor observations, so they cannot use the relaxed path during
 motion. The settled limit is configurable with
 `_depth_map_settled_tf_max_age:=1.0`; values outside 0.5-2.0 s are rejected.
+
+Commits `732ac55`, `e7cee65`, and `d3ea8bb` each passed the 211-test native PT
+suite before restart. The final paused mapper reported 5 temporary depth cells,
+9 persistent depth cells, and 1 jointly cleared Hector cell with live depth
+projection restored. The map image visibly contained black persistent cells
+beside remaining magenta cells. Exactly one drive-enabled mapper was left
+`AUTO PAUSED` with command `stop`; no physical movement was commanded during
+these deployments. Measured promotion/removal and supervised 0.43 m route
+clearance remain pending.

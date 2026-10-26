@@ -4,6 +4,22 @@ Updated: 2026-10-26
 
 ## Dynamic fused occupancy deployed - measured-object validation pending
 
+Follow-up live diagnosis found that promoted cells were being re-added to the
+temporary render mask on their next depth hit, so magenta visually covered the
+correct persistent black state. Commit `732ac55` removes persistent cells from
+the temporary dictionaries after every fused observation and adds a
+post-promotion-frame regression. After a fresh map, Hector TF arrived about
+0.6 s behind registered depth; commit `d3ea8bb` permits up to 1.0 s TF age only
+while stopped and settled, retaining 0.5 s during motion. The live paused map
+then reported 5 temporary cells, 9 persistent black cells, and 1 joint-cleared
+Hector cell; the rendered map visibly separated black and magenta cells.
+
+At the operator's request, commit `e7cee65` also increases the planner's
+outside leg margin by 0.10 m: the unchanged 0.30 m footprint plus 0.13 m margin
+now requires 0.43 m center clearance from mapped obstacles. All 211 host and
+robot-native tests pass after these changes. Exactly one drive-enabled mapper
+is `AUTO PAUSED` with command `stop`; no deployment motion was commanded.
+
 The repository now promotes a temporary depth obstacle to session-persistent
 black occupancy after six settled depth observations paired with fresh LiDAR.
 Four consecutive settled observations must contain positive free rays from
