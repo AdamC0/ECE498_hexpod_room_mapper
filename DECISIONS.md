@@ -1278,3 +1278,37 @@ temperatures were 35/31 C. One drive-enabled TensorRT mapper remains paused
 with command stop and Hector is the only SLAM stack. The browser served the
 pending-marker explanation. No motion was commanded. Labeled-scene detector
 quality and visual inspection of marker/expiry behavior remain pending.
+
+## Add dynamic depth/LiDAR fused occupancy downstream of Hector - 2026-10-26
+
+The operator determined that a strictly temporary depth layer loses genuine
+low obstacles, while persistent Hector hits can retain moved people and other
+dynamic objects. The required behavior is a visual/depth-aware dynamic map
+without changing the now-correct LiDAR localization and mapping path.
+
+Chosen: keep Hector's raw `/map`, scan input, pose, and update parameters
+unchanged. Maintain a separate session-persistent fused planner/display layer.
+Six repeated registered-depth hits may promote magenta depth occupancy to
+black only during settled observations paired to LiDAR within 0.35 seconds.
+Four consecutive paired observations must independently ray-trace a cell free
+in both depth and LiDAR before a promoted cell is removed or a Hector-black
+cell is suppressed downstream. Current occupied evidence from either sensor
+immediately vetoes clearing and restores suppression; occupied endpoints also
+protect their eight neighboring 10 cm cells against projection quantization.
+Invalid, missing, stale, moving, occluded, or unsynchronized data is not free
+evidence. The existing 0.60 m depth clear-protection radius remains unchanged.
+
+"Persistent" means the current mapping session: promoted and suppressed cells
+reset with `CLEAR MAP` or mapper restart. A suppressed Hector cell is never
+written back into Hector and can reappear immediately from either sensor.
+Unconfirmed depth cells retain their two-observation depth-only clear rule and
+30 s TTL. The web renderer colors only unconfirmed depth cells magenta;
+persistent fused occupancy is black and jointly confirmed free space is white.
+
+`lidar_mapping.py` projects settled timestamped scan endpoints and clustered
+distinct-ray free evidence into the same 10 cm world grid. All 211 host tests
+pass and production modules compile. Synthetic coverage includes finite hits,
+no-return rays, promotion, TTL survival, single-sensor rejection, neighbor
+veto, joint clearing, raw-Hector preservation, immediate reappearance, reset,
+and map colors. Robot-native, paused live fusion, measured moved-object, and
+physical-motion validation remain pending.

@@ -7,6 +7,7 @@ import numpy as np
 
 from depth_mapping import (_clustered_cells, project_depth_cells,
                            project_obstacle_cells, quaternion_matrix)
+from lidar_mapping import project_lidar_cells
 from map_explore import ExploreMap, FREE, OCCUPIED
 
 
@@ -74,6 +75,30 @@ class DepthProjectionTests(unittest.TestCase):
         _, farther_free = self.project_single(1.0)
         self.assertIn((0, 5), near_occupied)
         self.assertNotIn((0, 5), farther_free)
+
+
+class LidarProjectionTests(unittest.TestCase):
+    identity = ((0., 0., 0.), (0., 0., 0., 1.))
+
+    def test_hit_marks_endpoint_and_ray_before_it_free(self):
+        occupied, observed_free = project_lidar_cells(
+            [1.0], 0., 1., self.identity, cell=.1,
+            range_min=.1, range_max=2., decimation=1,
+            min_rays=1, free_margin=.1)
+        self.assertIn((0, 10), occupied)
+        self.assertIn((0, 5), observed_free)
+        self.assertNotIn((0, 10), observed_free)
+
+    def test_no_return_supplies_free_evidence_without_fake_endpoint(self):
+        occupied, observed_free = project_lidar_cells(
+            [np.inf], 0., 1., self.identity, cell=.1,
+            range_min=.1, range_max=2., decimation=1, min_rays=1)
+        self.assertEqual(occupied, [])
+        self.assertIn((0, 10), observed_free)
+        occupied, observed_free = project_lidar_cells(
+            [np.nan], 0., 1., self.identity, cell=.1,
+            range_min=.1, range_max=2., decimation=1, min_rays=1)
+        self.assertEqual((occupied, observed_free), ([], []))
 
 
 class DepthOverlayTests(unittest.TestCase):
@@ -181,6 +206,93 @@ class DepthOverlayTests(unittest.TestCase):
             explorer.update_depth_obstacles([], now=12., observed_free_cells=wall)
             _, open_goal = explorer.plan_to_point((-.75, .05, 0.), (.75, .05))
         self.assertGreater(open_goal[0], .5)
+
+    def test_repeated_depth_with_live_lidar_promotes_session_obstacle(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        for now in (10., 11., 12.):
+            result = explorer.update_fused_observations(
+                [cell], [], [], [(0, 5)], now=now, ttl=5.,
+                promotion_confirmations=3, joint_clear_confirmations=2)
+        planner_cell = explorer.to_cell(1.05, .05)
+        self.assertEqual(result['promoted'], 1)
+        self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+        self.assertFalse(explorer.depth_obstacle_mask(now=100.)[planner_cell])
+        self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+
+    def test_joint_free_suppresses_stale_hector_cell_but_preserves_raw_map(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        planner_cell = explorer.to_cell(1.05, .05)
+        explorer.slam_state[planner_cell] = OCCUPIED
+        explorer.state[planner_cell] = OCCUPIED
+
+        first = explorer.update_fused_observations(
+            [], [cell], [], [cell], now=10.,
+            promotion_confirmations=3, joint_clear_confirmations=2)
+        self.assertEqual(first['suppressed_slam'], 0)
+        self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+        second = explorer.update_fused_observations(
+            [], [cell], [], [cell], now=11.,
+            promotion_confirmations=3, joint_clear_confirmations=2)
+        self.assertEqual(second['suppressed_slam'], 1)
+        self.assertEqual(explorer.slam_state[planner_cell], OCCUPIED)
+        self.assertEqual(explorer.state[planner_cell], FREE)
+
+        # A renewed hit restores occupancy immediately without waiting for a
+        # new Hector publication.
+        explorer.update_fused_observations(
+            [cell], [], [], [], now=12.,
+            promotion_confirmations=3, joint_clear_confirmations=2)
+        self.assertNotIn(planner_cell, explorer.suppressed_slam_obstacles)
+        self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+
+    def test_one_sensor_or_nearby_occupied_endpoint_cannot_clear_black_cell(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        planner_cell = explorer.to_cell(1.05, .05)
+        explorer.slam_state[planner_cell] = OCCUPIED
+        explorer.state[planner_cell] = OCCUPIED
+        for now in (10., 11., 12.):
+            explorer.update_fused_observations(
+                [], [cell], [], [], now=now,
+                promotion_confirmations=3, joint_clear_confirmations=2)
+        self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+
+        for now in (13., 14.):
+            explorer.update_fused_observations(
+                [], [cell], [(0, 11)], [cell], now=now,
+                promotion_confirmations=3, joint_clear_confirmations=2)
+        self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+
+    def test_joint_free_removes_promoted_depth_cell_and_reset_forgets_fusion(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        planner_cell = explorer.to_cell(1.05, .05)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=2)
+        self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+        explorer.update_fused_observations(
+            [], [cell], [], [cell], now=12.,
+            promotion_confirmations=2, joint_clear_confirmations=2)
+        result = explorer.update_fused_observations(
+            [], [cell], [], [cell], now=13.,
+            promotion_confirmations=2, joint_clear_confirmations=2)
+        self.assertEqual(result['cleared_persistent'], 1)
+        self.assertEqual(explorer.state[planner_cell], FREE)
+        explorer.reset()
+        self.assertFalse(explorer.persistent_depth_obstacles)
+        self.assertFalse(explorer.suppressed_slam_obstacles)
 
 
 if __name__ == '__main__':

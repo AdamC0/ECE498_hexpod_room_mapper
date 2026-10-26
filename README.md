@@ -8,6 +8,33 @@ The deployed system also provides native-depth collision sensing, RGB/YOLO
 object mapping, click-to-navigate, manual driving, recovery behaviors, and an
 offline web dashboard at `http://192.168.137.223:8000`.
 
+## Dynamic depth/LiDAR occupancy fusion (repository revision)
+
+The planner and web map now maintain a session-persistent fused occupancy
+layer downstream of Hector. Six settled registered-depth observations promote
+an unconfirmed magenta cell to persistent black occupancy, but only while a
+timestamp-aligned settled LiDAR scan is also available. Four consecutive
+observations in which both valid depth rays and distinct LiDAR rays traverse a
+cell can remove a promoted obstacle or suppress stale Hector occupancy in the
+fused planner/display map. A current occupied endpoint from either sensor
+immediately vetoes clearing and restores a suppressed cell; neighboring cells
+are also protected against 10 cm grid-quantization disagreement.
+
+Hector's `/map`, scan input, pose, and update policy are unchanged. Suppression
+is a downstream fused-map decision and never writes into Hector. Persistent
+depth cells and Hector suppressions last only for the current mapping session
+and reset with `CLEAR MAP` or mapper restart. Missing, stale, moving, invalid,
+occluded, or unsynchronized observations cannot promote or jointly clear a
+cell. The defaults are configurable with
+`_depth_map_promotion_observations:=6`,
+`_depth_map_joint_clear_observations:=4`, and
+`_depth_lidar_sync_tolerance:=0.35`.
+
+All 211 host tests pass, including synthetic LiDAR ray projection, promotion,
+one-sensor rejection, occupied-neighbor veto, moved-object clearing,
+reappearance, reset, and map-color cases. Robot-native, paused live fusion,
+measured-object, and physical-motion validation remain pending.
+
 ## Reliability and object-validation behavior (2026-10-26)
 
 The repository now implements the three approved reliability priorities, but
@@ -226,8 +253,8 @@ medium, charging, stale, and unavailable telemetry.
 ## Depth and LiDAR policy
 
 Native `/camera/depth/image_raw` is used for collision sensing. Registered
-depth plus `/camera/depth_registered/camera_info` supplies temporary low-object
-planner cells and also projects YOLO detections into the map.
+depth plus `/camera/depth_registered/camera_info` supplies low-object planner
+cells and also projects YOLO detections into the map.
 
 - The upper depth band is accepted with at least 200 valid pixels and at least
   2% coverage. Less coverage causes `FAULT: insufficient valid depth in upper
@@ -244,10 +271,12 @@ planner cells and also projects YOLO detections into the map.
 - If floor calibration fails three times, the controller continues in clearly
   reported `upper-only` mode; floor-bump detection is then unavailable.
 - The registered-depth planner layer is independent of that per-row floor
-  calibration. It rejects points below 0.025 m as floor and above 0.50 m, keeps
-  only clustered cells, and expires observations after 30 s. Each new
-  observation refreshes the cell's hold. On the web map, LiDAR walls are black
-  and depth-only obstacles are magenta; cells confirmed by both remain black.
+  calibration. It rejects points below 0.025 m as floor and above 0.50 m and
+  keeps only clustered cells. Unconfirmed observations use the existing 30 s
+  hold and render magenta. Repeated settled observations with synchronized
+  LiDAR promote them to session-persistent black cells. Only repeated positive
+  free rays from both sensors can clear persistent fused occupancy. This can
+  render stale Hector occupancy white downstream without changing `/map`.
 
 ## Web interface
 
@@ -403,13 +432,14 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `benchmark_yolo_backends.py`: same-frame CPU/TensorRT timing and parity report.
 - `validate_yolo_model.py`: target OpenCV/TensorRT warm-up and timing check.
 - `depth_mapping.py`: registered-depth projection for temporary planner cells.
+- `lidar_mapping.py`: settled LiDAR occupied/free ray projection for fusion.
 - `hex_map.launch`: Hector and required TF bridges.
 - `visual_slam.launch`: experimental RTAB-Map RGB-D/LiDAR replacement for Hector.
 - `RUN_SHEET.txt`: operator checklist.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 204 tests and does not publish physical movement
+The repository suite contains 211 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 

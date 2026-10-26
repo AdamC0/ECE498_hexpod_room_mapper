@@ -23,6 +23,7 @@ from std_msgs.msg import Bool
 from std_srvs.srv import Empty, Trigger
 
 from depth_mapping import project_depth_cells
+from lidar_mapping import project_lidar_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TensorRtYoloDetector, TransformCache,
@@ -270,6 +271,16 @@ class RoomMapper:
         self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 30.0))
         self.depth_map_clear_observations = int(rospy.get_param(
             "~depth_map_clear_observations", 2))
+        self.depth_map_promotion_observations = int(rospy.get_param(
+            "~depth_map_promotion_observations", 6))
+        self.depth_map_joint_clear_observations = int(rospy.get_param(
+            "~depth_map_joint_clear_observations", 4))
+        self.depth_lidar_sync_tolerance = float(rospy.get_param(
+            "~depth_lidar_sync_tolerance", 0.35))
+        self.lidar_fusion_decimation = int(rospy.get_param(
+            "~lidar_fusion_decimation", 2))
+        self.lidar_fusion_min_rays = int(rospy.get_param(
+            "~lidar_fusion_min_rays", 2))
         self.depth_map_protected_range = float(rospy.get_param(
             "~depth_map_protected_range", self.depth_stop))
         if (not math.isfinite(self.depth_map_hz) or self.depth_map_hz <= 0 or
@@ -279,6 +290,12 @@ class RoomMapper:
                 self.depth_map_min_points < 1 or
                 not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0 or
                 not 1 <= self.depth_map_clear_observations <= 10 or
+                not 2 <= self.depth_map_promotion_observations <= 100 or
+                not 2 <= self.depth_map_joint_clear_observations <= 100 or
+                not math.isfinite(self.depth_lidar_sync_tolerance) or
+                not .05 <= self.depth_lidar_sync_tolerance <= 1.0 or
+                not 1 <= self.lidar_fusion_decimation <= 32 or
+                not 1 <= self.lidar_fusion_min_rays <= 20 or
                 not math.isfinite(self.depth_map_protected_range) or
                 not self.depth_stop <= self.depth_map_protected_range <=
                     self.depth_map_range_max):
@@ -549,6 +566,9 @@ class RoomMapper:
         self.depth_map_frame = ""
         self.depth_map_k = None
         self.depth_map_info_size = None
+        self.lidar_fusion_occupied = []
+        self.lidar_fusion_free = []
+        self.lidar_fusion_stamp = 0.0
         self.camera_stamp = 0.0
         self.camera_frame = ""
         self.camera_k = None
@@ -860,18 +880,50 @@ class RoomMapper:
                 height_min=self.depth_map_height_min, height_max=self.depth_map_height_max,
                 min_points=self.depth_map_min_points,
                 protected_range=self.depth_map_protected_range)
+            settled = (not getattr(self, 'commanded_moving', False) and
+                       now >= getattr(self, 'settle_until', 0.0))
             with self.map_lock:
-                cleared = self.explorer.update_depth_obstacles(
-                    occupied_cells, now, self.depth_map_ttl,
-                    observed_free_cells=observed_free_cells,
-                    clear_confirmations=self.depth_map_clear_observations)
+                lidar_stamp = getattr(self, 'lidar_fusion_stamp', 0.0)
+                lidar_age = abs(stamp - lidar_stamp)
+                paired = (settled and lidar_stamp > 0 and
+                          lidar_age <= getattr(self, 'depth_lidar_sync_tolerance', .35) and
+                          bool(getattr(self, 'lidar_fusion_occupied', []) or
+                               getattr(self, 'lidar_fusion_free', [])))
+                if paired:
+                    result = self.explorer.update_fused_observations(
+                        occupied_cells, observed_free_cells,
+                        getattr(self, 'lidar_fusion_occupied', []),
+                        getattr(self, 'lidar_fusion_free', []),
+                        now=now, ttl=self.depth_map_ttl,
+                        temporary_clear_confirmations=self.depth_map_clear_observations,
+                        promotion_confirmations=getattr(
+                            self, 'depth_map_promotion_observations', 6),
+                        joint_clear_confirmations=getattr(
+                            self, 'depth_map_joint_clear_observations', 4))
+                    cleared = (result['cleared_temporary'] +
+                               result['cleared_persistent'] +
+                               result['suppressed_slam'])
+                else:
+                    result = {'promoted': 0, 'cleared_persistent': 0,
+                              'suppressed_slam': 0}
+                    cleared = self.explorer.update_depth_obstacles(
+                        occupied_cells, now, self.depth_map_ttl,
+                        observed_free_cells=observed_free_cells,
+                        clear_confirmations=self.depth_map_clear_observations)
                 count = self.explorer.depth_obstacle_count(now)
+                persistent = (self.explorer.persistent_obstacle_count()
+                              if isinstance(self.explorer, ExploreMap) else 0)
+                suppressed = (self.explorer.suppressed_slam_count()
+                              if isinstance(self.explorer, ExploreMap) else 0)
             self.t_depth_map = now
             self.depth_map_frame = frame
             self.depth_map_last_cleared = cleared
-            self.depth_map_status = ("%d temporary obstacle cells (%.0f s hold); "
-                                     "cleared %d this update" %
-                                     (count, self.depth_map_ttl, cleared))
+            self.depth_map_status = (
+                "%d temporary obstacle cells (%.0f s hold); cleared %d this update; "
+                "%d persistent depth, %d joint-cleared Hector cells; promoted %d%s" %
+                (count, self.depth_map_ttl, cleared, persistent, suppressed,
+                 result['promoted'],
+                 "" if paired else "; waiting for settled synchronized LiDAR"))
             if cleared:
                 rospy.loginfo("Registered depth cleared %d disproven planner cells", cleared)
         except (KeyError, ValueError) as exc:
@@ -1354,6 +1406,7 @@ class RoomMapper:
         # Translating scans are excluded. Pure zero-stride turns are different:
         # Hector needs their incremental geometry to estimate yaw; hiding a
         # full turn makes it invent translation when scans resume afterward.
+        fusion_ready = False
         with self.control_lock, self.data_lock:
             now = time.time()
             if self.scan_ready_for_mapping(now, stamp, rospy.Time.now().to_sec()):
@@ -1364,10 +1417,37 @@ class RoomMapper:
                         now >= self.settle_until):
                     self.survey.observe(stamp)
                     self.stable_stationary_scans += 1
+                    fusion_ready = True
                 elif self.commanded_moving:
                     self.stable_turn_scans += 1
             elif self.commanded_moving:
                 self.rejected_motion_scans += 1
+        if fusion_ready and getattr(self, "use_depth_map", False):
+            self.update_lidar_fusion(msg)
+
+    def update_lidar_fusion(self, msg):
+        """Cache occupied/free cells from one settled timestamped LiDAR scan."""
+        frame = getattr(getattr(msg, "header", None), "frame_id", "").lstrip('/')
+        stamp = self.message_time(msg)
+        if not frame or stamp <= 0 or self.tf_buffer is None:
+            return
+        try:
+            with self.object_lock:
+                transform = self.tf_buffer.lookup(self.map_frame, frame, stamp, max_age=.5)
+            occupied, observed_free = project_lidar_cells(
+                msg.ranges, msg.angle_min, msg.angle_increment, transform,
+                cell=self.explorer.cell,
+                range_min=max(float(msg.range_min), self.self_filter),
+                range_max=self.depth_map_range_max,
+                decimation=self.lidar_fusion_decimation,
+                min_rays=self.lidar_fusion_min_rays,
+                yaw_offset=self.yaw_offset)
+            with self.map_lock:
+                self.lidar_fusion_occupied = occupied
+                self.lidar_fusion_free = observed_free
+                self.lidar_fusion_stamp = stamp
+        except (KeyError, ValueError) as exc:
+            rospy.logwarn_throttle(5, "LiDAR fusion projection unavailable: %s", exc)
 
     def scan_ready_for_mapping(self, now, stamp=None, ros_now=None):
         if self.shutting_down or not self.map_trusted:

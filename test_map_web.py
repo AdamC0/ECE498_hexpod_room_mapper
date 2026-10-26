@@ -226,6 +226,19 @@ class WebServerTests(unittest.TestCase):
         image = map_web.draw_map(n)
         self.assertEqual(tuple(image[207, 207]), (0, 0, 0))
 
+        # A promoted depth cell is black even when Hector still calls the cell
+        # free, while a jointly cleared stale Hector cell renders white.
+        n.explorer.depth_obstacle_mask = lambda: np.zeros_like(
+            n.explorer.state, dtype=bool)
+        n.explorer.slam_state[5, 5] = FREE
+        n.explorer.state[5, 5] = OCCUPIED
+        image = map_web.draw_map(n)
+        self.assertEqual(tuple(image[207, 207]), (0, 0, 0))
+        n.explorer.slam_state[5, 5] = OCCUPIED
+        n.explorer.state[5, 5] = FREE
+        image = map_web.draw_map(n)
+        self.assertEqual(tuple(image[207, 207]), (255, 255, 255))
+
     def test_pending_landmark_uses_hollow_map_marker(self):
         n = FakeNode()
         n.object_tracker = SimpleNamespace(snapshot=lambda confirmed_only: [{

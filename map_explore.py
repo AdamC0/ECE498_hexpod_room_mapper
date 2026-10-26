@@ -39,6 +39,10 @@ class ExploreMap:
         self.slam_state = self.state.copy()
         self.depth_obstacles = {}
         self.depth_obstacle_clear_counts = {}
+        self.depth_obstacle_hit_counts = {}
+        self.persistent_depth_obstacles = set()
+        self.suppressed_slam_obstacles = set()
+        self.joint_clear_counts = {}
         self.depth_obstacle_ttl = 30.0
         self._depth_overlay_active = False
         self.have_map = False
@@ -50,6 +54,10 @@ class ExploreMap:
         self.slam_state.fill(UNKNOWN)
         self.depth_obstacles.clear()
         self.depth_obstacle_clear_counts.clear()
+        self.depth_obstacle_hit_counts.clear()
+        self.persistent_depth_obstacles.clear()
+        self.suppressed_slam_obstacles.clear()
+        self.joint_clear_counts.clear()
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -138,8 +146,119 @@ class ExploreMap:
         self._apply_depth_obstacles(now)
         return cleared
 
+    def update_fused_observations(self, depth_occupied_cells,
+                                  depth_free_cells, lidar_occupied_cells,
+                                  lidar_free_cells, now=None, ttl=30.0,
+                                  temporary_clear_confirmations=2,
+                                  promotion_confirmations=6,
+                                  joint_clear_confirmations=4):
+        """Fuse depth occupancy with live LiDAR without altering ``slam_state``.
+
+        Repeated depth hits promote a temporary obstacle to session-persistent
+        occupancy. A persistent depth cell or raw Hector-occupied cell becomes
+        free in the fused planner only after both sensors positively ray-trace
+        the cell as free for several consecutive observations. Any current hit
+        from either sensor vetoes clearing and restores suppressed occupancy.
+        """
+        now = time.time() if now is None else float(now)
+        promotion_confirmations = int(promotion_confirmations)
+        joint_clear_confirmations = int(joint_clear_confirmations)
+        if not 2 <= promotion_confirmations <= 100:
+            raise ValueError('Depth promotion confirmations must be between 2 and 100')
+        if not 2 <= joint_clear_confirmations <= 100:
+            raise ValueError('Joint clear confirmations must be between 2 and 100')
+
+        def planner_cells(world_cells):
+            result = set()
+            for world_r, world_c in world_cells or ():
+                r = int(world_r + self.half / self.cell)
+                c = int(world_c + self.half / self.cell)
+                if self.inside(r, c):
+                    result.add((r, c))
+            return result
+
+        depth_occupied = planner_cells(depth_occupied_cells)
+        depth_free = planner_cells(depth_free_cells) - depth_occupied
+        lidar_occupied = planner_cells(lidar_occupied_cells)
+        lidar_free = planner_cells(lidar_free_cells) - lidar_occupied
+        occupied = depth_occupied | lidar_occupied
+
+        # Retain the established short-lived overlay and its depth-only clear
+        # policy until a cell earns promotion.
+        cleared_temporary = self.update_depth_obstacles(
+            depth_occupied_cells, now, ttl,
+            observed_free_cells=depth_free_cells,
+            clear_confirmations=temporary_clear_confirmations)
+
+        for cell in list(self.depth_obstacle_hit_counts):
+            if cell not in depth_occupied:
+                del self.depth_obstacle_hit_counts[cell]
+        promoted = 0
+        for cell in depth_occupied:
+            count = self.depth_obstacle_hit_counts.get(cell, 0) + 1
+            self.depth_obstacle_hit_counts[cell] = count
+            if count >= promotion_confirmations and cell not in self.persistent_depth_obstacles:
+                self.persistent_depth_obstacles.add(cell)
+                self.depth_obstacles.pop(cell, None)
+                self.depth_obstacle_clear_counts.pop(cell, None)
+                promoted += 1
+
+        # A current occupied endpoint protects its own cell and immediate
+        # neighbors from grid quantization disagreement between the sensors.
+        occupied_guard = set()
+        for r, c in occupied:
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    if self.inside(r + dr, c + dc):
+                        occupied_guard.add((r + dr, c + dc))
+        joint_free = (depth_free & lidar_free) - occupied_guard
+
+        # Reappearance in either sensor immediately cancels a prior downstream
+        # suppression; raw Hector occupancy itself remains untouched.
+        self.suppressed_slam_obstacles.difference_update(occupied)
+        for cell in occupied:
+            self.joint_clear_counts.pop(cell, None)
+
+        candidates = (self.persistent_depth_obstacles |
+                      {cell for cell in joint_free
+                       if self.slam_state[cell] == OCCUPIED})
+        for cell in list(self.joint_clear_counts):
+            if cell not in joint_free or cell not in candidates:
+                del self.joint_clear_counts[cell]
+
+        cleared_persistent = 0
+        suppressed_slam = 0
+        for cell in joint_free & candidates:
+            count = self.joint_clear_counts.get(cell, 0) + 1
+            if count < joint_clear_confirmations:
+                self.joint_clear_counts[cell] = count
+                continue
+            self.joint_clear_counts.pop(cell, None)
+            if cell in self.persistent_depth_obstacles:
+                self.persistent_depth_obstacles.remove(cell)
+                self.depth_obstacle_hit_counts.pop(cell, None)
+                cleared_persistent += 1
+            if (self.slam_state[cell] == OCCUPIED and
+                    cell not in self.suppressed_slam_obstacles):
+                self.suppressed_slam_obstacles.add(cell)
+                suppressed_slam += 1
+
+        # Suppression is needed only while Hector still reports occupancy.
+        self.suppressed_slam_obstacles = {
+            cell for cell in self.suppressed_slam_obstacles
+            if self.slam_state[cell] == OCCUPIED}
+        self._apply_depth_obstacles(now)
+        return {
+            'promoted': promoted,
+            'cleared_temporary': cleared_temporary,
+            'cleared_persistent': cleared_persistent,
+            'suppressed_slam': suppressed_slam,
+        }
+
     def _apply_depth_obstacles(self, now=None, rebase=True):
-        if not self._depth_overlay_active and not self.depth_obstacles:
+        if (not self._depth_overlay_active and not self.depth_obstacles and
+                not self.persistent_depth_obstacles and
+                not self.suppressed_slam_obstacles):
             return
         now = time.time() if now is None else float(now)
         cutoff = now - self.depth_obstacle_ttl
@@ -150,9 +269,15 @@ class ExploreMap:
             if cell in self.depth_obstacles}
         if rebase:
             self.state = self.slam_state.copy()
+        for r, c in self.suppressed_slam_obstacles:
+            self.state[r, c] = FREE
+        for r, c in self.persistent_depth_obstacles:
+            self.state[r, c] = OCCUPIED
         for r, c in self.depth_obstacles:
             self.state[r, c] = OCCUPIED
-        self._depth_overlay_active = bool(self.depth_obstacles)
+        self._depth_overlay_active = bool(
+            self.depth_obstacles or self.persistent_depth_obstacles or
+            self.suppressed_slam_obstacles)
 
     def depth_obstacle_count(self, now=None):
         self._apply_depth_obstacles(now)
@@ -166,6 +291,14 @@ class ExploreMap:
             rows, cols = zip(*self.depth_obstacles)
             mask[rows, cols] = True
         return mask
+
+    def persistent_obstacle_count(self):
+        self._apply_depth_obstacles()
+        return len(self.persistent_depth_obstacles)
+
+    def suppressed_slam_count(self):
+        self._apply_depth_obstacles()
+        return len(self.suppressed_slam_obstacles)
 
     def obstacle_distance(self):
         self._apply_depth_obstacles()

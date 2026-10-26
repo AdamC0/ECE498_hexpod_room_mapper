@@ -2,6 +2,29 @@
 
 Updated: 2026-10-26
 
+## Dynamic fused occupancy implemented - deployment pending
+
+The repository now promotes a temporary depth obstacle to session-persistent
+black occupancy after six settled depth observations paired with fresh LiDAR.
+Four consecutive settled observations must contain positive free rays from
+both sensors before a promoted cell or stale Hector-black cell becomes free in
+the downstream planner/display map. Any current occupied endpoint from either
+sensor wins immediately, and a one-cell guard protects against projection-grid
+disagreement. Missing, stale, moving, occluded, invalid, or unsynchronized
+data cannot promote or jointly clear cells.
+
+Raw Hector `/map`, localization, scan integration, and update parameters are
+unchanged. Hector-black clearing is maintained only as a fused-map suppression
+and disappears on `CLEAR MAP` or mapper restart. Unconfirmed depth cells retain
+their existing two-observation depth clear and 30 s TTL behavior. The web map
+uses magenta for unconfirmed depth and black for persistent fused occupancy.
+
+All 211 host tests pass and production modules compile. Synthetic tests cover
+LiDAR occupied/free projection, promotion, single-sensor rejection, occupied
+neighbor veto, joint clearing, immediate reappearance, reset, and rendering.
+Robot-native, paused live fusion, measured moved-object, and all motion checks
+remain pending. Do not represent this revision as deployed yet.
+
 ## Live checkpoint
 
 The approved object-visibility revision is deployed. It preserves

@@ -873,6 +873,49 @@ class MapperTests(unittest.TestCase):
         self.assertIn('cleared 3 this update', n.depth_map_status)
         loginfo.assert_called_once()
 
+    def test_depth_map_uses_only_settled_synchronized_lidar_for_fusion(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.data_lock, n.object_lock, n.map_lock = (threading.Lock(),
+                                                  threading.Lock(),
+                                                  threading.Lock())
+        n.depth_map_k = (100., 0., 0., 0., 100., 0., 0., 0., 1.)
+        n.depth_map_info_size = (1, 1)
+        n.depth_map_decimation = 4
+        n.depth_map_range_min, n.depth_map_range_max = .15, 2.
+        n.depth_map_height_min, n.depth_map_height_max = .025, .5
+        n.depth_map_min_points = 3
+        n.depth_map_protected_range = .6
+        n.depth_map_clear_observations = 2
+        n.depth_map_promotion_observations = 6
+        n.depth_map_joint_clear_observations = 4
+        n.depth_lidar_sync_tolerance = .35
+        n.depth_map_ttl = 30.
+        n.commanded_moving, n.settle_until = False, 90.
+        n.lidar_fusion_stamp = 99.1
+        n.lidar_fusion_occupied = [(1, 1)]
+        n.lidar_fusion_free = [(1, 2)]
+        n.map_frame = 'map'
+        n.tf_buffer = Mock()
+        n.tf_buffer.lookup.return_value = ((0., 0., .2), (0., 0., 0., 1.))
+        n.explorer = Mock(cell=.1)
+        n.explorer.update_fused_observations.return_value = {
+            'promoted': 2, 'cleared_temporary': 1,
+            'cleared_persistent': 1, 'suppressed_slam': 1}
+        n.explorer.depth_obstacle_count.return_value = 5
+        n.message_time = Mock(return_value=99.)
+        msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
+        with patch('room_mapper.time.time', return_value=100.), \
+                patch('room_mapper.project_depth_cells',
+                      return_value=([(0, 1)], [(0, 2)])):
+            n.update_depth_obstacle_map(np.ones((1, 1), np.float32), msg)
+        n.explorer.update_fused_observations.assert_called_once_with(
+            [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
+            now=100., ttl=30., temporary_clear_confirmations=2,
+            promotion_confirmations=6, joint_clear_confirmations=4)
+        n.explorer.update_depth_obstacles.assert_not_called()
+        self.assertEqual(n.depth_map_last_cleared, 3)
+        self.assertIn('promoted 2', n.depth_map_status)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -52,9 +52,27 @@ VERIFY:
   rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
   cd ~/room_mapper && python3 -m unittest discover -v
 
-  Repository regression count: 204 host tests.
+  Repository regression count: 211 host tests.
   Deployed/native regression count: 204 tests passed on PT.
   Tests do not publish robot movement.
+
+DYNAMIC FUSED OCCUPANCY (REPOSITORY ONLY; DEPLOYMENT GATES PENDING):
+  [x] Pass all 211 host tests and compile production Python.
+  [x] Keep raw Hector /map, scan integration, pose, and update policy unchanged.
+  [ ] Pass all 211 tests natively on PT with the mapper stopped.
+  [ ] Start drive-disabled and paused; verify synchronized LiDAR fusion status,
+      sensor rates, CPU load, TF health, and no gait command.
+  [ ] Place a matte low object 0.60-2.0 m away. Confirm magenta becomes black
+      only after six settled paired observations and survives the 30 s TTL.
+  [ ] Remove it and confirm four joint depth/LiDAR free observations turn the
+      fused cell white. Repeat for a movable LiDAR-height object previously
+      black in Hector, while verifying raw /map is byte-for-byte unchanged.
+  [ ] Confirm a hit from either sensor immediately restores occupancy and an
+      occupied endpoint in an adjacent 10 cm cell vetoes clearing.
+  [ ] Confirm invalid/occluded depth, stale TF, motion, or unsynchronized scans
+      neither promote nor clear persistent cells.
+  [ ] Only after no-drive measured-object checks, restore one drive-enabled
+      mapper AUTO PAUSED and perform directly supervised route validation.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
   [x] Pass all 177 tests with host_test_runner.py and compile production Python.
