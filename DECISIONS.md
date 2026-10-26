@@ -1267,5 +1267,14 @@ Four regressions cover pending marker rendering, box expiry/motion clearing,
 preview isolation, and latest-only preview queueing; validation-reason checks
 were added to existing confidence and box-consistency tests. A fifth regression
 ensures transient preview sync retries retain the last completed status. All 204 host tests
-pass and production Python compiles. Robot-native and no-drive live validation
-remain separate deployment gates.
+pass and production Python compiles. The exact revision then passed all 204
+tests natively on PT with the mapper stopped. After deployment, the paused
+TensorRT preview reported 0 detections in 0.29-0.68 s, with 20/19 captured and
+processed frames growing to 34/33 in six seconds and no backlog. The track list
+stayed empty, confirming display-only frames do not enter validation. Under
+continuous preview, rates were scan/pose 12.06/12.05 Hz and RGB/native-depth/
+registered-depth 29.63/30.10/30.12 Hz; available RAM was 862 MB and CPU/GPU
+temperatures were 35/31 C. One drive-enabled TensorRT mapper remains paused
+with command stop and Hector is the only SLAM stack. The browser served the
+pending-marker explanation. No motion was commanded. Labeled-scene detector
+quality and visual inspection of marker/expiry behavior remain pending.

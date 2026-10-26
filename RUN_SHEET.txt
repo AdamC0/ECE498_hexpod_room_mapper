@@ -53,7 +53,7 @@ VERIFY:
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 204 host tests.
-  Deployed/native regression count: pending this revision; last deployed 199.
+  Deployed/native regression count: 204 tests passed on PT.
   Tests do not publish robot movement.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
@@ -78,6 +78,24 @@ RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
       50%, 100%, and 200% zoom plus pan/center operations.
   [ ] Only after the no-drive gates, restart one mapper with _drive:=true
       _start_paused:=true and perform supervised motion validation.
+
+OBJECT VISIBILITY + LIVE PREVIEW (DEPLOYED; LABELED QUALITY PENDING):
+  [x] Show pending candidates as hollow amber map markers and expose their
+      current confidence/geometry validation reason in the Objects tab.
+  [x] Keep display-only latest-frame preview separate from landmark evidence;
+      confirm preview frames never change track counts or confirmation.
+  [x] Clear camera boxes on motion and after one second without a fresh result.
+  [x] Pass all 204 tests natively on PT with the mapper stopped.
+  [x] Deploy TensorRT paused and confirm preview counters advance while the
+      validation track list stays empty. At the live check, counters advanced
+      20/19 to 34/33 (captured/processed) over six seconds, with no backlog.
+  [x] Check rates under continuous preview: scan/pose 12.06/12.05 Hz and
+      RGB/native depth/registered depth 29.63/30.10/30.12 Hz. Available RAM was
+      862 MB; CPU/GPU temperatures were 35/31 C.
+  [ ] Validate pending hollow markers and stale-box clearing in the browser
+      during a supervised session; do not count this as detector-quality data.
+  [ ] Evaluate labeled classroom detection quality. No motion test was part of
+      this deployment; the mapper remains AUTO PAUSED with command stop.
 
 SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   [x] Before copying models, keep models/yolov5n.onnx in place for rollback.

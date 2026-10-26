@@ -4,15 +4,26 @@ Updated: 2026-10-26
 
 ## Live checkpoint
 
-The approved object-visibility revision is ready for deployment. It preserves
+The approved object-visibility revision is deployed. It preserves
 the conservative 3-of-4/4-of-5 validation gates but shows pending candidates as
 hollow amber map markers, reports the exact pending reason in the Objects tab,
 and runs display-only latest-frame inference while paused and settled. Preview
 frames cannot create, confirm, move, or remove tracks. Boxes clear immediately
 on motion and expire after one second without a new result. Transient preview
-sync retries preserve the last completed inference status. All 204 host tests
-pass and production modules compile; robot-native and live behavior for this
-revision remain to be recorded below after deployment.
+sync retries preserve the last completed inference status. All 204 tests pass
+on the Windows host and natively on PT; production modules compile.
+
+After deployment, the paused TensorRT mapper reported `preview: 0 detections`
+with 0.29-0.68 s inference. In six seconds, counters advanced from 20 captured /
+19 processed to 34 captured / 33 processed, with no queue backlog; the
+validation track list stayed empty, confirming preview results do not create
+landmarks. The web page served the pending-marker explanation. Under continuous
+preview load, measured rates were 12.06 Hz scan, 12.05 Hz pose, 29.63 Hz RGB,
+30.10 Hz native depth, and 30.12 Hz registered depth. Available RAM was 862 MB;
+CPU/GPU temperatures were 35/31 C. One drive-enabled TensorRT mapper remains
+`AUTO PAUSED` with command `stop`, Hector is the only SLAM stack, and no motion
+was commanded. Runtime hashes matched the workstation. Labeled-scene detector
+quality remains untested.
 
 The stronger autonomous landmark-validation revision is deployed. All 199
 tests pass on the Windows host and production modules compile. Each

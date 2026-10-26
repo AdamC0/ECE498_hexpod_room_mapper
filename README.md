@@ -417,7 +417,7 @@ runner exercises the same suite without creating a ROS node or hardware link:
 python host_test_runner.py
 ```
 
-The deployment gate remains a robot-native run against the target ROS message
+To repeat the target-native regression suite against the robot's ROS message
 types and OpenCV build:
 
 ```bash
@@ -425,8 +425,9 @@ cd ~/room_mapper
 python3 -m unittest discover -v
 ```
 
-All 204 tests pass through the host shim. Native/no-drive deployment results
-for the preview revision are recorded in `HANDOFF.md` and `RUN_SHEET.txt`. A drive-disabled,
+All 204 tests pass through the host shim and natively on PT. The paused live
+preview validation results are recorded in `HANDOFF.md` and `RUN_SHEET.txt`.
+A drive-disabled,
 map/depth-disabled mapper startup reported the preferred model on
 `tensorrt_fp16`; a second startup with missing engine metadata automatically
 reported the same model on `cpu`. The current production mapper was later
