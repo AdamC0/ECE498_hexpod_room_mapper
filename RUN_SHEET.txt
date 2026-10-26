@@ -124,6 +124,12 @@ OPTIONAL TENSORRT YOLO (STANDALONE VALIDATED; FULL-STACK GATE PENDING):
   and verify Detector reports (cpu). Remove only the exact gpu_trial engine and
   sidecar if desired. Do not resume autonomy during benchmark or rollback.
 
+  Expected capture cadence: default YOLO runs once per ready stationary survey
+  endpoint. Waiting at the same paused endpoint must leave snapshot counters
+  unchanged; `_object_hz` is not a continuous inference rate. Reach a new
+  endpoint for another normal mapping observation. Any future continuous
+  preview must not count repeated display frames as landmark confirmations.
+
 HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   Hector owns /slam_out_pose and the persistent /map. Registered depth adds
   only temporary planner obstacles and never feeds localization.

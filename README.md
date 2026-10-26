@@ -61,6 +61,16 @@ another. If the preferred model is absent, incompatible, or its selected CUDA
 backend fails, startup automatically falls back to CPU and then to the retained
 `models/yolov5n.onnx` model. Existing model files are never overwritten.
 
+YOLO is endpoint-triggered, not a continuous video detector. Each ready
+stationary survey admits at most one synchronized RGB/depth/TF snapshot. After
+that snapshot is captured, remaining paused at the same endpoint does not run
+YOLO again; another normal inference is admitted at a new survey endpoint.
+Consequently, `_object_hz` limits queued processing and legacy focus recapture
+frequency—it is not a continuous-preview frame rate. This prevents duplicate
+frames from consuming inference resources or being treated as additional
+mapping observations. A future continuous preview/test mode must keep repeated
+display-only detections separate from landmark-confirmation observations.
+
 ### Optional TensorRT acceleration
 
 CPU remains the production default and rollback path. On PT, build the

@@ -1155,3 +1155,11 @@ native depth 30.02 Hz, and registered depth 30.28 Hz. Available memory was about
 613 MB with about 1.0 GB swap in use and low temperatures. This is a single
 paused full-stack pipeline check, not a labeled-quality, soak, thermal-load, or
 physical-motion validation. No motion was commanded.
+
+Clarification after live testing: the unchanged reliability policy admits one
+YOLO snapshot per ready stationary endpoint. The observed counters remaining at
+one captured/one processed frame while paused therefore indicate correct
+endpoint deduplication, not a stalled TensorRT worker. `_object_hz` paces queued
+work and legacy focus recaptures; it is not a continuous detector frequency.
+Any later continuous preview/test mode must keep display-only repetitions from
+being counted as distinct landmark-confirmation observations.

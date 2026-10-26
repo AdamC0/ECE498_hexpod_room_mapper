@@ -18,6 +18,14 @@ is live. Available memory was about 613 MB with roughly 1.0 GB swap in use;
 temperatures were low. The robot remains `AUTO PAUSED` with command `stop`, and
 no movement was commanded.
 
+The live result remaining at `captured 1, processed 1` is expected. Default
+YOLO admission is one immutable synchronized snapshot per ready stationary
+survey endpoint, not continuous inference while paused. A second inference
+normally requires a new endpoint. `_object_hz` controls worker pacing and the
+opt-in legacy focus recapture interval; it does not turn the RGB stream into a
+continuous detector. If continuous stationary visualization is added later,
+do not let repeated preview frames inflate landmark confirmation counts.
+
 The optional TensorRT FP16 backend is implemented with CPU as the unchanged
 default. PT built the checksum-bound engine under `models/gpu_trial/` in
 639.453 s. With ROS perception stopped, three saved non-classroom images and
