@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Object deduplication and persistent-depth clearing (candidate)
+## Object deduplication and persistent-depth clearing (deployed; scene checks pending)
 
 The current candidate addresses three live stationary-map failures. Two
 `power outlet` detections projected only about 1.6 cm apart; same-frame outlet
@@ -22,7 +22,13 @@ The two free projections may now differ by one 0.10 m grid cell, and partial
 positive evidence survives brief missing pairs for at most 5 s. This prevents
 quantization and a single dropped pair from resetting every clearing attempt;
 missing data never counts as free. Raw Hector occupancy remains unchanged.
-All 223 host tests pass; robot-native validation and deployment are pending.
+All 223 tests pass on the host and natively on PT. Commit `63d88cb` is deployed
+with matching production-file hashes, one TensorRT mapper `AUTO PAUSED` on
+command `stop`, and Hector as the only SLAM stack. A paused startup check showed
+live joint-clear diagnostics, 34 persistent cells, one joint-free cell, and no
+partial clear candidate in the current view. No object was detected after the
+restart, so the outlet, false-chair, and measured remove-and-clear scene checks
+remain pending. No motion was commanded.
 
 ## Rolling stopped-endpoint object confirmation (deployed; labeled check pending)
 

@@ -1551,3 +1551,11 @@ the observed 0.459 chair rejection, class-specific luggage confirmation,
 one-cell paired-free alignment, one missing pair, evidence expiry, and occupied
 reset. Robot-native validation, paused deployment, and measured removed-object
 validation remain pending. No motion was commanded.
+
+Deployment follow-up: commit `63d88cb` passed all 223 tests natively on PT and
+was deployed with matching production-file hashes. The existing Hector frame
+was preserved and exactly one drive-enabled TensorRT mapper restarted
+`AUTO PAUSED` on command `stop`; RTAB-Map was absent. The paused fused layer
+reported 34 persistent cells, one joint-free cell, and zero partial clear
+candidates in the current view. No post-restart object was detected, so the
+three labeled/measured scene checks remain pending. No motion was commanded.

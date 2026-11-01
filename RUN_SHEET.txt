@@ -26,8 +26,10 @@ OBJECT DEDUP / CONFIDENCE / DEPTH-CLEAR CANDIDATE:
   [x] Require four positive paired free observations for persistent clearing,
       allowing one-cell depth/LiDAR quantization and a 5 s evidence horizon.
       Missing pairs add no evidence; either sensor's occupied neighbor resets it.
-  [ ] Stop the mapper, pass all 223 tests natively on PT, then deploy exactly one
+  [x] Stop the mapper, pass all 223 tests natively on PT, then deploy exactly one
       mapper AUTO PAUSED/stop with Hector as the only SLAM stack.
+      Commit 63d88cb: matching hashes; 34 persistent cells, one joint-free cell,
+      zero partial clear candidates in the startup view; no commanded motion.
   [ ] Verify one visible outlet produces one pending/confirmed map track.
   [ ] Verify the former leg/chair scene stays pending below the restored gate.
   [ ] Promote a measured removable obstacle, remove it in full depth/LiDAR view,

@@ -21,8 +21,13 @@ free observations and an immediate occupied-neighbor veto. Free-ray cells may
 differ by one grid cell, and partial positive evidence remains usable for 5 s
 across missing pairs; missing data itself adds no evidence. Status now exposes
 joint-free cells and partial-evidence count/max. Raw Hector is never modified.
-All 223 host tests pass. Robot-native validation, paused deployment, and a
-measured remove-and-clear scene check remain pending. No motion was commanded.
+All 223 tests pass on the host and natively on PT. Commit `63d88cb` is deployed
+with matching hashes. Exactly one drive-enabled TensorRT mapper is `AUTO PAUSED`
+on command `stop`; Hector is the only SLAM stack. The live layer reported 34
+persistent cells, one joint-free cell, and no partial clear candidate. The
+post-restart view contained no object detections, so outlet deduplication,
+false-chair rejection, and a measured remove-and-clear check remain pending.
+No motion was commanded.
 
 ## Rolling endpoint object confirmation deployed - labeled check pending
 
