@@ -1,13 +1,38 @@
 # JetHexa Room Mapper
 
+## Object deduplication and persistent-depth clearing (candidate)
+
+The current candidate addresses three live stationary-map failures. Two
+`power outlet` detections projected only about 1.6 cm apart; same-frame outlet
+projections within 0.10 m now contribute only the highest-confidence map
+observation, so they cannot create two tracks or count twice toward
+confirmation. Detector synonyms `backpack`, `suitcase`, and `luggage` also use
+one canonical `luggage` map label.
+
+The general expected-class confirmation policy is restored to 0.50 minimum
+confidence and 0.55 median after a 0.459-confidence false `chair` confirmed on
+a person's leg. The successfully measured luggage case alone retains the
+0.30/0.33 policy. Other classes remain at 0.60/0.75. Detector admission is
+unchanged, so weak boxes may still be displayed or remain pending, but they do
+not become confirmed map landmarks.
+
+Persistent-depth removal still requires four settled observations with free
+rays from both depth and LiDAR and still applies the occupied-neighbor veto.
+The two free projections may now differ by one 0.10 m grid cell, and partial
+positive evidence survives brief missing pairs for at most 5 s. This prevents
+quantization and a single dropped pair from resetting every clearing attempt;
+missing data never counts as free. Raw Hector occupancy remains unchanged.
+All 223 host tests pass; robot-native validation and deployment are pending.
+
 ## Rolling stopped-endpoint object confirmation (deployed; labeled check pending)
 
 The current repository candidate lets fresh synchronized observations continue
 validating an object while the robot remains settled at the same endpoint.
 Expected classroom and other model classes both require three qualifying hits
-within the latest eight validation observations. Expected classes use the
-deployed detector's 0.30 admission threshold and require a 0.33 median; the
-other-class 0.60/0.75 confidence and tighter geometry gates remain unchanged.
+within the latest eight validation observations. Expected classes normally
+require 0.50 per hit and a 0.55 median; the measured luggage class uses
+0.30/0.33. The other-class 0.60/0.75 confidence and tighter geometry gates
+remain unchanged.
 Unique RGB/depth timestamps, settled
 motion, trusted SLAM, image-time TF, depth quality, and geometric consistency
 are still required. Intermittent misses remain in the rolling window instead of

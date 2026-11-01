@@ -299,6 +299,65 @@ class DepthOverlayTests(unittest.TestCase):
         self.assertFalse(explorer.persistent_depth_obstacles)
         self.assertFalse(explorer.suppressed_slam_obstacles)
 
+    def test_joint_clear_tolerates_quantization_and_brief_missing_evidence(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        planner_cell = explorer.to_cell(1.05, .05)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=4)
+        self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+
+        # Depth sees the exact old cell free while LiDAR's agreeing free ray
+        # quantizes into its immediate neighbor. A missing paired observation
+        # pauses rather than erases the bounded evidence window.
+        result = explorer.update_fused_observations(
+            [], [cell], [], [(0, 11)], now=12.,
+            promotion_confirmations=2, joint_clear_confirmations=4)
+        self.assertEqual(result['joint_clear_max_evidence'], 1)
+        result = explorer.update_fused_observations(
+            [], [], [], [], now=13.,
+            promotion_confirmations=2, joint_clear_confirmations=4)
+        self.assertEqual(result['joint_clear_max_evidence'], 1)
+        for now in (14., 15.):
+            explorer.update_fused_observations(
+                [], [cell], [], [(0, 11)], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=4)
+        result = explorer.update_fused_observations(
+            [], [cell], [], [(0, 11)], now=16.,
+            promotion_confirmations=2, joint_clear_confirmations=4)
+        self.assertEqual(result['cleared_persistent'], 1)
+        self.assertNotIn(planner_cell, explorer.persistent_depth_obstacles)
+
+    def test_partial_joint_clear_evidence_expires_and_hit_resets_it(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=4)
+        explorer.update_fused_observations(
+            [], [cell], [], [cell], now=12.,
+            promotion_confirmations=2, joint_clear_confirmations=4,
+            joint_clear_evidence_ttl=5.)
+        expired = explorer.update_fused_observations(
+            [], [], [], [], now=18.,
+            promotion_confirmations=2, joint_clear_confirmations=4,
+            joint_clear_evidence_ttl=5.)
+        self.assertEqual(expired['joint_clear_max_evidence'], 0)
+        explorer.update_fused_observations(
+            [], [cell], [], [cell], now=19.,
+            promotion_confirmations=2, joint_clear_confirmations=4)
+        reset = explorer.update_fused_observations(
+            [cell], [], [], [], now=20.,
+            promotion_confirmations=2, joint_clear_confirmations=4)
+        self.assertEqual(reset['joint_clear_max_evidence'], 0)
+
     def test_new_depth_obstacle_invalidates_active_path_prefix(self):
         explorer = ExploreMap(size_m=4., cell=.1, robot_radius=.1, margin=.05)
         raw = np.zeros((80, 80), np.int16)

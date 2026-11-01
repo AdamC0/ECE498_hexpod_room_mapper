@@ -1,5 +1,29 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Live-map false-positive, duplicate, and clearing candidate - 2026-11-01
+
+The operator reported two nearly coincident `power outlet` objects, a person's
+leg confirmed as `chair` under the relaxed 0.30 policy, and removed persistent
+depth obstacles sometimes failing to clear while visible. Live inspection
+found outlet tracks at `(0.969, -0.041)` and `(0.975, -0.056)` m, only about
+1.6 cm apart. The false chair was confirmed with about 0.459-0.506 confidence.
+The fused layer showed 47 persistent cells but zero jointly cleared cells.
+
+The 223-test candidate deduplicates same-frame outlet projections within
+0.10 m, keeping only the highest-confidence observation. It canonicalizes
+`backpack`, `suitcase`, and `luggage` as one luggage track. General expected
+classes return to 0.50 minimum / 0.55 median confirmation; only luggage retains
+the measured 0.30/0.33 override. The detector admission threshold is unchanged,
+so weak detections can remain visible and pending without confirming.
+
+Persistent clearing continues to require four positive settled depth/LiDAR
+free observations and an immediate occupied-neighbor veto. Free-ray cells may
+differ by one grid cell, and partial positive evidence remains usable for 5 s
+across missing pairs; missing data itself adds no evidence. Status now exposes
+joint-free cells and partial-evidence count/max. Raw Hector is never modified.
+All 223 host tests pass. Robot-native validation, paused deployment, and a
+measured remove-and-clear scene check remain pending. No motion was commanded.
+
 ## Rolling endpoint object confirmation deployed - labeled check pending
 
 The operator confirmed that objects should be able to reach confirmed state
@@ -64,7 +88,7 @@ pose, 29.73 Hz RGB, 29.75 Hz native depth, and 29.68 Hz registered depth. The
 page serves `WHY PENDING`. No object was detected in the current view, so a
 paused labeled-object promotion check remains pending. No motion was commanded.
 
-Updated: 2026-10-26
+Updated: 2026-11-01
 
 ## Dynamic fused occupancy deployed - measured-object validation pending
 

@@ -91,6 +91,20 @@ class ObjectPipelineTests(unittest.TestCase):
         np.testing.assert_allclose(n.object_detections[0]['map_point'],
                                    (1., 4.065, .07), atol=1e-6)
 
+    def test_baggage_label_flicker_updates_one_map_track(self):
+        n = self.node
+        n.detector.detect.side_effect = [
+            [dict(label='luggage', confidence=.7, box=(20, 20, 80, 80))],
+            [dict(label='backpack', confidence=.7, box=(20, 20, 80, 80))],
+            [dict(label='suitcase', confidence=.7, box=(20, 20, 80, 80))],
+        ]
+        for stamp in (99.9, 99.95, 100.):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            n.process_objects()
+        self.assertEqual(len(n.object_tracker.tracks), 1)
+        self.assertEqual(n.object_tracker.tracks[0]['label'], 'luggage')
+        self.assertEqual(n.object_tracker.tracks[0]['count'], 3)
+
     def test_expected_class_validation_confirms_from_same_settled_view(self):
         n = self.node
         n.object_tracker = ObjectTracker(priority_labels=['chair'])
@@ -438,8 +452,21 @@ class ObjectPipelineTests(unittest.TestCase):
         n = self.node
         n.detector.detect.side_effect = lambda frame: self.detections(frame) * 2
         n.process_objects()
-        self.assertEqual(len(n.object_tracker.tracks), 2)
-        self.assertEqual([track['count'] for track in n.object_tracker.tracks], [1, 1])
+        self.assertEqual(len(n.object_tracker.tracks), 1)
+        self.assertEqual(n.object_tracker.tracks[0]['count'], 1)
+
+    def test_nearby_power_outlet_boxes_map_to_one_observation(self):
+        n = self.node
+        detections = [dict(item) for item in self.detections(None) * 2]
+        for detection in detections:
+            detection['label'] = 'power outlet'
+        detections[1]['box'] = (42, 30, 58, 70)
+        detections[1]['confidence'] = .70
+        n.detector.detect.side_effect = lambda frame: detections
+        n.process_objects()
+        self.assertEqual(len(n.object_tracker.tracks), 1)
+        self.assertEqual(n.object_tracker.tracks[0]['count'], 1)
+        self.assertAlmostEqual(n.object_tracker.tracks[0]['confidence'], .90)
 
 
 if __name__ == '__main__':

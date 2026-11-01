@@ -25,6 +25,49 @@ COCO_CLASSES = (
     "refrigerator|book|clock|vase|scissors|teddy bear|hair drier|toothbrush"
 ).split("|")
 
+OBJECT_LABEL_ALIASES = {
+    "backpack": "luggage",
+    "luggage": "luggage",
+    "suitcase": "luggage",
+}
+
+
+def canonical_object_label(label):
+    """Return a stable map label for detector synonyms of one object type."""
+    normalized = str(label).strip().lower()
+    return OBJECT_LABEL_ALIASES.get(normalized, str(label).strip())
+
+
+def deduplicate_mapped_detections(detections, distance=.10, minimum_iou=.50,
+                                  spatial_labels=None):
+    """Return one map observation for overlapping same-object detections."""
+    spatial_labels = {str(label).strip().lower() for label in
+                      (spatial_labels or ("power outlet",))}
+    accepted = []
+    ordered = sorted(detections, key=lambda item: float(item.get("confidence", 0.0)),
+                     reverse=True)
+    for detection in ordered:
+        point = detection.get("map_point")
+        if point is None:
+            continue
+        label = canonical_object_label(detection.get("label", ""))
+        duplicate = False
+        for previous in accepted:
+            if previous["map_label"] != label:
+                continue
+            previous_point = previous["detection"]["map_point"]
+            if math.hypot(point[0] - previous_point[0],
+                          point[1] - previous_point[1]) > float(distance):
+                continue
+            overlap = box_iou(detection.get("box"),
+                              previous["detection"].get("box"))
+            if label in spatial_labels or overlap >= float(minimum_iou):
+                duplicate = True
+                break
+        if not duplicate:
+            accepted.append({"detection": detection, "map_label": label})
+    return accepted
+
 
 def load_labels(path):
     """Load a one-label-per-line model vocabulary."""
@@ -525,7 +568,7 @@ class ObjectTracker:
 
     def __init__(self, merge_distance=.65, min_observations=3, max_age=120.0,
                  priority_labels=None, expected_policy=None, other_policy=None,
-                 large_labels=None):
+                 large_labels=None, class_policies=None):
         self.merge_distance = float(merge_distance)
         self.min_observations = int(min_observations)
         self.max_age = float(max_age)
@@ -535,8 +578,8 @@ class ObjectTracker:
         self.large_labels = {str(label).strip().lower()
                              for label in (large_labels or [])}
         self.expected_policy = dict({
-            "hits": 3, "window": 8, "minimum_confidence": .30,
-            "median_confidence": .33, "position_tolerance": .25,
+            "hits": 3, "window": 8, "minimum_confidence": .50,
+            "median_confidence": .55, "position_tolerance": .25,
             "large_position_tolerance": .50, "box_iou": .40,
         }, **(expected_policy or {}))
         self.other_policy = dict({
@@ -544,6 +587,10 @@ class ObjectTracker:
             "median_confidence": .75, "position_tolerance": .20,
             "large_position_tolerance": .35, "box_iou": .50,
         }, **(other_policy or {}))
+        self.class_policies = {
+            str(label).strip().lower(): dict(policy)
+            for label, policy in (class_policies or {}).items()
+        }
         self.tracks = []
         self.suppressed = []
         self.next_id = 1
@@ -554,8 +601,11 @@ class ObjectTracker:
         self.next_id = 1
 
     def _policy(self, label):
-        return (self.expected_policy if str(label).lower() in self.priority_labels
-                else self.other_policy)
+        normalized = str(label).lower()
+        policy = dict(self.expected_policy if normalized in self.priority_labels
+                      else self.other_policy)
+        policy.update(self.class_policies.get(normalized, {}))
+        return policy
 
     def _confirmation_evaluation(self, track):
         policy = self._policy(track["label"])

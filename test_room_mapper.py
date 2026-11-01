@@ -926,7 +926,9 @@ class MapperTests(unittest.TestCase):
         n.explorer = Mock(cell=.1)
         n.explorer.update_fused_observations.return_value = {
             'promoted': 2, 'cleared_temporary': 1,
-            'cleared_persistent': 1, 'suppressed_slam': 1}
+            'cleared_persistent': 1, 'suppressed_slam': 1,
+            'joint_free': 3, 'joint_clear_candidates': 2,
+            'joint_clear_max_evidence': 3}
         n.explorer.depth_obstacle_count.return_value = 5
         n.message_time = Mock(return_value=99.)
         msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
@@ -937,7 +939,8 @@ class MapperTests(unittest.TestCase):
         n.explorer.update_fused_observations.assert_called_once_with(
             [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
             now=100., ttl=30., temporary_clear_confirmations=2,
-            promotion_confirmations=3, joint_clear_confirmations=4)
+            promotion_confirmations=3, joint_clear_confirmations=4,
+            joint_clear_evidence_ttl=5.)
         n.tf_buffer.lookup.assert_called_once_with(
             'map', 'camera', 99., max_age=1.)
         n.explorer.update_depth_obstacles.assert_not_called()

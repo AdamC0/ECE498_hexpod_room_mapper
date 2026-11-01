@@ -43,6 +43,7 @@ class ExploreMap:
         self.persistent_depth_obstacles = set()
         self.suppressed_slam_obstacles = set()
         self.joint_clear_counts = {}
+        self.joint_clear_last_observed = {}
         self.depth_obstacle_ttl = 5.0
         self._depth_overlay_active = False
         self.have_map = False
@@ -58,6 +59,7 @@ class ExploreMap:
         self.persistent_depth_obstacles.clear()
         self.suppressed_slam_obstacles.clear()
         self.joint_clear_counts.clear()
+        self.joint_clear_last_observed.clear()
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -151,7 +153,8 @@ class ExploreMap:
                                   lidar_free_cells, now=None, ttl=5.0,
                                   temporary_clear_confirmations=2,
                                   promotion_confirmations=3,
-                                  joint_clear_confirmations=4):
+                                  joint_clear_confirmations=4,
+                                  joint_clear_evidence_ttl=5.0):
         """Fuse depth occupancy with live LiDAR without altering ``slam_state``.
 
         Repeated depth hits promote a temporary obstacle to session-persistent
@@ -163,10 +166,14 @@ class ExploreMap:
         now = time.time() if now is None else float(now)
         promotion_confirmations = int(promotion_confirmations)
         joint_clear_confirmations = int(joint_clear_confirmations)
+        joint_clear_evidence_ttl = float(joint_clear_evidence_ttl)
         if not 2 <= promotion_confirmations <= 100:
             raise ValueError('Depth promotion confirmations must be between 2 and 100')
         if not 2 <= joint_clear_confirmations <= 100:
             raise ValueError('Joint clear confirmations must be between 2 and 100')
+        if (not math.isfinite(joint_clear_evidence_ttl) or
+                not 1.0 <= joint_clear_evidence_ttl <= 30.0):
+            raise ValueError('Joint clear evidence TTL must be between 1 and 30 seconds')
 
         def planner_cells(world_cells):
             result = set()
@@ -217,29 +224,54 @@ class ExploreMap:
                 for dc in (-1, 0, 1):
                     if self.inside(r + dr, c + dc):
                         occupied_guard.add((r + dr, c + dc))
-        joint_free = (depth_free & lidar_free) - occupied_guard
+        def expanded(cells):
+            result = set()
+            for r, c in cells:
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        if self.inside(r + dr, c + dc):
+                            result.add((r + dr, c + dc))
+            return result
+
+        # One sensor must ray-trace the exact cell free; the other may agree in
+        # an immediately adjacent 10 cm cell. This mirrors the occupied-neighbor
+        # guard and prevents harmless sensor/grid quantization from making a
+        # moved obstacle permanent. Any nearby occupied endpoint still vetoes.
+        joint_free = ((depth_free & expanded(lidar_free)) |
+                      (lidar_free & expanded(depth_free))) - occupied_guard
 
         # Reappearance in either sensor immediately cancels a prior downstream
         # suppression; raw Hector occupancy itself remains untouched.
         self.suppressed_slam_obstacles.difference_update(occupied)
         for cell in occupied:
             self.joint_clear_counts.pop(cell, None)
+            self.joint_clear_last_observed.pop(cell, None)
 
         candidates = (self.persistent_depth_obstacles |
                       {cell for cell in joint_free
                        if self.slam_state[cell] == OCCUPIED})
+        # Missing/invalid/temporarily unpaired observations neither count nor
+        # erase recent positive evidence. Expire that partial evidence after a
+        # bounded interval, while any renewed occupied hit resets it above.
         for cell in list(self.joint_clear_counts):
-            if cell not in joint_free or cell not in candidates:
+            still_occupied = (cell in self.persistent_depth_obstacles or
+                              self.slam_state[cell] == OCCUPIED)
+            last_observed = self.joint_clear_last_observed.get(cell, -float('inf'))
+            if (not still_occupied or
+                    now - last_observed > joint_clear_evidence_ttl):
                 del self.joint_clear_counts[cell]
+                self.joint_clear_last_observed.pop(cell, None)
 
         cleared_persistent = 0
         suppressed_slam = 0
         for cell in joint_free & candidates:
             count = self.joint_clear_counts.get(cell, 0) + 1
+            self.joint_clear_last_observed[cell] = now
             if count < joint_clear_confirmations:
                 self.joint_clear_counts[cell] = count
                 continue
             self.joint_clear_counts.pop(cell, None)
+            self.joint_clear_last_observed.pop(cell, None)
             if cell in self.persistent_depth_obstacles:
                 self.persistent_depth_obstacles.remove(cell)
                 self.depth_obstacle_hit_counts.pop(cell, None)
@@ -259,6 +291,10 @@ class ExploreMap:
             'cleared_temporary': cleared_temporary,
             'cleared_persistent': cleared_persistent,
             'suppressed_slam': suppressed_slam,
+            'joint_free': len(joint_free),
+            'joint_clear_candidates': len(self.joint_clear_counts),
+            'joint_clear_max_evidence': max(self.joint_clear_counts.values())
+                                        if self.joint_clear_counts else 0,
         }
 
     def _apply_depth_obstacles(self, now=None, rebase=True):

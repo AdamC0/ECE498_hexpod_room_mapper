@@ -28,6 +28,7 @@ from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TensorRtYoloDetector, TransformCache,
                             YoloOnnxDetector, backproject, decode_depth_image, load_labels,
+                            canonical_object_label, deduplicate_mapped_detections,
                             sample_box_depth, transform_point)
 
 try:
@@ -275,6 +276,8 @@ class RoomMapper:
             "~depth_map_promotion_observations", 3))
         self.depth_map_joint_clear_observations = int(rospy.get_param(
             "~depth_map_joint_clear_observations", 4))
+        self.depth_map_joint_clear_evidence_ttl = float(rospy.get_param(
+            "~depth_map_joint_clear_evidence_ttl", 5.0))
         self.depth_lidar_sync_tolerance = float(rospy.get_param(
             "~depth_lidar_sync_tolerance", 0.35))
         self.depth_map_settled_tf_max_age = float(rospy.get_param(
@@ -294,6 +297,8 @@ class RoomMapper:
                 not 1 <= self.depth_map_clear_observations <= 10 or
                 not 2 <= self.depth_map_promotion_observations <= 100 or
                 not 2 <= self.depth_map_joint_clear_observations <= 100 or
+                not math.isfinite(self.depth_map_joint_clear_evidence_ttl) or
+                not 1.0 <= self.depth_map_joint_clear_evidence_ttl <= 30.0 or
                 not math.isfinite(self.depth_lidar_sync_tolerance) or
                 not .05 <= self.depth_lidar_sync_tolerance <= 1.0 or
                 not math.isfinite(self.depth_map_settled_tf_max_age) or
@@ -381,9 +386,13 @@ class RoomMapper:
         self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
         self.object_expected_window = int(rospy.get_param("~object_expected_window", 8))
         self.object_expected_min_confidence = float(rospy.get_param(
-            "~object_expected_min_confidence", 0.30))
+            "~object_expected_min_confidence", 0.50))
         self.object_expected_median_confidence = float(rospy.get_param(
-            "~object_expected_median_confidence", 0.33))
+            "~object_expected_median_confidence", 0.55))
+        self.object_luggage_min_confidence = float(rospy.get_param(
+            "~object_luggage_min_confidence", 0.30))
+        self.object_luggage_median_confidence = float(rospy.get_param(
+            "~object_luggage_median_confidence", 0.33))
         self.object_other_hits = int(rospy.get_param("~object_other_hits", 3))
         self.object_other_window = int(rospy.get_param("~object_other_window", 8))
         self.object_other_min_confidence = float(rospy.get_param(
@@ -424,6 +433,8 @@ class RoomMapper:
                 not 1 <= self.object_other_hits <= self.object_other_window <= 8 or
                 not 0.01 <= self.object_expected_min_confidence <= \
                     self.object_expected_median_confidence <= .99 or
+                not 0.01 <= self.object_luggage_min_confidence <= \
+                    self.object_luggage_median_confidence <= .99 or
                 not 0.01 <= self.object_other_min_confidence <= \
                     self.object_other_median_confidence <= .99 or
                 not .05 <= self.object_expected_position_tolerance <= .65 or
@@ -551,13 +562,20 @@ class RoomMapper:
                 max(self.object_other_position_tolerance, .35)),
             "box_iou": self.object_other_box_iou,
         }
+        class_policies = {
+            "luggage": {
+                "minimum_confidence": self.object_luggage_min_confidence,
+                "median_confidence": self.object_luggage_median_confidence,
+            },
+        }
         self.object_tracker = ObjectTracker(self.object_merge_distance,
                                             self.object_min_observations,
                                             self.object_track_max_age,
                                             priority_labels=self.object_priority_classes,
                                             expected_policy=expected_policy,
                                             other_policy=other_policy,
-                                            large_labels=self.object_large_classes)
+                                            large_labels=self.object_large_classes,
+                                            class_policies=class_policies)
         self.object_detections = []
         self.object_detections_stamp = 0.0
         self.registered_depth = None
@@ -905,13 +923,17 @@ class RoomMapper:
                         promotion_confirmations=getattr(
                             self, 'depth_map_promotion_observations', 3),
                         joint_clear_confirmations=getattr(
-                            self, 'depth_map_joint_clear_observations', 4))
+                            self, 'depth_map_joint_clear_observations', 4),
+                        joint_clear_evidence_ttl=getattr(
+                            self, 'depth_map_joint_clear_evidence_ttl', 5.0))
                     cleared = (result['cleared_temporary'] +
                                result['cleared_persistent'] +
                                result['suppressed_slam'])
                 else:
                     result = {'promoted': 0, 'cleared_persistent': 0,
-                              'suppressed_slam': 0}
+                              'suppressed_slam': 0, 'joint_free': 0,
+                              'joint_clear_candidates': 0,
+                              'joint_clear_max_evidence': 0}
                     cleared = self.explorer.update_depth_obstacles(
                         occupied_cells, now, self.depth_map_ttl,
                         observed_free_cells=observed_free_cells,
@@ -926,9 +948,11 @@ class RoomMapper:
             self.depth_map_last_cleared = cleared
             self.depth_map_status = (
                 "%d temporary obstacle cells (%.0f s hold); cleared %d this update; "
-                "%d persistent depth, %d joint-cleared Hector cells; promoted %d%s" %
+                "%d persistent depth, %d joint-cleared Hector cells; promoted %d; "
+                "joint free %d, clear evidence %d cells/max %d%s" %
                 (count, self.depth_map_ttl, cleared, persistent, suppressed,
-                 result['promoted'],
+                  result['promoted'], result['joint_free'],
+                  result['joint_clear_candidates'], result['joint_clear_max_evidence'],
                  "" if paired else "; waiting for settled synchronized LiDAR"))
             if cleared:
                 rospy.loginfo("Registered depth cleared %d disproven planner cells", cleared)
@@ -1297,18 +1321,18 @@ class RoomMapper:
             mapped = 0
             updated_tracks = []
             seen_track_ids = []
-            for detection in detections:
+            for mapped_detection in deduplicate_mapped_detections(detections):
+                detection = mapped_detection["detection"]
                 point = detection["map_point"]
-                if point is not None:
-                    track = self.object_tracker.update(
-                        detection["label"], point[0], point[1],
-                        detection["confidence"], now, observation_id=observation_id,
-                        validation_group=validation_group,
-                        box=detection["box"])
-                    if track is not None:
-                        updated_tracks.append(track)
-                        seen_track_ids.append(track["id"])
-                        mapped += 1
+                track = self.object_tracker.update(
+                    mapped_detection["map_label"], point[0], point[1],
+                    detection["confidence"], now, observation_id=observation_id,
+                    validation_group=validation_group,
+                    box=detection["box"])
+                if track is not None:
+                    updated_tracks.append(track)
+                    seen_track_ids.append(track["id"])
+                    mapped += 1
             self.object_tracker.finish_observation(
                 validation_group, observation_id, seen_track_ids)
             self.object_detections = detections if display_current else []

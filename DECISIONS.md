@@ -1515,3 +1515,39 @@ position standard deviation about 0.0011 m. The queue showed 31 captured / 30
 processed / 0 replaced and 0.31 s inference. No motion was commanded. This is
 direct stationary pipeline evidence for one scene, not broad detector-quality
 validation.
+
+## Deduplicate outlets, scope the low threshold, and retain clear evidence - 2026-11-01
+
+The operator reported three live stationary failures: one physical power outlet
+appeared as two nearby map objects, a person's leg confirmed as a chair, and a
+removed persistent depth obstacle sometimes remained even while visible. Live
+state showed two pending `power outlet` tracks only about 1.6 cm apart, a
+confirmed chair with roughly 0.459-0.506 confidence, 47 persistent depth cells,
+and no jointly cleared cells.
+
+Chosen: deduplicate same-frame `power outlet` projections within 0.10 m before
+tracking, retaining only the highest-confidence detection. The frame still
+contributes at most one hit, so detector duplication cannot accelerate
+confirmation. For other labels, map proximity must also have at least 0.50 box
+IoU before same-frame deduplication. Canonicalize the detector synonyms
+`backpack`, `suitcase`, and `luggage` to one `luggage` map label.
+
+Restore general expected-class confirmation to 0.50 per hit and 0.55 median.
+Retain 0.30/0.33 only for luggage because that class was directly validated at
+the stopped endpoint. Preserve the 0.60/0.75 other-class gate and all depth,
+TF, timestamp, box, and position requirements. The detector admission threshold
+does not change; a weak chair can be displayed or pending but cannot confirm.
+
+For persistent occupancy, retain four positive settled free observations from
+both depth and LiDAR and the immediate 3x3 occupied-neighbor veto. Accept a free
+cell when one sensor traverses it exactly and the other traverses its 3x3
+neighborhood, matching the existing 10 cm grid-disagreement protection. Keep
+partial positive evidence for at most 5 s across missing paired observations;
+missing data never increments the count. Any occupied hit resets the evidence.
+Raw Hector remains untouched.
+
+All 223 host tests pass, including outlet deduplication without double-counting,
+the observed 0.459 chair rejection, class-specific luggage confirmation,
+one-cell paired-free alignment, one missing pair, evidence expiry, and occupied
+reset. Robot-native validation, paused deployment, and measured removed-object
+validation remain pending. No motion was commanded.

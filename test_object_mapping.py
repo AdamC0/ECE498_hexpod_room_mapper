@@ -10,8 +10,8 @@ import numpy as np
 
 from object_mapping import (COCO_CLASSES, ObjectTracker, TensorRtYoloDetector,
                             TransformCache, YoloOnnxDetector, backproject,
-                            decode_depth_image, load_labels, sample_box_depth,
-                            transform_point)
+                            canonical_object_label, decode_depth_image, load_labels,
+                            sample_box_depth, transform_point)
 
 
 class ObjectMappingTests(unittest.TestCase):
@@ -101,23 +101,43 @@ class ObjectMappingTests(unittest.TestCase):
     def test_high_count_does_not_override_low_confidence(self):
         tracker = ObjectTracker(priority_labels=['chair'])
         for observation in range(1, 4):
-            tracker.update('chair', 1.0, 2.0, .31, observation,
+            tracker.update('chair', 1.0, 2.0, .52, observation,
                            observation_id=observation,
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))
         self.assertEqual(tracker.snapshot(True, 3), [])
         pending = tracker.snapshot(False, 3)[0]
-        self.assertIn('median confidence 0.31 is below 0.33',
+        self.assertIn('median confidence 0.52 is below 0.55',
                       pending['validation_reason'])
 
     def test_expected_class_can_confirm_at_deployed_admission_confidence(self):
-        tracker = ObjectTracker(priority_labels=['luggage'])
+        tracker = ObjectTracker(
+            priority_labels=['luggage'],
+            class_policies={'luggage': {
+                'minimum_confidence': .30, 'median_confidence': .33}})
         for observation, confidence in enumerate((.34, .35, .33), 1):
             tracker.update('luggage', 1.0, 2.0, confidence, observation,
                            observation_id=observation,
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))
         self.assertTrue(tracker.snapshot(True, 3)[0]['confirmed'])
+
+    def test_low_confidence_chair_cannot_confirm(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        for observation in range(1, 4):
+            tracker.update('chair', 1.0, 2.0, .459, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        self.assertEqual(tracker.snapshot(True, 3), [])
+        self.assertIn('0/3 detections meet 0.50',
+                      tracker.snapshot(False, 3)[0]['validation_reason'])
+
+    def test_baggage_synonyms_share_one_canonical_map_label(self):
+        self.assertEqual(canonical_object_label('backpack'), 'luggage')
+        self.assertEqual(canonical_object_label('suitcase'), 'luggage')
+        self.assertEqual(canonical_object_label('luggage'), 'luggage')
+        self.assertEqual(canonical_object_label('chair'), 'chair')
 
     def test_high_confidence_does_not_override_box_inconsistency(self):
         tracker = ObjectTracker(priority_labels=['chair'])

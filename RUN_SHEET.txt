@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-10-26)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-01)
 =====================================================
 
 ROBOT:
@@ -16,6 +16,22 @@ PRE-RUN:
   [ ] Confirm /scan, /slam_out_pose, RGB, and depth are publishing.
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
+
+OBJECT DEDUP / CONFIDENCE / DEPTH-CLEAR CANDIDATE:
+  [x] Pass all 223 host tests and compile production Python.
+  [x] Deduplicate same-frame power-outlet map observations within 0.10 m without
+      allowing one frame to contribute more than one confirmation hit.
+  [x] Restore general expected-class confirmation to 0.50 minimum / 0.55 median;
+      retain 0.30/0.33 only for canonical luggage.
+  [x] Require four positive paired free observations for persistent clearing,
+      allowing one-cell depth/LiDAR quantization and a 5 s evidence horizon.
+      Missing pairs add no evidence; either sensor's occupied neighbor resets it.
+  [ ] Stop the mapper, pass all 223 tests natively on PT, then deploy exactly one
+      mapper AUTO PAUSED/stop with Hector as the only SLAM stack.
+  [ ] Verify one visible outlet produces one pending/confirmed map track.
+  [ ] Verify the former leg/chair scene stays pending below the restored gate.
+  [ ] Promote a measured removable obstacle, remove it in full depth/LiDAR view,
+      and observe four positive pairs clear it while raw Hector /map is unchanged.
 
 ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
   [x] Pass all 216 host tests and compile/import the production modules.
