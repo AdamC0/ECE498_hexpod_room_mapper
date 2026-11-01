@@ -33,6 +33,11 @@ backlighting and a foreground shoe caused the model to emit only `sneakers` and
 correctly remained pending. A better-lit/unoccluded backpack confirmation check
 remains pending; no motion was commanded.
 
+The exact Objects365 `luggage` label and COCO fallback `suitcase` label are
+included in the expected-object tier in the current follow-up. This is a class
+policy correction rather than a global relaxation: unrelated labels keep the
+strict 0.60/0.75 other-class confidence policy.
+
 Autonomous room mapping for the Hiwonder JetHexa:
 
 `YDLIDAR G4 -> Hector pose/map + RGB-D obstacle layer -> frontier planner -> JetHexa controller`

@@ -31,6 +31,14 @@ pending under the unchanged 0.60/0.75 gate. Repeat with the shoe removed and
 the backpack front lit before evaluating the new expected-class confirmation
 threshold. No motion was commanded.
 
+The operator then explicitly selected a visible `luggage` object instead of the
+backpack. It accumulated 25 mapped observations, about 2 mm position standard
+deviation, and confidence up to 0.538, but remained in the other tier solely
+because `luggage` was absent from the expected-class list. The current follow-up
+adds exact Objects365 `luggage` and fallback COCO `suitcase` to the expected
+tier. No unrelated-class threshold changes. Host/native validation and
+deployment of this class-policy follow-up are pending.
+
 Two adjacent detector misses no longer delete a pending track. Misses remain in
 the rolling window and pending tracks still expire through the existing age
 limit. The processing horizon is 45 s so the measured CPU fallback can drain a

@@ -111,9 +111,9 @@ class ObjectMappingTests(unittest.TestCase):
                       pending['validation_reason'])
 
     def test_expected_class_can_confirm_at_deployed_admission_confidence(self):
-        tracker = ObjectTracker(priority_labels=['backpack'])
+        tracker = ObjectTracker(priority_labels=['luggage'])
         for observation, confidence in enumerate((.34, .35, .33), 1):
-            tracker.update('backpack', 1.0, 2.0, confidence, observation,
+            tracker.update('luggage', 1.0, 2.0, confidence, observation,
                            observation_id=observation,
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))

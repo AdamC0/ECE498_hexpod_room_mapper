@@ -356,7 +356,8 @@ class RoomMapper:
             "~object_priority_confidence", 0.30))
         priority_classes = rospy.get_param("~object_priority_classes", [
             "chair", "desk", "podium", "lectern", "stool", "bench", "dining table", "coffee table",
-            "side table", "blackboard/whiteboard", "book", "backpack", "laptop",
+            "side table", "blackboard/whiteboard", "book", "backpack", "luggage",
+            "suitcase", "laptop",
             "keyboard", "mouse", "monitor/tv", "projector", "printer", "clock",
             "cabinet/shelf", "pen/pencil", "marker", "folder", "notepaper",
             "calculator", "trash bin can", "power outlet"])

@@ -1494,3 +1494,14 @@ backlit with a shoe partly occluding the backpack; the model emitted only
 `sneakers` and `leather shoes`, so the new expected-class threshold could not be
 exercised. The other-class tracks correctly remained pending. Repeat with the
 shoe removed and the backpack front lit. No motion was commanded.
+
+The operator then requested that the backpack not be used and presented a
+`luggage` object. The live track accumulated 25 mapped observations with about
+2 mm position standard deviation and confidence up to 0.538, but the exact
+Objects365 label was absent from the expected-class list and therefore inherited
+the unrelated-class 0.60/0.75 policy.
+
+Chosen: add exact label `luggage` plus COCO fallback label `suitcase` to the
+expected-object tier. This is a semantic policy correction, not a global
+threshold relaxation; all other classes retain their existing gate. Host/native
+validation and deployment remain pending.
