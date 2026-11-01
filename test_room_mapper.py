@@ -931,6 +931,7 @@ class MapperTests(unittest.TestCase):
             'joint_clear_max_evidence': 3,
             'depth_free': 10, 'lidar_free': 12,
             'persistent_depth_free': 4, 'persistent_lidar_free': 5,
+            'persistent_joint_exact': 2,
             'persistent_joint_agreement': 3,
             'persistent_occupied_guard': 1}
         n.explorer.depth_obstacle_count.return_value = 5

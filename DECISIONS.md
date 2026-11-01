@@ -1570,3 +1570,21 @@ persistent-cell overlap with each free set, pre-veto joint agreement, and the
 occupied guard. This does not change fusion decisions; it identifies the exact
 gate preventing removal before any further safety-policy change. All 223 host
 tests pass; robot-native validation and paused diagnostic deployment are pending.
+
+Live diagnostic follow-up showed 39 persistent cells immediately after mapper
+restart. Depth marked all 39 currently occupied, LiDAR marked 11 free, and 9
+had paired agreement before the occupied guard. A registered-depth projection
+sample showed 39 occupied cells at the 0.025 m height minimum and 36 even at
+0.15 m; the dominant band was the real background wall around 0.7-0.9 m plus
+near furniture, not floor leakage.
+
+Root cause: when an object is removed close to a wall, both sensors can traverse
+the old foreground cell exactly, but the newly visible wall endpoint lands in
+the adjacent 10 cm cell. The blanket 3x3 endpoint guard therefore vetoes the old
+cell forever. Chosen: exact free evidence from both sensors may override an
+adjacent occupied endpoint after the existing four-observation requirement. An
+occupied endpoint in the exact cell still wins immediately. If either sensor's
+free evidence is only in a neighboring cell, the complete 3x3 occupied guard
+still applies. The adjacent wall cell remains occupied and planner inflation is
+unchanged. All 224 host tests pass; robot-native validation, paused deployment,
+and a controlled stationary promote/remove check remain pending.

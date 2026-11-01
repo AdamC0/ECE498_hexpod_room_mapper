@@ -11,6 +11,21 @@ agreement and the occupied guard. All 223 host tests pass; paused native
 deployment is pending. Do not classify the operator-reported pose change as
 SLAM drift.
 
+Live diagnostic deployment then showed why: immediately after mapper restart,
+the current scene promoted 39 cells; depth marked all 39 currently occupied,
+LiDAR marked 11 free, and 9 had pre-veto paired agreement. A registered-depth
+sample showed a real background wall at roughly 0.7-0.9 m plus nearer furniture,
+not floor leakage. Raising the height cutoff from 0.025 to 0.15 m reduced only
+39 to 36 occupied cells. The stale removed-object cell can sit immediately in
+front of the newly visible wall cell, so the old 3x3 occupied guard vetoes it
+forever even when both sensors mark the exact old cell free.
+
+The 224-test fix lets exact free evidence from both sensors override only an
+adjacent endpoint; an occupied return in the exact cell still wins immediately,
+and one-cell-tolerant free agreement still retains the full neighbor guard.
+Robot-native validation, paused deployment, and a controlled promote/remove
+check remain pending. Autonomy stays out of scope.
+
 The operator reported two nearly coincident `power outlet` objects, a person's
 leg confirmed as `chair` under the relaxed 0.30 policy, and removed persistent
 depth obstacles sometimes failing to clear while visible. Live inspection
@@ -26,7 +41,7 @@ the measured 0.30/0.33 override. The detector admission threshold is unchanged,
 so weak detections can remain visible and pending without confirming.
 
 Persistent clearing continues to require four positive settled depth/LiDAR
-free observations and an immediate occupied-neighbor veto. Free-ray cells may
+free observations and an immediate exact-cell occupied veto. Free-ray cells may
 differ by one grid cell, and partial positive evidence remains usable for 5 s
 across missing pairs; missing data itself adds no evidence. Status now exposes
 joint-free cells and partial-evidence count/max. Raw Hector is never modified.

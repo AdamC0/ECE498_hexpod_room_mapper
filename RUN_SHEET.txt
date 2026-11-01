@@ -35,6 +35,17 @@ OBJECT DEDUP / CONFIDENCE / DEPTH-CLEAR CANDIDATE:
   [ ] Promote a measured removable obstacle, remove it in full depth/LiDAR view,
       and observe four positive pairs clear it while raw Hector /map is unchanged.
 
+ADJACENT-BACKGROUND CLEARING FOLLOW-UP:
+  [x] Reproduce zero evidence despite paired free rays after removing luggage.
+  [x] Confirm live depth is rebuilding real wall/furniture cells, not floor leakage.
+  [x] Preserve exact-cell occupied veto and the adjacent guard for quantized
+      one-cell free agreement.
+  [x] Allow four exact-free observations from both sensors to clear the old cell
+      immediately before a newly visible adjacent wall endpoint.
+  [x] Pass all 224 host tests and compile production Python.
+  [ ] Pass all 224 tests natively and deploy with one mapper AUTO PAUSED/stop.
+  [ ] Run a controlled stationary promote/remove check; do not test autonomy.
+
 ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
   [x] Pass all 216 host tests and compile/import the production modules.
   [x] Require three qualifying hits within the latest eight fresh stationary

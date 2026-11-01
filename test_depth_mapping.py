@@ -256,7 +256,7 @@ class DepthOverlayTests(unittest.TestCase):
         self.assertNotIn(planner_cell, explorer.suppressed_slam_obstacles)
         self.assertEqual(explorer.state[planner_cell], OCCUPIED)
 
-    def test_one_sensor_or_nearby_occupied_endpoint_cannot_clear_black_cell(self):
+    def test_one_sensor_or_quantized_free_near_hit_cannot_clear_black_cell(self):
         explorer = ExploreMap(size_m=4., cell=.1)
         raw = np.zeros((80, 80), np.int16)
         explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
@@ -272,9 +272,32 @@ class DepthOverlayTests(unittest.TestCase):
 
         for now in (13., 14.):
             explorer.update_fused_observations(
-                [], [cell], [(0, 11)], [cell], now=now,
+                [], [cell], [(0, 11)], [(0, 9)], now=now,
                 promotion_confirmations=3, joint_clear_confirmations=2)
         self.assertEqual(explorer.state[planner_cell], OCCUPIED)
+
+    def test_exact_joint_free_clears_cell_before_adjacent_background_hit(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        adjacent_background = (0, 11)
+        planner_cell = explorer.to_cell(1.05, .05)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=2)
+        self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+
+        explorer.update_fused_observations(
+            [adjacent_background], [cell], [adjacent_background], [cell], now=12.,
+            promotion_confirmations=2, joint_clear_confirmations=2)
+        result = explorer.update_fused_observations(
+            [adjacent_background], [cell], [adjacent_background], [cell], now=13.,
+            promotion_confirmations=2, joint_clear_confirmations=2)
+        self.assertEqual(result['cleared_persistent'], 1)
+        self.assertNotIn(planner_cell, explorer.persistent_depth_obstacles)
+        self.assertIn(explorer.to_cell(1.15, .05), explorer.persistent_depth_obstacles)
 
     def test_joint_free_removes_promoted_depth_cell_and_reset_forgets_fusion(self):
         explorer = ExploreMap(size_m=4., cell=.1)

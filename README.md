@@ -17,12 +17,16 @@ unchanged, so weak boxes may still be displayed or remain pending, but they do
 not become confirmed map landmarks.
 
 Persistent-depth removal still requires four settled observations with free
-rays from both depth and LiDAR and still applies the occupied-neighbor veto.
-The two free projections may now differ by one 0.10 m grid cell, and partial
+rays from both depth and LiDAR. An occupied return in the exact cell always
+vetoes clearing. An adjacent occupied endpoint also vetoes one-cell-tolerant
+agreement, but no longer overrides exact free evidence from both sensors; this
+allows a removed object immediately in front of a newly visible wall to clear.
+The two free projections may differ by one 0.10 m grid cell, and partial
 positive evidence survives brief missing pairs for at most 5 s. This prevents
 quantization and a single dropped pair from resetting every clearing attempt;
 missing data never counts as free. Raw Hector occupancy remains unchanged.
-All 223 tests pass on the host and natively on PT. Commit `63d88cb` is deployed
+The adjacent-background fix has 224 passing host tests. Robot-native validation
+and paused deployment are pending. The prior 223-test commit `63d88cb` remains deployed
 with matching production-file hashes, one TensorRT mapper `AUTO PAUSED` on
 command `stop`, and Hector as the only SLAM stack. A paused startup check showed
 live joint-clear diagnostics, 34 persistent cells, one joint-free cell, and no
@@ -93,9 +97,10 @@ an unconfirmed magenta cell to persistent black occupancy, but only while a
 timestamp-aligned settled LiDAR scan is also available. Four consecutive
 observations in which both valid depth rays and distinct LiDAR rays traverse a
 cell can remove a promoted obstacle or suppress stale Hector occupancy in the
-fused planner/display map. A current occupied endpoint from either sensor
-immediately vetoes clearing and restores a suppressed cell; neighboring cells
-are also protected against 10 cm grid-quantization disagreement.
+fused planner/display map. A current occupied endpoint in the cell immediately
+vetoes clearing and restores a suppressed cell. Neighboring endpoints protect
+10 cm grid-tolerant agreement, while exact free traversal from both sensors may
+clear the preceding cell before an adjacent background surface.
 
 Hector's `/map`, scan input, pose, and update policy are unchanged. Suppression
 is a downstream fused-map decision and never writes into Hector. Persistent

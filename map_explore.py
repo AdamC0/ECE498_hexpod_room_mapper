@@ -239,7 +239,13 @@ class ExploreMap:
         # moved obstacle permanent. Any nearby occupied endpoint still vetoes.
         joint_agreement = ((depth_free & expanded(lidar_free)) |
                            (lidar_free & expanded(depth_free)))
-        joint_free = joint_agreement - occupied_guard
+        joint_exact = depth_free & lidar_free
+        # Exact positive-free agreement from both sensors may clear the cell
+        # immediately in front of a newly visible wall endpoint. The endpoint's
+        # own cell still always wins. When either sensor agrees only in an
+        # adjacent cell, retain the full occupied-neighbor quantization guard.
+        joint_free = ((joint_exact - occupied) |
+                      ((joint_agreement - joint_exact) - occupied_guard))
         persistent_before_clear = set(self.persistent_depth_obstacles)
 
         # Reappearance in either sensor immediately cancels a prior downstream
@@ -301,6 +307,7 @@ class ExploreMap:
             'lidar_free': len(lidar_free),
             'persistent_depth_free': len(persistent_before_clear & depth_free),
             'persistent_lidar_free': len(persistent_before_clear & lidar_free),
+            'persistent_joint_exact': len(persistent_before_clear & joint_exact),
             'persistent_joint_agreement': len(persistent_before_clear &
                                               joint_agreement),
             'persistent_occupied_guard': len(persistent_before_clear &

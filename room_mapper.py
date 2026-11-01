@@ -937,6 +937,7 @@ class RoomMapper:
                               'depth_free': 0, 'lidar_free': 0,
                               'persistent_depth_free': 0,
                               'persistent_lidar_free': 0,
+                              'persistent_joint_exact': 0,
                               'persistent_joint_agreement': 0,
                               'persistent_occupied_guard': 0}
                     cleared = self.explorer.update_depth_obstacles(
@@ -955,12 +956,14 @@ class RoomMapper:
                 "%d temporary obstacle cells (%.0f s hold); cleared %d this update; "
                 "%d persistent depth, %d joint-cleared Hector cells; promoted %d; "
                 "joint free %d, clear evidence %d cells/max %d; "
-                "free D/L %d/%d, persistent D/L/paired/guarded %d/%d/%d/%d%s" %
+                "free D/L %d/%d, persistent D/L/exact/paired/guarded "
+                "%d/%d/%d/%d/%d%s" %
                 (count, self.depth_map_ttl, cleared, persistent, suppressed,
                   result['promoted'], result['joint_free'],
                   result['joint_clear_candidates'], result['joint_clear_max_evidence'],
                   result['depth_free'], result['lidar_free'],
                   result['persistent_depth_free'], result['persistent_lidar_free'],
+                  result['persistent_joint_exact'],
                   result['persistent_joint_agreement'],
                   result['persistent_occupied_guard'],
                  "" if paired else "; waiting for settled synchronized LiDAR"))
