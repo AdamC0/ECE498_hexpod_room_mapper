@@ -1014,6 +1014,12 @@ class RoomMapper:
             try:
                 self.process_object_snapshot(snapshot)
             except Exception as exc:
+                # process_object_snapshot() clears this flag for detector
+                # failures and normal commits. Errors while validating depth
+                # or updating tracks can also escape, so recover the worker
+                # state here or preview capture will remain disabled forever.
+                with self.control_lock:
+                    self.object_processing = False
                 self.object_status = "processing failed: %s" % exc
                 rospy.logerr_throttle(5, "Object processing failed: %s", exc)
             finally:
