@@ -5,8 +5,10 @@
 The current repository candidate lets fresh synchronized observations continue
 validating an object while the robot remains settled at the same endpoint.
 Expected classroom and other model classes both require three qualifying hits
-within the latest eight validation observations; the other-class confidence,
-box, and position gates remain stricter. Unique RGB/depth timestamps, settled
+within the latest eight validation observations. Expected classes use the
+deployed detector's 0.30 admission threshold and require a 0.33 median; the
+other-class 0.60/0.75 confidence and tighter geometry gates remain unchanged.
+Unique RGB/depth timestamps, settled
 motion, trusted SLAM, image-time TF, depth quality, and geometric consistency
 are still required. Intermittent misses remain in the rolling window instead of
 deleting a pending candidate after two frames; normal track age still removes

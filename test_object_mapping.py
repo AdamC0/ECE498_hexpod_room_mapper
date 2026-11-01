@@ -101,14 +101,23 @@ class ObjectMappingTests(unittest.TestCase):
     def test_high_count_does_not_override_low_confidence(self):
         tracker = ObjectTracker(priority_labels=['chair'])
         for observation in range(1, 4):
-            tracker.update('chair', 1.0, 2.0, .60, observation,
+            tracker.update('chair', 1.0, 2.0, .31, observation,
                            observation_id=observation,
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))
         self.assertEqual(tracker.snapshot(True, 3), [])
         pending = tracker.snapshot(False, 3)[0]
-        self.assertIn('median confidence 0.60 is below 0.65',
+        self.assertIn('median confidence 0.31 is below 0.33',
                       pending['validation_reason'])
+
+    def test_expected_class_can_confirm_at_deployed_admission_confidence(self):
+        tracker = ObjectTracker(priority_labels=['backpack'])
+        for observation, confidence in enumerate((.34, .35, .33), 1):
+            tracker.update('backpack', 1.0, 2.0, confidence, observation,
+                           observation_id=observation,
+                           validation_group=('endpoint', 1),
+                           box=(10, 10, 60, 80))
+        self.assertTrue(tracker.snapshot(True, 3)[0]['confirmed'])
 
     def test_high_confidence_does_not_override_box_inconsistency(self):
         tracker = ObjectTracker(priority_labels=['chair'])

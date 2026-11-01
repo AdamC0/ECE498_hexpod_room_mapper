@@ -380,9 +380,9 @@ class RoomMapper:
         self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
         self.object_expected_window = int(rospy.get_param("~object_expected_window", 8))
         self.object_expected_min_confidence = float(rospy.get_param(
-            "~object_expected_min_confidence", 0.50))
+            "~object_expected_min_confidence", 0.30))
         self.object_expected_median_confidence = float(rospy.get_param(
-            "~object_expected_median_confidence", 0.65))
+            "~object_expected_median_confidence", 0.33))
         self.object_other_hits = int(rospy.get_param("~object_other_hits", 3))
         self.object_other_window = int(rospy.get_param("~object_other_window", 8))
         self.object_other_min_confidence = float(rospy.get_param(

@@ -40,6 +40,11 @@ ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
   [ ] Recheck camera-box expiry on motion and after one second without a result.
       Empty-scene paused inference advanced 65 captured / 65 processed with no
       replacement at 0.28-0.62 s, and the page served WHY PENDING.
+  [ ] Deploy the expected-class threshold follow-up (0.30 per hit / 0.33
+      median), pass the native suite, and repeat the stationary backpack check.
+      Initial evidence before tuning: six mapped observations, 0.334-0.359
+      confidence, about 0.01 m position standard deviation, but 0/3 hits met the
+      previous 0.50 minimum. The other-class 0.60/0.75 gate stays unchanged.
 
 STARTUP AFTER A ROBOT REBOOT:
   Battery source is /voltage (std_msgs/Float32), 9.8 V empty / 12.6 V full.

@@ -1473,3 +1473,16 @@ about 29.73/29.75/29.68 Hz. Empty-scene stationary processing advanced to 65
 captured and 65 processed snapshots, zero replacements, and 0.28-0.62 s
 inference. The web page served `WHY PENDING`. No detection was present, so a
 paused labeled-object promotion check remains pending. No motion was commanded.
+
+The first labeled live check then showed a stationary backlit backpack mapped
+six times with about 1 cm position standard deviation and confidence between
+0.334 and 0.359. It remained pending solely because the expected-class policy
+required 0.50 per hit and 0.65 median, despite expected-class detector admission
+at 0.30. A simultaneous `sneakers` track remained below its other-class gate.
+
+Chosen follow-up: align expected-class confirmation with the deployed detector
+by requiring 0.30 per hit and 0.33 median, still with three hits in eight fresh
+observations and all existing depth, TF, box-overlap, and projected-position
+checks. Preserve the other-class 0.60 per-hit/0.75 median policy. This addresses
+the measured backpack failure without allowing the weak other-class result to
+confirm. Robot-native validation and deployment remain pending.

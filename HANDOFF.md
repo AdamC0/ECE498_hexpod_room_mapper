@@ -11,6 +11,17 @@ trusted SLAM, image-time TF, depth quality, confidence, box-overlap, and map-
 position gates. Both class tiers require three hits in eight; non-priority
 classes retain their higher confidence and tighter geometry thresholds.
 
+The first labeled live check exposed a remaining threshold mismatch rather than
+a capture or association failure. A stationary backlit backpack accumulated six
+mapped observations with about 1 cm position standard deviation and 0.334-0.359
+confidence, but the old expected-class gate required 0.50 per hit and 0.65
+median even though the detector admits expected classes at 0.30. The follow-up
+candidate aligns expected-class confirmation to 0.30 per hit and 0.33 median;
+three-of-eight, depth, TF, overlap, and position gates remain. The other-class
+0.60/0.75 policy is unchanged, so a simultaneous weak `sneakers` classification
+does not receive the relaxed policy. Robot-native validation and deployment of
+this threshold follow-up are pending.
+
 Two adjacent detector misses no longer delete a pending track. Misses remain in
 the rolling window and pending tracks still expire through the existing age
 limit. The processing horizon is 45 s so the measured CPU fallback can drain a

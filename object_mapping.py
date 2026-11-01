@@ -535,8 +535,8 @@ class ObjectTracker:
         self.large_labels = {str(label).strip().lower()
                              for label in (large_labels or [])}
         self.expected_policy = dict({
-            "hits": 3, "window": 8, "minimum_confidence": .50,
-            "median_confidence": .65, "position_tolerance": .25,
+            "hits": 3, "window": 8, "minimum_confidence": .30,
+            "median_confidence": .33, "position_tolerance": .25,
             "large_position_tolerance": .50, "box_iou": .40,
         }, **(expected_policy or {}))
         self.other_policy = dict({
