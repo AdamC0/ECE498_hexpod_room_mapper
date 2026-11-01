@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Rolling endpoint object confirmation candidate - not deployed
+## Rolling endpoint object confirmation deployed - labeled check pending
 
 The operator confirmed that objects should be able to reach confirmed state
 while the robot remains stopped at one endpoint and accepted three strong hits
@@ -15,10 +15,18 @@ Two adjacent detector misses no longer delete a pending track. Misses remain in
 the rolling window and pending tracks still expire through the existing age
 limit. The processing horizon is 45 s so the measured CPU fallback can drain a
 five-frame burst, and the Objects tab exposes the exact reason on a separate
-`WHY PENDING` line. All 216 host tests pass. Robot-native validation,
-deployment, and paused labeled-scene confirmation remain pending. The robot was
-unreachable from the workstation during this change, so no live state was read
-and no motion was commanded.
+`WHY PENDING` line. All 216 tests pass on the host and natively on PT. Commit
+`3b85e0c` is deployed after reconciling the robot's complete file set from its
+previous `7c0c9df` deployment; the previous files are recoverably stored in
+`~/room_mapper/backup_pre_3b85e0c/`.
+
+The production launcher started a fresh Hector map and exactly one drive-enabled
+TensorRT mapper `AUTO PAUSED` with command `stop`; RTAB-Map is absent. A paused
+empty-scene check advanced 65 captured / 65 processed snapshots with zero
+replacements and 0.28-0.62 s inference. Rates were about 12.04 Hz scan, 12.08 Hz
+pose, 29.73 Hz RGB, 29.75 Hz native depth, and 29.68 Hz registered depth. The
+page serves `WHY PENDING`. No object was detected in the current view, so a
+paused labeled-object promotion check remains pending. No motion was commanded.
 
 Updated: 2026-10-26
 

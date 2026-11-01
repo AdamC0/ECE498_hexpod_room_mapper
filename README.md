@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Rolling stopped-endpoint object confirmation (candidate; not deployed)
+## Rolling stopped-endpoint object confirmation (deployed; labeled check pending)
 
 The current repository candidate lets fresh synchronized observations continue
 validating an object while the robot remains settled at the same endpoint.
@@ -16,8 +16,12 @@ Only one post-burst snapshot can be pending, preventing a slow detector from
 building an unbounded backlog. The immutable-snapshot result horizon is 45 s so
 the measured 5.8-6.9 s CPU fallback can drain a five-frame burst. The Objects
 tab now presents a dedicated `WHY PENDING` line. All 216 host tests pass.
-Robot-native validation, deployment, and a paused labeled-object confirmation
-check are pending.
+All 216 tests also pass natively on PT. Commit `3b85e0c` is deployed with one
+TensorRT mapper `AUTO PAUSED` on command `stop`, Hector as the only SLAM stack,
+and no commanded motion. A paused empty-scene check advanced 65 captured and 65
+processed snapshots with zero replacements; inference was 0.28-0.62 s. Scan
+and pose were about 12 Hz and all three camera streams about 30 Hz. A paused
+labeled-object promotion check is still pending.
 
 Autonomous room mapping for the Hiwonder JetHexa:
 
@@ -470,7 +474,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 215 tests and does not publish physical movement
+The repository suite contains 216 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 

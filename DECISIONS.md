@@ -1462,3 +1462,14 @@ endpoint continuation confirmation, timestamp deduplication, poor-depth
 rejection, and UI exposure. Robot-native validation, deployment, and paused
 labeled-scene confirmation remain pending. The robot was unreachable during
 this work, so this is unit-test evidence only and no motion was commanded.
+
+Deployment follow-up: the robot came online with no mapper or SLAM process and
+recorded revision `7c0c9df`. The full intervening file set through `3b85e0c` was
+backed up and reconciled. All 216 tests passed natively with the mapper stopped.
+The production launcher then created a fresh Hector frame and exactly one
+drive-enabled TensorRT mapper `AUTO PAUSED` on command `stop`; RTAB-Map was
+absent. Scan/pose measured about 12.04/12.08 Hz, with RGB/native/registered depth
+about 29.73/29.75/29.68 Hz. Empty-scene stationary processing advanced to 65
+captured and 65 processed snapshots, zero replacements, and 0.28-0.62 s
+inference. The web page served `WHY PENDING`. No detection was present, so a
+paused labeled-object promotion check remains pending. No motion was commanded.

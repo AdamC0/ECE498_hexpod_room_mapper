@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-ROLLING ENDPOINT OBJECT CONFIRMATION (CANDIDATE; NOT DEPLOYED):
+ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
   [x] Pass all 216 host tests and compile/import the production modules.
   [x] Require three qualifying hits within the latest eight fresh stationary
       observations, retaining stricter confidence/geometry for other classes.
@@ -26,15 +26,20 @@ ROLLING ENDPOINT OBJECT CONFIRMATION (CANDIDATE; NOT DEPLOYED):
   [x] Retain intermittent misses in rolling evidence instead of deleting a
       pending candidate after two adjacent misses.
   [x] Show a dedicated WHY PENDING line in the Objects tab.
-  [ ] Pass all 216 tests natively on PT with the mapper stopped.
-  [ ] Deploy with _drive:=false or AUTO PAUSED/stop and confirm exactly one
+  [x] Pass all 216 tests natively on PT with the mapper stopped.
+  [x] Deploy with _drive:=false or AUTO PAUSED/stop and confirm exactly one
       mapper, Hector only, live RGB/depth/TF, and no gait command.
+      Commit 3b85e0c: one TensorRT mapper AUTO PAUSED/stopped, fresh Hector,
+      RTAB-Map absent, and no commanded motion. Scan/pose were about 12 Hz and
+      RGB/native/registered depth about 30 Hz.
   [ ] Hold a labeled chair or other stable object in one settled endpoint view.
       Confirm three timestamp-distinct qualifying hits can promote it without
       moving the robot, and record the WHY PENDING reason before promotion.
   [ ] Force/observe CPU fallback and verify the bounded five-frame queue drains
       inside the 45 s immutable-snapshot result horizon without replacements.
   [ ] Recheck camera-box expiry on motion and after one second without a result.
+      Empty-scene paused inference advanced 65 captured / 65 processed with no
+      replacement at 0.28-0.62 s, and the page served WHY PENDING.
 
 STARTUP AFTER A ROBOT REBOOT:
   Battery source is /voltage (std_msgs/Float32), 9.8 V empty / 12.6 V full.
