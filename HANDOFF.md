@@ -20,7 +20,16 @@ candidate aligns expected-class confirmation to 0.30 per hit and 0.33 median;
 three-of-eight, depth, TF, overlap, and position gates remain. The other-class
 0.60/0.75 policy is unchanged, so a simultaneous weak `sneakers` classification
 does not receive the relaxed policy. Robot-native validation and deployment of
-this threshold follow-up are pending.
+this threshold follow-up were completed at commit `f603ecf`; all 217 tests pass
+on the host and natively on PT. Hector's live map was preserved and exactly one
+TensorRT mapper was restarted `AUTO PAUSED` on command `stop`.
+
+The initial post-restart frame remained strongly backlit and the foreground
+shoe partly occluded the backpack. The detector then emitted only `sneakers`
+and `leather shoes`, not `backpack`; both other-class tracks correctly remained
+pending under the unchanged 0.60/0.75 gate. Repeat with the shoe removed and
+the backpack front lit before evaluating the new expected-class confirmation
+threshold. No motion was commanded.
 
 Two adjacent detector misses no longer delete a pending track. Misses remain in
 the rolling window and pending tracks still expire through the existing age

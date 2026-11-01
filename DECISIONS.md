@@ -1486,3 +1486,11 @@ observations and all existing depth, TF, box-overlap, and projected-position
 checks. Preserve the other-class 0.60 per-hit/0.75 median policy. This addresses
 the measured backpack failure without allowing the weak other-class result to
 confirm. Robot-native validation and deployment remain pending.
+
+Deployment follow-up: commit `f603ecf` passed all 217 host and robot-native
+tests. Hector's live map was preserved and one TensorRT mapper restarted
+`AUTO PAUSED` on command `stop`. The first post-restart frame was strongly
+backlit with a shoe partly occluding the backpack; the model emitted only
+`sneakers` and `leather shoes`, so the new expected-class threshold could not be
+exercised. The other-class tracks correctly remained pending. Repeat with the
+shoe removed and the backpack front lit. No motion was commanded.

@@ -25,6 +25,14 @@ processed snapshots with zero replacements; inference was 0.28-0.62 s. Scan
 and pose were about 12 Hz and all three camera streams about 30 Hz. A paused
 labeled-object promotion check is still pending.
 
+The expected-class threshold follow-up at commit `f603ecf` is also deployed and
+passes all 217 host and robot-native tests. It retains the live Hector frame and
+one paused TensorRT mapper. In the first post-restart view, strong doorway
+backlighting and a foreground shoe caused the model to emit only `sneakers` and
+`leather shoes`; the backpack was no longer detected. Those other-class tracks
+correctly remained pending. A better-lit/unoccluded backpack confirmation check
+remains pending; no motion was commanded.
+
 Autonomous room mapping for the Hiwonder JetHexa:
 
 `YDLIDAR G4 -> Hector pose/map + RGB-D obstacle layer -> frontier planner -> JetHexa controller`
