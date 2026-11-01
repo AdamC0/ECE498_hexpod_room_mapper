@@ -49,11 +49,15 @@ ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
       view emitted only shoe classes because the backpack was strongly backlit
       and partly occluded.
   [ ] Repeat the stationary check with the shoe removed and backpack front lit.
-  [ ] Deploy the luggage class-policy follow-up, adding Objects365 `luggage` and
+  [x] Deploy the luggage class-policy follow-up, adding Objects365 `luggage` and
       fallback `suitcase` to the expected tier without relaxing other classes.
       Pre-change live evidence: 25 mapped luggage observations, 0.538 maximum
       confidence, about 0.002 m position standard deviation, pending only under
       the other-tier 0.60/0.75 gate.
+      Commit ecc4b60 passes all 217 host/PT tests. Paused live validation then
+      confirmed luggage after 3 qualifying observations at about (0.659, 0.240)
+      m, 0.439 maximum confidence, and 0.0011 m position standard deviation.
+      Queue: 31 captured / 30 processed / 0 replaced; 0.31 s inference. No motion.
 
 STARTUP AFTER A ROBOT REBOOT:
   Battery source is /voltage (std_msgs/Float32), 9.8 V empty / 12.6 V full.

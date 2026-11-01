@@ -1505,3 +1505,13 @@ Chosen: add exact label `luggage` plus COCO fallback label `suitcase` to the
 expected-object tier. This is a semantic policy correction, not a global
 threshold relaxation; all other classes retain their existing gate. Host/native
 validation and deployment remain pending.
+
+Deployment follow-up: commit `ecc4b60` passed all 217 host and robot-native
+tests and was deployed while preserving the live Hector frame. With exactly one
+TensorRT mapper `AUTO PAUSED` on command `stop`, the `luggage` track advanced
+from 1/3 pending to confirmed after three qualifying observations. Its confirmed
+coordinate was approximately `(0.659, 0.240)` m, maximum confidence 0.439, and
+position standard deviation about 0.0011 m. The queue showed 31 captured / 30
+processed / 0 replaced and 0.31 s inference. No motion was commanded. This is
+direct stationary pipeline evidence for one scene, not broad detector-quality
+validation.

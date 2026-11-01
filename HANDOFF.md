@@ -36,8 +36,16 @@ backpack. It accumulated 25 mapped observations, about 2 mm position standard
 deviation, and confidence up to 0.538, but remained in the other tier solely
 because `luggage` was absent from the expected-class list. The current follow-up
 adds exact Objects365 `luggage` and fallback COCO `suitcase` to the expected
-tier. No unrelated-class threshold changes. Host/native validation and
-deployment of this class-policy follow-up are pending.
+tier. No unrelated-class threshold changes.
+
+Commit `ecc4b60` passed all 217 host and robot-native tests and is deployed with
+the live Hector map preserved. The paused `luggage` track progressed from 1/3
+pending to confirmed after three qualifying observations at approximately
+`(0.659, 0.240)` m. Maximum confidence was 0.439 and position standard deviation
+about 0.0011 m. At the confirmation snapshot, the queue reported 31 captured /
+30 processed, zero replacements, and 0.31 s inference. Exactly one TensorRT
+mapper remained `AUTO PAUSED` on command `stop`; no motion was commanded. This
+validates stationary confirmation for this scene, not broad detector quality.
 
 Two adjacent detector misses no longer delete a pending track. Misses remain in
 the rolling window and pending tracks still expire through the existing age

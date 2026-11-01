@@ -38,6 +38,14 @@ included in the expected-object tier in the current follow-up. This is a class
 policy correction rather than a global relaxation: unrelated labels keep the
 strict 0.60/0.75 other-class confidence policy.
 
+Commit `ecc4b60` is deployed and passes all 217 tests on both host and PT. In a
+paused live check, `luggage` advanced from 1/3 pending to confirmed after three
+qualifying observations without moving the robot. The confirmed coordinate was
+about `(0.659, 0.240)` m, maximum confidence 0.439, and position standard
+deviation about 0.0011 m. The queue reported 31 captured / 30 processed with no
+replacements and 0.31 s inference. This is stationary pipeline confirmation,
+not detector-quality evidence across varied scenes.
+
 Autonomous room mapping for the Hiwonder JetHexa:
 
 `YDLIDAR G4 -> Hector pose/map + RGB-D obstacle layer -> frontier planner -> JetHexa controller`
