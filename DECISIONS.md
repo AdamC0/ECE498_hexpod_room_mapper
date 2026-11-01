@@ -1433,3 +1433,32 @@ correctly faulted.
 All 215 host tests pass, including the invalid-map resume regression and the
 new default-expiry boundary. Robot-native validation, deployment, and directly
 supervised motion remain pending.
+
+## Allow rolling object confirmation at one stopped endpoint - 2026-11-01
+
+The operator reported that detected objects remained pending and confirmed the
+intended behavior: an object may become confirmed while the robot remains
+stopped at a single endpoint. The exact pending reason was not visible in the
+Objects tab. The deployed policy admitted one five-frame validation burst and
+then made every later stationary result display-only; it also deleted a pending
+track after two adjacent same-view misses. On the measured 5.8-6.9 s CPU path,
+the 12 s result-age limit could discard most of the five-frame queue before it
+contributed evidence.
+
+Chosen: require three qualifying hits within the latest eight fresh stationary
+validation observations for both tiers. Non-priority classes retain their 0.60
+per-hit/0.75 median confidence and tighter box/position thresholds. After the
+bounded endpoint burst, admit only one latest synchronized snapshot at a time,
+but allow that fresh settled snapshot to update validation. Distinct sensor
+timestamps, trusted SLAM, image-time TF, depth quality, and all geometry gates
+remain mandatory. Misses occupy the rolling window rather than deleting a
+candidate after two frames; the existing pending-track age limit handles stale
+candidates. Increase the immutable-snapshot processing horizon to 45 s so the
+bounded queue can drain on CPU, and render the exact failure as a dedicated
+`WHY PENDING` line.
+
+All 216 host tests pass, including three hits separated by four misses, same-
+endpoint continuation confirmation, timestamp deduplication, poor-depth
+rejection, and UI exposure. Robot-native validation, deployment, and paused
+labeled-scene confirmation remain pending. The robot was unreachable during
+this work, so this is unit-test evidence only and no motion was commanded.

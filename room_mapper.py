@@ -342,7 +342,7 @@ class RoomMapper:
         # a fresh, synchronized pair was captured. Motion generation and the
         # image-time TF snapshot keep that delayed observation map-safe.
         self.object_result_max_age = float(rospy.get_param(
-            "~object_result_max_age", 12.0))
+            "~object_result_max_age", 45.0))
         self.object_snapshot_grace = float(rospy.get_param(
             "~object_snapshot_grace", 1.0))
         if (not math.isfinite(self.object_max_age) or self.object_max_age <= 0 or
@@ -378,13 +378,13 @@ class RoomMapper:
         self.object_burst_frames = int(rospy.get_param("~object_burst_frames", 5))
         self.object_burst_interval = float(rospy.get_param("~object_burst_interval", 0.18))
         self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
-        self.object_expected_window = int(rospy.get_param("~object_expected_window", 4))
+        self.object_expected_window = int(rospy.get_param("~object_expected_window", 8))
         self.object_expected_min_confidence = float(rospy.get_param(
             "~object_expected_min_confidence", 0.50))
         self.object_expected_median_confidence = float(rospy.get_param(
             "~object_expected_median_confidence", 0.65))
-        self.object_other_hits = int(rospy.get_param("~object_other_hits", 4))
-        self.object_other_window = int(rospy.get_param("~object_other_window", 5))
+        self.object_other_hits = int(rospy.get_param("~object_other_hits", 3))
+        self.object_other_window = int(rospy.get_param("~object_other_window", 8))
         self.object_other_min_confidence = float(rospy.get_param(
             "~object_other_min_confidence", 0.60))
         self.object_other_median_confidence = float(rospy.get_param(
@@ -421,8 +421,6 @@ class RoomMapper:
                 not .05 <= self.object_burst_interval <= .5 or
                 not 1 <= self.object_expected_hits <= self.object_expected_window <= 8 or
                 not 1 <= self.object_other_hits <= self.object_other_window <= 8 or
-                self.object_expected_window > self.object_burst_frames or
-                self.object_other_window > self.object_burst_frames or
                 not 0.01 <= self.object_expected_min_confidence <= \
                     self.object_expected_median_confidence <= .99 or
                 not 0.01 <= self.object_other_min_confidence <= \
@@ -1110,7 +1108,13 @@ class RoomMapper:
             self.object_snapshots_captured += 1
 
     def capture_preview_snapshot(self, now):
-        """Queue at most one latest stationary display-only inference."""
+        """Queue one fresh settled observation after the endpoint burst.
+
+        Continued inference at the same stopped endpoint is validation-eligible.
+        capture_object_snapshot() still enforces fresh synchronized timestamps,
+        settled motion, trusted SLAM, and image-time TF, while one-at-a-time
+        admission prevents a slow detector from accumulating a stale backlog.
+        """
         if (not getattr(self, "object_preview_enabled", True) or
                 now < getattr(self, "object_preview_next_capture", 0.0)):
             return False
@@ -1126,7 +1130,9 @@ class RoomMapper:
             # stopped detector.
             self.object_status = previous_status
             return False
-        snapshot["display_only"] = True
+        snapshot["validation_group"] = (self.object_endpoint_key or
+                                        ("stationary", getattr(self.survey,
+                                                                "settled_at", 0.0)))
         self.enqueue_object_snapshot(snapshot)
         self.object_preview_next_capture = now + 1.0 / max(.1, self.object_hz)
         return True

@@ -535,12 +535,12 @@ class ObjectTracker:
         self.large_labels = {str(label).strip().lower()
                              for label in (large_labels or [])}
         self.expected_policy = dict({
-            "hits": 3, "window": 4, "minimum_confidence": .50,
+            "hits": 3, "window": 8, "minimum_confidence": .50,
             "median_confidence": .65, "position_tolerance": .25,
             "large_position_tolerance": .50, "box_iou": .40,
         }, **(expected_policy or {}))
         self.other_policy = dict({
-            "hits": 4, "window": 5, "minimum_confidence": .60,
+            "hits": 3, "window": 8, "minimum_confidence": .60,
             "median_confidence": .75, "position_tolerance": .20,
             "large_position_tolerance": .35, "box_iou": .50,
         }, **(other_policy or {}))
@@ -572,6 +572,7 @@ class ObjectTracker:
             "qualifying_hits": len(hits),
             "minimum_confidence": minimum_confidence,
             "required_median_confidence": required_median,
+            "misses": sum(1 for item in evidence if not item.get("hit")),
         }
         if len(hits) < required:
             status["reason"] = ("%d/%d detections meet %.2f minimum confidence" %
@@ -696,11 +697,15 @@ class ObjectTracker:
         return track
 
     def finish_observation(self, validation_group, observation_id, seen_track_ids):
-        """Record misses only for pending tracks being validated in this view."""
+        """Record pending-track misses without prematurely deleting the track.
+
+        Intermittent detectors commonly miss two adjacent frames even while an
+        object remains visible. The rolling evidence window prevents stale hits
+        from confirming it, and normal max-age pruning removes abandoned tracks.
+        """
         if not self.validation_enabled:
             return
         seen_track_ids = set(seen_track_ids)
-        remove = []
         for track in self.tracks:
             if (track.get("confirmed") or track["id"] in seen_track_ids or
                     track.get("_validation_group") != validation_group or
@@ -714,10 +719,6 @@ class ObjectTracker:
             })
             window = int(self._policy(track["label"])["window"])
             track["_evidence"] = track["_evidence"][-window:]
-            if track["_consecutive_misses"] >= 2:
-                remove.append(track["id"])
-        if remove:
-            self.tracks = [track for track in self.tracks if track["id"] not in remove]
 
     def rename(self, track_id, name):
         """Set a display name without changing the detector class used to merge."""

@@ -1,5 +1,24 @@
 # JetHexa Room Mapper
 
+## Rolling stopped-endpoint object confirmation (candidate; not deployed)
+
+The current repository candidate lets fresh synchronized observations continue
+validating an object while the robot remains settled at the same endpoint.
+Expected classroom and other model classes both require three qualifying hits
+within the latest eight validation observations; the other-class confidence,
+box, and position gates remain stricter. Unique RGB/depth timestamps, settled
+motion, trusted SLAM, image-time TF, depth quality, and geometric consistency
+are still required. Intermittent misses remain in the rolling window instead of
+deleting a pending candidate after two frames; normal track age still removes
+abandoned candidates.
+
+Only one post-burst snapshot can be pending, preventing a slow detector from
+building an unbounded backlog. The immutable-snapshot result horizon is 45 s so
+the measured 5.8-6.9 s CPU fallback can drain a five-frame burst. The Objects
+tab now presents a dedicated `WHY PENDING` line. All 216 host tests pass.
+Robot-native validation, deployment, and a paused labeled-object confirmation
+check are pending.
+
 Autonomous room mapping for the Hiwonder JetHexa:
 
 `YDLIDAR G4 -> Hector pose/map + RGB-D obstacle layer -> frontier planner -> JetHexa controller`

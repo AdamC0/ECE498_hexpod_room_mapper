@@ -1,5 +1,25 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Rolling endpoint object confirmation candidate - not deployed
+
+The operator confirmed that objects should be able to reach confirmed state
+while the robot remains stopped at one endpoint and accepted three strong hits
+within eight fresh stationary observations. The current candidate makes the
+single latest post-burst snapshot validation-eligible rather than display-only,
+while retaining unique timestamps, synchronized RGB/depth, settled motion,
+trusted SLAM, image-time TF, depth quality, confidence, box-overlap, and map-
+position gates. Both class tiers require three hits in eight; non-priority
+classes retain their higher confidence and tighter geometry thresholds.
+
+Two adjacent detector misses no longer delete a pending track. Misses remain in
+the rolling window and pending tracks still expire through the existing age
+limit. The processing horizon is 45 s so the measured CPU fallback can drain a
+five-frame burst, and the Objects tab exposes the exact reason on a separate
+`WHY PENDING` line. All 216 host tests pass. Robot-native validation,
+deployment, and paused labeled-scene confirmation remain pending. The robot was
+unreachable from the workstation during this change, so no live state was read
+and no motion was commanded.
+
 Updated: 2026-10-26
 
 ## Dynamic fused occupancy deployed - measured-object validation pending

@@ -84,19 +84,19 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertTrue(track['confirmed'])
         self.assertEqual(track['tier'], 'expected')
 
-    def test_other_class_requires_four_stronger_hits(self):
+    def test_other_class_requires_three_stronger_hits(self):
         tracker = ObjectTracker(priority_labels=['chair'])
-        for observation in range(1, 4):
+        for observation in range(1, 3):
             tracker.update('faucet', 1.0, 2.0, .82, observation,
                            observation_id=observation,
                            validation_group=('endpoint', 1),
                            box=(10, 10, 60, 80))
-        self.assertEqual(tracker.snapshot(True, 3), [])
-        tracker.update('faucet', 1.01, 2.0, .80, 4,
-                       observation_id=4, validation_group=('endpoint', 1),
+        self.assertEqual(tracker.snapshot(True, 2), [])
+        tracker.update('faucet', 1.01, 2.0, .80, 3,
+                       observation_id=3, validation_group=('endpoint', 1),
                        box=(10, 10, 60, 80))
-        self.assertTrue(tracker.snapshot(True, 4)[0]['confirmed'])
-        self.assertEqual(tracker.snapshot(True, 4)[0]['tier'], 'other')
+        self.assertTrue(tracker.snapshot(True, 3)[0]['confirmed'])
+        self.assertEqual(tracker.snapshot(True, 3)[0]['tier'], 'other')
 
     def test_high_count_does_not_override_low_confidence(self):
         tracker = ObjectTracker(priority_labels=['chair'])
@@ -122,7 +122,7 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertIn('box overlap', pending['validation_reason'])
         self.assertEqual(pending['validation']['required_hits'], 3)
 
-    def test_two_same_view_misses_remove_pending_candidate(self):
+    def test_two_same_view_misses_retain_pending_candidate(self):
         tracker = ObjectTracker(priority_labels=['chair'])
         group = ('endpoint', 1)
         track = tracker.update('chair', 1.0, 2.0, .75, 1,
@@ -131,8 +131,25 @@ class ObjectMappingTests(unittest.TestCase):
         tracker.finish_observation(group, 2, [])
         self.assertEqual(len(tracker.tracks), 1)
         tracker.finish_observation(group, 3, [])
-        self.assertEqual(tracker.tracks, [])
+        self.assertEqual(len(tracker.tracks), 1)
+        pending = tracker.snapshot(False, 3)[0]
+        self.assertEqual(pending['validation']['misses'], 2)
+        self.assertIn('1/3 detections', pending['validation_reason'])
         self.assertIsNotNone(track)
+
+    def test_three_hits_confirm_across_eight_frame_window_with_misses(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        group = ('endpoint', 1)
+        for observation in range(1, 8):
+            if observation in (1, 4, 7):
+                track = tracker.update('chair', 1.0, 2.0, .75, observation,
+                                       observation_id=observation,
+                                       validation_group=group,
+                                       box=(10, 10, 60, 80))
+                tracker.finish_observation(group, observation, [track['id']])
+            else:
+                tracker.finish_observation(group, observation, [])
+        self.assertTrue(tracker.snapshot(True, 7)[0]['confirmed'])
 
     def test_confirmed_track_persists_for_mapping_session(self):
         tracker = ObjectTracker(max_age=30, priority_labels=['chair'])

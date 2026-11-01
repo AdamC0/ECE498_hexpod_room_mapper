@@ -201,19 +201,21 @@ class ObjectPipelineTests(unittest.TestCase):
             worker.join(1.)
             self.assertFalse(worker.is_alive())
 
-    def test_stationary_preview_is_latest_only_and_never_validates(self):
+    def test_stationary_continuation_is_latest_only_and_can_validate(self):
         n = self.node
         n.object_tracker = ObjectTracker(priority_labels=['chair'])
-        self.assertTrue(n.capture_preview_snapshot(100.))
-        self.assertEqual(len(n.object_pending_snapshots), 1)
-        self.assertTrue(n.object_pending_snapshots[0]['display_only'])
-        self.assertFalse(n.capture_preview_snapshot(100.))
-        snapshot = n.object_pending_snapshots.pop(0)
-        n.process_object_snapshot(snapshot)
-        self.assertEqual(n.object_tracker.tracks, [])
+        for index, stamp in enumerate((99.91, 99.92, 99.93)):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            self.assertTrue(n.capture_preview_snapshot(100. + index))
+            self.assertEqual(len(n.object_pending_snapshots), 1)
+            self.assertNotIn('display_only', n.object_pending_snapshots[0])
+            self.assertFalse(n.capture_preview_snapshot(100. + index))
+            snapshot = n.object_pending_snapshots.pop(0)
+            n.process_object_snapshot(snapshot)
+        self.assertEqual(len(n.object_tracker.snapshot(True, 100.)), 1)
         self.assertEqual(len(n.object_detections), 1)
         self.assertEqual(n.object_detections_stamp, 100.)
-        self.assertIn('preview:', n.object_status)
+        self.assertIn('1 detections, 1 mapped, 1 confirmed', n.object_status)
 
     def test_preview_retry_preserves_last_completed_status(self):
         n = self.node

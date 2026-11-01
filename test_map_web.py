@@ -96,6 +96,7 @@ class WebServerTests(unittest.TestCase):
             self.assertIn("id='rotation-speed'", body)
             self.assertIn("fetch('/speed.json')", body)
             self.assertIn('validation_reason', body)
+            self.assertIn('WHY PENDING:', body)
             self.assertIn('RECOVER CAMERA', body)
             self.assertIn("fetch('/recover-camera'", body)
             self.assertIn("max='200'", body)
