@@ -23,8 +23,13 @@ forever even when both sensors mark the exact old cell free.
 The 224-test fix lets exact free evidence from both sensors override only an
 adjacent endpoint; an occupied return in the exact cell still wins immediately,
 and one-cell-tolerant free agreement still retains the full neighbor guard.
-Robot-native validation, paused deployment, and a controlled promote/remove
-check remain pending. Autonomy stays out of scope.
+Commit `9410ba4` passed all 224 tests on the host and natively on PT and is
+deployed with one TensorRT mapper `AUTO PAUSED` on command `stop`. Live status
+showed zero exact-free overlap with the 39-40 current persistent cells; all were
+protected by current depth endpoints, consistent with the visible wall and
+furniture. Three stale Hector-black cells were suppressed downstream after
+exact joint-free evidence; raw Hector was unchanged. A controlled stationary
+promote/remove check remains pending. Autonomy stays out of scope.
 
 The operator reported two nearly coincident `power outlet` objects, a person's
 leg confirmed as `chair` under the relaxed 0.30 policy, and removed persistent

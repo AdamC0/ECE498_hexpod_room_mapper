@@ -1588,3 +1588,13 @@ free evidence is only in a neighboring cell, the complete 3x3 occupied guard
 still applies. The adjacent wall cell remains occupied and planner inflation is
 unchanged. All 224 host tests pass; robot-native validation, paused deployment,
 and a controlled stationary promote/remove check remain pending.
+
+Deployment follow-up: commit `9410ba4` passed all 224 tests natively on PT and
+was deployed with the existing Hector frame, exactly one TensorRT mapper
+`AUTO PAUSED`, and command `stop`. Live status showed zero exact-free overlap
+with the 39-40 persistent depth cells in the current view; every one remained
+protected by current depth endpoints, consistent with the visible wall and
+furniture. Three stale Hector-black cells received exact joint-free evidence
+and were suppressed downstream without modifying raw Hector. A controlled
+stationary promote/remove test remains pending. No autonomy test or motion was
+commanded.

@@ -25,14 +25,14 @@ The two free projections may differ by one 0.10 m grid cell, and partial
 positive evidence survives brief missing pairs for at most 5 s. This prevents
 quantization and a single dropped pair from resetting every clearing attempt;
 missing data never counts as free. Raw Hector occupancy remains unchanged.
-The adjacent-background fix has 224 passing host tests. Robot-native validation
-and paused deployment are pending. The prior 223-test commit `63d88cb` remains deployed
-with matching production-file hashes, one TensorRT mapper `AUTO PAUSED` on
-command `stop`, and Hector as the only SLAM stack. A paused startup check showed
-live joint-clear diagnostics, 34 persistent cells, one joint-free cell, and no
-partial clear candidate in the current view. No object was detected after the
-restart, so the outlet, false-chair, and measured remove-and-clear scene checks
-remain pending. No motion was commanded.
+The adjacent-background fix at commit `9410ba4` has 224 passing tests on the
+host and natively on PT. It is deployed with one TensorRT mapper `AUTO PAUSED`
+on command `stop` and Hector as the only SLAM stack. In the current scene, exact
+free overlap with persistent depth cells was zero; all 39-40 current persistent
+cells remained protected by live depth endpoints, matching the visible wall and
+furniture. Three stale Hector-black cells accumulated exact joint-free evidence
+and were suppressed only in the downstream fused map. A controlled stationary
+promote/remove test remains pending. No autonomy test or motion was commanded.
 
 ## Rolling stopped-endpoint object confirmation (deployed; labeled check pending)
 

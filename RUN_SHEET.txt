@@ -43,7 +43,10 @@ ADJACENT-BACKGROUND CLEARING FOLLOW-UP:
   [x] Allow four exact-free observations from both sensors to clear the old cell
       immediately before a newly visible adjacent wall endpoint.
   [x] Pass all 224 host tests and compile production Python.
-  [ ] Pass all 224 tests natively and deploy with one mapper AUTO PAUSED/stop.
+  [x] Pass all 224 tests natively and deploy with one mapper AUTO PAUSED/stop.
+      Commit 9410ba4: current persistent exact-free overlap 0; all 39-40 cells
+      protected by current depth endpoints; 3 stale Hector cells suppressed
+      downstream; raw Hector unchanged; no commanded motion.
   [ ] Run a controlled stationary promote/remove check; do not test autonomy.
 
 ROLLING ENDPOINT OBJECT CONFIRMATION (DEPLOYED; LABELED CHECK PENDING):
