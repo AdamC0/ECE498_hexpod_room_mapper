@@ -933,7 +933,12 @@ class RoomMapper:
                     result = {'promoted': 0, 'cleared_persistent': 0,
                               'suppressed_slam': 0, 'joint_free': 0,
                               'joint_clear_candidates': 0,
-                              'joint_clear_max_evidence': 0}
+                              'joint_clear_max_evidence': 0,
+                              'depth_free': 0, 'lidar_free': 0,
+                              'persistent_depth_free': 0,
+                              'persistent_lidar_free': 0,
+                              'persistent_joint_agreement': 0,
+                              'persistent_occupied_guard': 0}
                     cleared = self.explorer.update_depth_obstacles(
                         occupied_cells, now, self.depth_map_ttl,
                         observed_free_cells=observed_free_cells,
@@ -949,10 +954,15 @@ class RoomMapper:
             self.depth_map_status = (
                 "%d temporary obstacle cells (%.0f s hold); cleared %d this update; "
                 "%d persistent depth, %d joint-cleared Hector cells; promoted %d; "
-                "joint free %d, clear evidence %d cells/max %d%s" %
+                "joint free %d, clear evidence %d cells/max %d; "
+                "free D/L %d/%d, persistent D/L/paired/guarded %d/%d/%d/%d%s" %
                 (count, self.depth_map_ttl, cleared, persistent, suppressed,
                   result['promoted'], result['joint_free'],
                   result['joint_clear_candidates'], result['joint_clear_max_evidence'],
+                  result['depth_free'], result['lidar_free'],
+                  result['persistent_depth_free'], result['persistent_lidar_free'],
+                  result['persistent_joint_agreement'],
+                  result['persistent_occupied_guard'],
                  "" if paired else "; waiting for settled synchronized LiDAR"))
             if cleared:
                 rospy.loginfo("Registered depth cleared %d disproven planner cells", cleared)

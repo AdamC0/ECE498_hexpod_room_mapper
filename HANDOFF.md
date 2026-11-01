@@ -2,6 +2,15 @@
 
 ## Live-map false-positive, duplicate, and clearing candidate - 2026-11-01
 
+Follow-up diagnosis after the operator physically repositioned the paused robot
+reproduced the clearing failure: 57 persistent cells remained across six
+settled updates, 3-4 joint-free cells were reported, but no persistent cell
+accumulated evidence. A read-only status diagnostic now separates total
+depth/LiDAR free cells and persistent-cell overlap before and after joint
+agreement and the occupied guard. All 223 host tests pass; paused native
+deployment is pending. Do not classify the operator-reported pose change as
+SLAM drift.
+
 The operator reported two nearly coincident `power outlet` objects, a person's
 leg confirmed as `chair` under the relaxed 0.30 policy, and removed persistent
 depth obstacles sometimes failing to clear while visible. Live inspection

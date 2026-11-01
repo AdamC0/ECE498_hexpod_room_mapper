@@ -1559,3 +1559,14 @@ was preserved and exactly one drive-enabled TensorRT mapper restarted
 reported 34 persistent cells, one joint-free cell, and zero partial clear
 candidates in the current view. No post-restart object was detected, so the
 three labeled/measured scene checks remain pending. No motion was commanded.
+
+Clearing diagnostic follow-up: after the operator physically repositioned the
+paused robot and removed the luggage, six settled observations retained 57
+persistent cells. Each reported 3-4 jointly free cells but zero persistent
+clear candidates. The operator confirmed the approximately 8-degree pose change
+was physical motion, not drift, so the Hector frame must not be discarded on
+that basis. Add read-only fusion counters for total depth/LiDAR free cells and
+persistent-cell overlap with each free set, pre-veto joint agreement, and the
+occupied guard. This does not change fusion decisions; it identifies the exact
+gate preventing removal before any further safety-policy change. All 223 host
+tests pass; robot-native validation and paused diagnostic deployment are pending.

@@ -237,8 +237,10 @@ class ExploreMap:
         # an immediately adjacent 10 cm cell. This mirrors the occupied-neighbor
         # guard and prevents harmless sensor/grid quantization from making a
         # moved obstacle permanent. Any nearby occupied endpoint still vetoes.
-        joint_free = ((depth_free & expanded(lidar_free)) |
-                      (lidar_free & expanded(depth_free))) - occupied_guard
+        joint_agreement = ((depth_free & expanded(lidar_free)) |
+                           (lidar_free & expanded(depth_free)))
+        joint_free = joint_agreement - occupied_guard
+        persistent_before_clear = set(self.persistent_depth_obstacles)
 
         # Reappearance in either sensor immediately cancels a prior downstream
         # suppression; raw Hector occupancy itself remains untouched.
@@ -295,6 +297,14 @@ class ExploreMap:
             'joint_clear_candidates': len(self.joint_clear_counts),
             'joint_clear_max_evidence': max(self.joint_clear_counts.values())
                                         if self.joint_clear_counts else 0,
+            'depth_free': len(depth_free),
+            'lidar_free': len(lidar_free),
+            'persistent_depth_free': len(persistent_before_clear & depth_free),
+            'persistent_lidar_free': len(persistent_before_clear & lidar_free),
+            'persistent_joint_agreement': len(persistent_before_clear &
+                                              joint_agreement),
+            'persistent_occupied_guard': len(persistent_before_clear &
+                                             occupied_guard),
         }
 
     def _apply_depth_obstacles(self, now=None, rebase=True):

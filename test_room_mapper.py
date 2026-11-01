@@ -928,7 +928,11 @@ class MapperTests(unittest.TestCase):
             'promoted': 2, 'cleared_temporary': 1,
             'cleared_persistent': 1, 'suppressed_slam': 1,
             'joint_free': 3, 'joint_clear_candidates': 2,
-            'joint_clear_max_evidence': 3}
+            'joint_clear_max_evidence': 3,
+            'depth_free': 10, 'lidar_free': 12,
+            'persistent_depth_free': 4, 'persistent_lidar_free': 5,
+            'persistent_joint_agreement': 3,
+            'persistent_occupied_guard': 1}
         n.explorer.depth_obstacle_count.return_value = 5
         n.message_time = Mock(return_value=99.)
         msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
