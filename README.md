@@ -1,5 +1,23 @@
 # JetHexa Room Mapper
 
+## Depth-hole object-removal correction (host validated; deployment pending)
+
+Live diagnosis of a stale person and skateboard found both saved 3-D points
+well inside the camera image, but their current 9x9 registered-depth patches
+contained zero valid pixels. That made every YOLO miss unknown and left the
+tracks on the 300 s timer. The stale person was also refreshed by a different
+same-class detection overlapping its projected pixel at a materially different
+depth.
+
+A central in-frame YOLO miss now advances semantic absence when the local depth
+patch is invalid; valid nearer depth still classifies the view as blocked and
+pauses removal. This affects object markers only, never planner occupancy, and
+automatic removal still permits rediscovery. A same-class overlapping box with
+a sampled depth differing by more than 0.25 m or 25% no longer refreshes the
+saved landmark. Out-of-view and positively occluded tracks retain the age
+fallback. All 232 host tests pass; robot-native validation and deployment are
+pending.
+
 ## Pending-object clear-view removal (deployed; scene validation pending)
 
 The same five-observation visibility rule now applies to pending candidates as

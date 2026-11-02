@@ -253,12 +253,15 @@ class ObjectMappingTests(unittest.TestCase):
         detection = {'label': 'chair', 'box': (40, 40, 60, 60)}
         self.assertEqual(landmark_visibility(track, [detection], depth, k, identity),
                          (True, False))
+        far_detection = {'label': 'chair', 'box': (40, 40, 60, 60), 'depth': 4.}
+        self.assertEqual(landmark_visibility(
+            track, [far_detection], depth, k, identity), (False, True))
         depth[:] = .5
         self.assertEqual(landmark_visibility(track, [], depth, k, identity),
                          (False, False))
         depth[:] = 0.
         self.assertEqual(landmark_visibility(track, [], depth, k, identity),
-                         (False, False))
+                         (False, True))
         edge_track = dict(track, x=-.9)
         depth[:] = 2.5
         self.assertEqual(landmark_visibility(edge_track, [], depth, k, identity),

@@ -1,5 +1,23 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Depth-hole object-removal correction candidate - 2026-11-02
+
+The operator reported stale person and skateboard markers directly ahead. Live
+projection placed them near pixels `(146,174)` and `(217,327)`, safely inside
+the 640x480 inset, but both 9x9 registered-depth patches had zero valid pixels.
+The old rule therefore supplied no clear-view evidence. The stale person also
+received age refreshes from a different same-class box overlapping the old
+pixel direction.
+
+Chosen: when a saved point is central and YOLO has no matching box, invalid
+local depth now counts as semantic absence; a valid nearer return still pauses
+removal as occluded. This never clears planner occupancy and automatic marker
+removal remains rediscoverable. Overlapping same-class boxes only reset the old
+track when their sampled depth is absent or agrees within 0.25 m / 25%.
+Out-of-view and positively blocked tracks keep the age timer. All 232 host tests
+pass and production Python compiles; native validation and deployment are
+pending.
+
 ## Pending-object clear-view removal deployed - 2026-11-02
 
 Pending candidates now use the same five eligible clear-view misses as

@@ -220,6 +220,14 @@ def landmark_visibility(track, detections, depth, k, map_from_camera,
         # Allow modest box jitter around the saved projected center.
         pad_x, pad_y = .10 * (x2 - x1), .10 * (y2 - y1)
         if x1 - pad_x <= u <= x2 + pad_x and y1 - pad_y <= v <= y2 + pad_y:
+            detection_depth = detection.get("depth")
+            if (detection_depth is not None and
+                    math.isfinite(float(detection_depth)) and
+                    abs(float(detection_depth) - z) > max(.25, .25 * z)):
+                # A different same-class object can overlap the old projected
+                # center in the image. Do not let a materially different depth
+                # refresh the stale landmark's absence or age counters.
+                continue
             return True, False
 
     radius = depth_window // 2
@@ -229,7 +237,11 @@ def landmark_visibility(track, detections, depth, k, map_from_camera,
     patch = np.asarray(depth[y1:y2, x1:x2], dtype=np.float32)
     valid = patch[(patch > .10) & (patch < 8.0) & np.isfinite(patch)]
     if valid.size < int(minimum_depth_pixels):
-        return False, False
+        # The registered-depth camera has large repeatable holes on dark, low,
+        # and distant surfaces. The landmark is still centrally in view and
+        # YOLO supplied no matching box, so count semantic absence. This does
+        # not clear planner occupancy and automatic removal permits rediscovery.
+        return False, True
     observed_depth = float(np.median(valid))
     if observed_depth + float(occlusion_margin) < z:
         return False, False

@@ -1667,3 +1667,23 @@ new counter separation in the running pipeline. LiDAR/pose measured about
 was about 90%. Controlled five-miss removal, occlusion hold, age fallback, and
 rediscovery checks remain pending. No motion was commanded or physically
 observed.
+
+## Count central YOLO absence through registered-depth holes - 2026-11-02
+
+The operator reported that stale person and skateboard markers directly ahead
+were not removed. Live TF/intrinsics projected them to approximately
+`(146,174)` and `(217,327)` in a 640x480 image, both inside the configured
+10-percent inset. Their 9x9 registered-depth patches contained zero valid
+pixels, so the deployed visibility rule never advanced absence. The person
+track was also refreshed by a different same-class box overlapping its old
+pixel direction despite a different range.
+
+Chosen: a central in-frame YOLO miss with invalid local depth counts toward
+semantic marker removal. A valid nearer return still proves possible occlusion
+and pauses the counter; out-of-view tracks retain the age timer. This does not
+alter or clear planner occupancy, and automatic removal remains
+non-suppressing. An overlapping same-class box with sampled depth must agree
+with the saved optical depth within the larger of 0.25 m or 25%; a materially
+different-depth instance cannot refresh the stale track. All 232 host tests
+pass and production Python compiles. Robot-native validation and deployment
+are pending.
