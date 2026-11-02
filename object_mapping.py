@@ -183,10 +183,10 @@ def landmark_visibility(track, detections, depth, k, map_from_camera,
                         depth_window=9, minimum_depth_pixels=9):
     """Return ``(detected, clear_view)`` for one confirmed map landmark.
 
-    A negative YOLO result is useful only when the saved 3-D point projects
-    safely inside the RGB image and registered depth reaches that point. A
-    nearer return means the landmark may be occluded, while missing/invalid
-    depth supplies no absence evidence.
+    A negative YOLO result is useful when the saved 3-D point projects safely
+    inside the RGB image. A nearer valid depth return means the landmark may be
+    occluded; missing/invalid local depth still supplies semantic absence
+    evidence because registered depth has repeatable holes in the live scene.
     """
     if (depth is None or map_from_camera is None or track.get("z") is None or
             depth_window < 1 or depth_window % 2 == 0):
