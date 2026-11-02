@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Depth-hole object-removal correction (host validated; deployment pending)
+## Depth-hole object-removal correction (deployed; controlled scene check pending)
 
 Live diagnosis of a stale person and skateboard found both saved 3-D points
 well inside the camera image, but their current 9x9 registered-depth patches
@@ -15,8 +15,10 @@ pauses removal. This affects object markers only, never planner occupancy, and
 automatic removal still permits rediscovery. A same-class overlapping box with
 a sampled depth differing by more than 0.25 m or 25% no longer refreshes the
 saved landmark. Out-of-view and positively occluded tracks retain the age
-fallback. All 232 host tests pass; robot-native validation and deployment are
-pending.
+fallback. All 232 host and robot-native tests pass. Commit `89bc4aa` is
+deployed with one TensorRT mapper `AUTO PAUSED` and stopped; the restart
+cleared the reported near-field person and skateboard session markers. A
+controlled five-miss live reproduction remains pending.
 
 ## Pending-object clear-view removal (deployed; scene validation pending)
 

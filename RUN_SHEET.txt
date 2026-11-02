@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-DEPTH-HOLE OBJECT-REMOVAL CORRECTION (HOST VALIDATED; DEPLOYMENT PENDING):
+DEPTH-HOLE OBJECT-REMOVAL CORRECTION (DEPLOYED; CONTROLLED SCENE CHECK PENDING):
   [x] Reproduce stale person/skateboard projections centrally in-frame with
       zero valid registered-depth pixels in their 9x9 patches.
   [x] Count central YOLO misses through invalid depth while retaining the hold
@@ -26,9 +26,11 @@ DEPTH-HOLE OBJECT-REMOVAL CORRECTION (HOST VALIDATED; DEPLOYMENT PENDING):
       the saved landmark by more than 0.25 m or 25%.
   [x] Keep semantic removal separate from planner occupancy and allow rediscovery.
   [x] Pass all 232 host tests and compile production Python.
-  [ ] Stop the mapper and pass all tests natively before deployment.
-  [ ] Deploy one AUTO PAUSED/stop mapper, preserve Hector, and observe the stale
-      person/skateboard absence counters reach five or the markers disappear.
+  [x] Stop the mapper and pass all 232 tests natively before deployment.
+  [x] Deploy commit 89bc4aa with one AUTO PAUSED/stop mapper, preserve Hector,
+      and confirm the reported near-field person/skateboard markers are gone.
+  [ ] Reproduce five central invalid-depth YOLO misses on a fresh live track
+      and observe its absence counter reach five before marker removal.
 
 PENDING-OBJECT CLEAR-VIEW REMOVAL (DEPLOYED; SCENE CHECK PENDING):
   [x] Apply the five eligible clear-view misses to pending and confirmed tracks.

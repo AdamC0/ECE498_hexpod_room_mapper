@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Depth-hole object-removal correction candidate - 2026-11-02
+## Depth-hole object-removal correction deployed - 2026-11-02
 
 The operator reported stale person and skateboard markers directly ahead. Live
 projection placed them near pixels `(146,174)` and `(217,327)`, safely inside
@@ -14,9 +14,17 @@ local depth now counts as semantic absence; a valid nearer return still pauses
 removal as occluded. This never clears planner occupancy and automatic marker
 removal remains rediscoverable. Overlapping same-class boxes only reset the old
 track when their sampled depth is absent or agrees within 0.25 m / 25%.
-Out-of-view and positively blocked tracks keep the age timer. All 232 host tests
-pass and production Python compiles; native validation and deployment are
-pending.
+Out-of-view and positively blocked tracks keep the age timer. All 232 host and
+robot-native tests pass and production Python compiles. Commit `89bc4aa` is
+deployed; the previous files are in `~/room_mapper/backup_pre_89bc4aa/`.
+
+The production launcher preserved the live Hector frame and restored exactly
+one drive-enabled TensorRT mapper `AUTO PAUSED` with command `stop`. The old
+near-field person (about 0.76 m) and skateboard (about 0.80 m) session markers
+were absent after restart; a newly observed person at a different map location
+confirmed from fresh captures. This proves stale-session cleanup and healthy
+operation, not a controlled live five-miss reproduction, which remains pending.
+No motion was commanded or physically observed.
 
 ## Pending-object clear-view removal deployed - 2026-11-02
 

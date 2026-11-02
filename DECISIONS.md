@@ -1684,6 +1684,10 @@ and pauses the counter; out-of-view tracks retain the age timer. This does not
 alter or clear planner occupancy, and automatic removal remains
 non-suppressing. An overlapping same-class box with sampled depth must agree
 with the saved optical depth within the larger of 0.25 m or 25%; a materially
-different-depth instance cannot refresh the stale track. All 232 host tests
-pass and production Python compiles. Robot-native validation and deployment
-are pending.
+different-depth instance cannot refresh the stale track. All 232 host and
+robot-native tests pass and production Python compiles. Commit `89bc4aa` is
+deployed with a recoverable backup at `~/room_mapper/backup_pre_89bc4aa/`.
+The launcher preserved Hector and restored exactly one TensorRT mapper
+`AUTO PAUSED` with command `stop`. The reported near-field person and
+skateboard session markers were gone after restart; controlled live five-miss
+validation remains pending. No motion was commanded or physically observed.
