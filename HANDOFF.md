@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Pending-object clear-view removal candidate - 2026-11-02
+## Pending-object clear-view removal deployed - 2026-11-02
 
 Pending candidates now use the same five eligible clear-view misses as
 confirmed landmarks. A new private absence counter is independent of the
@@ -11,9 +11,17 @@ new map observation. Out-of-view, edge, invalid-depth, and nearer-occluded
 frames add no absence evidence; the existing 300 s pending age timer remains
 the fallback in those conditions. Automatic removal still permits rediscovery.
 
-All 231 host tests pass and production Python compiles. Robot-native validation
-and deployment are pending. PT remains on the prior confirmed-object-only
-revision, paused and stopped as recorded below.
+All 231 host and robot-native tests pass and production Python compiles. Commit
+`a271bae` is deployed with matching hashes after a recoverable backup to
+`~/room_mapper/backup_pre_a271bae/`. The launcher preserved the existing Hector
+frame and restored exactly one drive-enabled TensorRT mapper `AUTO PAUSED` with
+command `stop`. Live JSON showed two confirmation misses but zero absence
+misses for one pending track, confirming the counters are independent in the
+deployed pipeline. LiDAR/pose measured about 12.14/12.05 Hz and
+RGB/native/registered depth about 29.60/28.49/29.83-30.42 Hz. Camera and map
+endpoints returned HTTP 200 and battery was about 90%. Controlled five-miss,
+occlusion, age-fallback, and rediscovery scene checks remain pending. No motion
+was commanded or physically observed.
 
 ## Visibility-aware confirmed-object removal deployed - 2026-11-02
 

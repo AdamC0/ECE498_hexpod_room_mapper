@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Pending-object clear-view removal (host validated; deployment pending)
+## Pending-object clear-view removal (deployed; scene validation pending)
 
 The same five-observation visibility rule now applies to pending candidates as
 well as confirmed landmarks. Confirmation-window misses and clear-view absence
@@ -13,10 +13,17 @@ conditions still expire through the existing 300 s age fallback measured from
 their last matched observation. Automatic removal remains non-suppressing, so
 the object may be detected again later.
 
-All 231 host tests pass, including pending clear-view removal, detection reset,
-unmapped-box timer refresh, out-of-view/occluded timer fallback, and separation
-from confirmation evidence. Robot-native validation and deployment are
-pending. The robot continues running the prior confirmed-object-only revision.
+All 231 host and robot-native tests pass, including pending clear-view removal,
+detection reset, unmapped-box timer refresh, out-of-view/occluded timer
+fallback, and separation from confirmation evidence. Commit `a271bae` is
+deployed with matching hashes and a recoverable pre-deployment backup. Hector's
+existing frame was preserved and exactly one TensorRT mapper is `AUTO PAUSED`
+with command `stop`. Live JSON showed a pending track with two confirmation
+misses and zero absence misses, directly confirming the counters remain
+separate. LiDAR/pose measured about 12.14/12.05 Hz and RGB/native/registered
+depth about 29.60/28.49/29.83-30.42 Hz. Controlled five-miss removal,
+occlusion hold, age fallback, and rediscovery scene checks remain pending. No
+motion was commanded or observed.
 
 ## Visibility-aware stale object removal (deployed; scene validation pending)
 

@@ -1653,3 +1653,17 @@ new mapped observation. Automatic removal remains non-suppressing so later
 rediscovery is allowed. All 231 host tests pass and production Python compiles;
 robot-native validation and deployment remain pending. PT continues running
 the previous confirmed-object-only deployment.
+
+Deployment follow-up: all 231 tests passed natively on PT with the mapper
+stopped and ROS sourced. Commit `a271bae` files matched workstation hashes; the
+prior deployment is recoverably stored in
+`~/room_mapper/backup_pre_a271bae/`. The production launcher preserved the live
+Hector frame and restored exactly one drive-enabled TensorRT mapper
+`AUTO PAUSED` with command `stop`. A live pending track reported two
+confirmation-window misses but zero absence misses, directly confirming the
+new counter separation in the running pipeline. LiDAR/pose measured about
+12.14/12.05 Hz and RGB/native/registered depth about
+29.60/28.49/29.83-30.42 Hz. Camera/map endpoints returned HTTP 200 and battery
+was about 90%. Controlled five-miss removal, occlusion hold, age fallback, and
+rediscovery checks remain pending. No motion was commanded or physically
+observed.
