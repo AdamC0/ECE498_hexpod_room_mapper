@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-01)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-02)
 =====================================================
 
 ROBOT:
@@ -16,6 +16,23 @@ PRE-RUN:
   [ ] Confirm /scan, /slam_out_pose, RGB, and depth are publishing.
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
+
+VISIBILITY-AWARE CONFIRMED-OBJECT REMOVAL (HOST VALIDATED; DEPLOYMENT PENDING):
+  [x] Retain the confirmed landmark's full 3-D map coordinate and project it
+      through image-time TF into each fresh settled RGB/depth observation.
+  [x] Require five consecutive eligible YOLO misses; reset on a matching box or
+      mapped detection and allow the count to continue across stopped endpoints.
+  [x] Count only central-image views with valid registered depth reaching the
+      expected range. Edge/out-of-view, invalid depth, missing TF, and a nearer
+      occluder add no evidence.
+  [x] Keep pending-track expiry unchanged; apply removal to renamed confirmed
+      objects and permit later rediscovery after automatic removal.
+  [x] Pass all 228 host tests and compile production Python.
+  [ ] Stop the mapper and pass all tests natively on PT before deployment.
+  [ ] Deploy exactly one mapper AUTO PAUSED/stop with Hector as the only SLAM.
+  [ ] In a paused labeled scene, verify detections reset the count, a nearer
+      occluder does not advance it, and five clear-view misses remove the marker.
+  [ ] Return the object and verify it can form and confirm a fresh track.
 
 OBJECT DEDUP / CONFIDENCE / DEPTH-CLEAR CANDIDATE:
   [x] Pass all 223 host tests and compile production Python.

@@ -1,5 +1,23 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Visibility-aware confirmed-object removal candidate - 2026-11-02
+
+Confirmed landmarks now retain Z as well as map X/Y. Each fresh synchronized
+stationary result projects that saved point into the captured RGB/depth view.
+A YOLO miss counts only inside the central 80% of the image when registered
+depth is valid and reaches the expected object range. A nearer depth return
+marks the view occluded; invalid depth, missing TF, and edge/out-of-view points
+add no absence evidence. A matching YOLO box or mapped observation resets the
+counter. Five consecutive eligible misses remove the landmark, including a
+renamed one, without adding manual suppression, so later rediscovery remains
+possible. Pending-track behavior is unchanged.
+
+All 228 host tests pass and production Python compiles. Coverage includes
+projection/inset checks, occlusion and invalid depth, reset after a hit,
+five-miss removal across observations, renamed objects, rediscovery, and the
+full synchronized processing path. Robot-native tests, paused live validation,
+and deployment are pending. No robot connection or motion occurred.
+
 ## Live-map false-positive, duplicate, and clearing candidate - 2026-11-01
 
 Follow-up diagnosis after the operator physically repositioned the paused robot

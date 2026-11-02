@@ -29,7 +29,7 @@ from stationary_survey import StationarySurvey
 from object_mapping import (ObjectTracker, TensorRtYoloDetector, TransformCache,
                             YoloOnnxDetector, backproject, decode_depth_image, load_labels,
                             canonical_object_label, deduplicate_mapped_detections,
-                            sample_box_depth, transform_point)
+                            landmark_visibility, sample_box_depth, transform_point)
 
 try:
     from jethexa_controller import client
@@ -381,6 +381,11 @@ class RoomMapper:
         self.object_merge_distance = float(rospy.get_param("~object_merge_distance", 0.65))
         self.object_min_observations = int(rospy.get_param("~object_min_observations", 3))
         self.object_track_max_age = float(rospy.get_param("~object_track_max_age", 300.0))
+        self.object_removal_misses = int(rospy.get_param("~object_removal_misses", 5))
+        self.object_removal_image_margin = float(rospy.get_param(
+            "~object_removal_image_margin", 0.10))
+        self.object_removal_occlusion_margin = float(rospy.get_param(
+            "~object_removal_occlusion_margin", 0.15))
         self.object_burst_frames = int(rospy.get_param("~object_burst_frames", 5))
         self.object_burst_interval = float(rospy.get_param("~object_burst_interval", 0.18))
         self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
@@ -427,6 +432,11 @@ class RoomMapper:
         if (not 1 <= self.object_min_observations <= 20 or
                 not math.isfinite(self.object_track_max_age) or
                 not 30.0 <= self.object_track_max_age <= 3600.0 or
+                not 2 <= self.object_removal_misses <= 20 or
+                not math.isfinite(self.object_removal_image_margin) or
+                not .05 <= self.object_removal_image_margin <= .30 or
+                not math.isfinite(self.object_removal_occlusion_margin) or
+                not .05 <= self.object_removal_occlusion_margin <= .50 or
                 not 2 <= self.object_burst_frames <= 8 or
                 not .05 <= self.object_burst_interval <= .5 or
                 not 1 <= self.object_expected_hits <= self.object_expected_window <= 8 or
@@ -1341,18 +1351,37 @@ class RoomMapper:
                     mapped_detection["map_label"], point[0], point[1],
                     detection["confidence"], now, observation_id=observation_id,
                     validation_group=validation_group,
-                    box=detection["box"])
+                    box=detection["box"], z=point[2])
                 if track is not None:
                     updated_tracks.append(track)
                     seen_track_ids.append(track["id"])
                     mapped += 1
-            self.object_tracker.finish_observation(
-                validation_group, observation_id, seen_track_ids)
+            eligible_misses = []
+            for track in self.object_tracker.tracks:
+                if not track.get("confirmed"):
+                    continue
+                detected, clear_view = landmark_visibility(
+                    track, detections, depth, k, transform,
+                    image_margin=getattr(self, "object_removal_image_margin", .10),
+                    occlusion_margin=getattr(
+                        self, "object_removal_occlusion_margin", .15))
+                if detected:
+                    seen_track_ids.append(track["id"])
+                elif clear_view:
+                    eligible_misses.append(track["id"])
+            removed_tracks = self.object_tracker.finish_observation(
+                validation_group, observation_id, seen_track_ids,
+                eligible_confirmed_track_ids=eligible_misses,
+                confirmed_miss_limit=getattr(self, "object_removal_misses", 5))
             self.object_detections = detections if display_current else []
             self.object_detections_stamp = now if display_current else 0.0
             confirmed = len(self.object_tracker.snapshot(True, now))
-            self.object_status = ("%d detections, %d mapped, %d confirmed; %.2f s inference" %
-                                  (len(detections), mapped, confirmed, inference_seconds))
+            removal_text = (", %d stale removed" % len(removed_tracks)
+                            if removed_tracks else "")
+            self.object_status = ("%d detections, %d mapped, %d confirmed%s; "
+                                  "%.2f s inference" %
+                                  (len(detections), mapped, confirmed, removal_text,
+                                   inference_seconds))
             self.update_object_focus_locked(updated_tracks, now)
 
     def update_object_focus_locked(self, updated_tracks, now):

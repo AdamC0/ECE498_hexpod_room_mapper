@@ -1598,3 +1598,27 @@ furniture. Three stale Hector-black cells received exact joint-free evidence
 and were suppressed downstream without modifying raw Hector. A controlled
 stationary promote/remove test remains pending. No autonomy test or motion was
 commanded.
+
+## Remove confirmed objects only after visible clear-view YOLO misses - 2026-11-02
+
+The operator requested that mapped objects disappear when the robot looks at
+their location and YOLO no longer detects them. Chosen: store the confirmed
+landmark's full 3-D map coordinate and evaluate absence only in fresh,
+synchronized, settled observations. The point must project within a 10 percent
+inset on every image edge, and registered depth around that projection must be
+valid and reach the expected range. A nearer return treats the landmark as
+possibly occluded; invalid depth, missing TF, and edge/out-of-view geometry add
+no evidence. A matching same-class YOLO box resets absence even if that box
+lacks sufficient depth quality to update its map coordinate.
+
+Five distinct eligible misses remove a confirmed landmark, with the sequence
+continuing across stopped endpoints and resetting on detection. Non-eligible
+views pause rather than reset the sequence. Pending candidates retain their
+rolling confirmation and age behavior. Renamed landmarks use the same rule.
+Automatic removal deliberately does not populate manual suppression, allowing
+a returned or moved object to form a fresh track; explicit user removal keeps
+its existing suppression behavior.
+
+All 228 host tests pass and production Python compiles. Robot-native, paused
+scene, and deployment validation remain pending; no robot connection or motion
+was used for this change.

@@ -178,6 +178,64 @@ def transform_point(point, translation, quaternion):
     return (rx + translation[0], ry + translation[1], rz + translation[2])
 
 
+def landmark_visibility(track, detections, depth, k, map_from_camera,
+                        image_margin=.10, occlusion_margin=.15,
+                        depth_window=9, minimum_depth_pixels=9):
+    """Return ``(detected, clear_view)`` for one confirmed map landmark.
+
+    A negative YOLO result is useful only when the saved 3-D point projects
+    safely inside the RGB image and registered depth reaches that point. A
+    nearer return means the landmark may be occluded, while missing/invalid
+    depth supplies no absence evidence.
+    """
+    if (depth is None or map_from_camera is None or track.get("z") is None or
+            depth_window < 1 or depth_window % 2 == 0):
+        return False, False
+    try:
+        camera_from_map = inverse_transform(map_from_camera)
+        camera_point = transform_point(
+            (float(track["x"]), float(track["y"]), float(track["z"])),
+            *camera_from_map)
+        fx, fy, cx, cy = float(k[0]), float(k[4]), float(k[2]), float(k[5])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False, False
+    x, y, z = camera_point
+    if (not all(math.isfinite(value) for value in (x, y, z, fx, fy, cx, cy)) or
+            z <= .10 or fx <= 0 or fy <= 0):
+        return False, False
+    u, v = fx * x / z + cx, fy * y / z + cy
+    height, width = depth.shape[:2]
+    margin_x, margin_y = float(image_margin) * width, float(image_margin) * height
+    if not (margin_x <= u < width - margin_x and margin_y <= v < height - margin_y):
+        return False, False
+
+    label = canonical_object_label(track.get("label", ""))
+    for detection in detections:
+        if canonical_object_label(detection.get("label", "")) != label:
+            continue
+        box = detection.get("box")
+        if box is None or len(box) != 4:
+            continue
+        x1, y1, x2, y2 = [float(value) for value in box]
+        # Allow modest box jitter around the saved projected center.
+        pad_x, pad_y = .10 * (x2 - x1), .10 * (y2 - y1)
+        if x1 - pad_x <= u <= x2 + pad_x and y1 - pad_y <= v <= y2 + pad_y:
+            return True, False
+
+    radius = depth_window // 2
+    center_x, center_y = int(round(u)), int(round(v))
+    x1, x2 = max(0, center_x - radius), min(width, center_x + radius + 1)
+    y1, y2 = max(0, center_y - radius), min(height, center_y + radius + 1)
+    patch = np.asarray(depth[y1:y2, x1:x2], dtype=np.float32)
+    valid = patch[(patch > .10) & (patch < 8.0) & np.isfinite(patch)]
+    if valid.size < int(minimum_depth_pixels):
+        return False, False
+    observed_depth = float(np.median(valid))
+    if observed_depth + float(occlusion_margin) < z:
+        return False, False
+    return False, True
+
+
 def quaternion_multiply(a, b):
     ax, ay, az, aw = a
     bx, by, bz, bw = b
@@ -677,7 +735,7 @@ class ObjectTracker:
         return self._confirmation_hits(track) is not None
 
     def update(self, label, x, y, confidence, now=None, observation_id=None,
-               validation_group=None, box=None):
+               validation_group=None, box=None, z=None):
         now = time.time() if now is None else float(now)
         self.prune(now)
         if any(item[0] == label and math.hypot(item[1] - x, item[2] - y) <=
@@ -693,12 +751,14 @@ class ObjectTracker:
             if candidates else None
         if track is None or math.hypot(track["x"] - x, track["y"] - y) > self.merge_distance:
             track = {"id": self.next_id, "label": label, "x": float(x), "y": float(y),
+                     "z": (float(z) if z is not None else None),
                      "confidence": float(confidence), "count": 0, "m2": 0.0,
                      "last_seen": now, "last_observation": None,
                      "confirmed": False, "tier": ("expected" if label.lower() in
                                                     self.priority_labels else "other"),
                      "_evidence": [], "_validation_group": validation_group,
-                     "_last_validation_observation": None, "_consecutive_misses": 0}
+                     "_last_validation_observation": None, "_consecutive_misses": 0,
+                     "_last_removal_observation": None, "_z_count": 0}
             self.next_id += 1
             self.tracks.append(track)
         if observation_id is not None and track["last_observation"] == observation_id:
@@ -710,6 +770,7 @@ class ObjectTracker:
             track["last_seen"] = now
             track["last_observation"] = observation_id
             track["confidence"] = max(float(confidence), track["confidence"] * .98)
+            track["_consecutive_misses"] = 0
             return track
         old_x, old_y = track["x"], track["y"]
         n = track["count"] + 1
@@ -718,6 +779,13 @@ class ObjectTracker:
         track["m2"] += (float(x) - old_x) * (float(x) - track["x"]) + \
                        (float(y) - old_y) * (float(y) - track["y"])
         track["count"], track["last_seen"] = n, now
+        if z is not None:
+            z_count = track.get("_z_count", 0) + 1
+            if track.get("z") is None:
+                track["z"] = float(z)
+            else:
+                track["z"] += (float(z) - track["z"]) / z_count
+            track["_z_count"] = z_count
         track["last_observation"] = observation_id
         track["confidence"] = max(float(confidence), track["confidence"] * .98)
         if self.validation_enabled:
@@ -727,6 +795,7 @@ class ObjectTracker:
             track["_evidence"].append({
                 "hit": True, "observation_id": observation_id,
                 "confidence": float(confidence), "x": float(x), "y": float(y),
+                "z": (float(z) if z is not None else None),
                 "group": validation_group, "box": tuple(box) if box is not None else None,
             })
             window = int(self._policy(label)["window"])
@@ -741,23 +810,46 @@ class ObjectTracker:
                                            (ys - track["y"]) ** 2))
                 track["confidence"] = max(item["confidence"]
                                           for item in confirmation_hits)
+                zs = [item["z"] for item in confirmation_hits
+                      if item.get("z") is not None]
+                if zs:
+                    track["z"] = float(np.mean(zs))
                 track["confirmed"] = True
         else:
             track["confirmed"] = track["count"] >= self.min_observations
         return track
 
-    def finish_observation(self, validation_group, observation_id, seen_track_ids):
-        """Record pending-track misses without prematurely deleting the track.
+    def finish_observation(self, validation_group, observation_id, seen_track_ids,
+                           eligible_confirmed_track_ids=None,
+                           confirmed_miss_limit=None):
+        """Record pending evidence and remove repeatedly absent confirmed tracks.
 
         Intermittent detectors commonly miss two adjacent frames even while an
         object remains visible. The rolling evidence window prevents stale hits
-        from confirming it, and normal max-age pruning removes abandoned tracks.
+        from confirming a pending track, and normal max-age pruning removes
+        abandoned candidates. Confirmed misses must be prequalified by camera
+        projection and depth visibility before they are supplied here.
         """
         if not self.validation_enabled:
-            return
+            return []
         seen_track_ids = set(seen_track_ids)
+        eligible_confirmed_track_ids = set(eligible_confirmed_track_ids or ())
+        removed = []
         for track in self.tracks:
-            if (track.get("confirmed") or track["id"] in seen_track_ids or
+            if track.get("confirmed"):
+                if track["id"] in seen_track_ids:
+                    track["_consecutive_misses"] = 0
+                    track["_last_removal_observation"] = observation_id
+                elif (confirmed_miss_limit is not None and
+                      track["id"] in eligible_confirmed_track_ids and
+                      track.get("_last_removal_observation") != observation_id):
+                    track["_last_removal_observation"] = observation_id
+                    track["_consecutive_misses"] = \
+                        track.get("_consecutive_misses", 0) + 1
+                    if track["_consecutive_misses"] >= int(confirmed_miss_limit):
+                        removed.append(track)
+                continue
+            if (track["id"] in seen_track_ids or
                     track.get("_validation_group") != validation_group or
                     track.get("_last_validation_observation") == observation_id):
                 continue
@@ -769,6 +861,13 @@ class ObjectTracker:
             })
             window = int(self._policy(track["label"])["window"])
             track["_evidence"] = track["_evidence"][-window:]
+        if removed:
+            removed_ids = {track["id"] for track in removed}
+            # Automatic disappearance is not manual suppression: a returned
+            # or moved object may form a fresh track later in the session.
+            self.tracks = [track for track in self.tracks
+                           if track["id"] not in removed_ids]
+        return removed
 
     def rename(self, track_id, name):
         """Set a display name without changing the detector class used to merge."""
@@ -815,6 +914,7 @@ class ObjectTracker:
             item["confirmed"] = confirmed
             item["name"] = track.get("name", track["label"])
             item["position_std"] = math.sqrt(track["m2"] / max(1, track["count"] - 1))
+            item["absence_misses"] = track.get("_consecutive_misses", 0)
             if self.validation_enabled:
                 if confirmed:
                     validation = {"reason": "confirmed"}

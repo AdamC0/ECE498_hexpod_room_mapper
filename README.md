@@ -1,5 +1,31 @@
 # JetHexa Room Mapper
 
+## Visibility-aware stale object removal (host validated; deployment pending)
+
+Confirmed object landmarks now retain their full 3-D map position. During a
+fresh synchronized stationary YOLO observation, a missing landmark accumulates
+absence evidence only when that point projects inside the central 80% of the
+RGB image and registered depth reaches the expected range. Image-edge views,
+invalid or sparse depth, stale/missing TF, and a nearer occluding surface do not
+count either way. A matching YOLO box or mapped detection resets the absence
+counter, including when depth quality is insufficient to remap that box.
+
+Five consecutive eligible misses remove the confirmed landmark. The count may
+continue across stopped endpoints, but non-eligible observations merely pause
+it. Pending candidates retain their existing rolling confirmation and age
+behavior. Renamed landmarks follow the same removal policy. Automatic removal
+does not add manual suppression, so a returned or moved object can be detected
+and mapped again later. Manual `REMOVE` retains its existing suppression
+semantics. Defaults are configurable with `_object_removal_misses:=5`,
+`_object_removal_image_margin:=0.10`, and
+`_object_removal_occlusion_margin:=0.15`.
+
+All 228 host tests pass, including projection/inset gating, closer-depth
+occlusion, invalid-depth rejection, miss reset, renamed-landmark removal,
+rediscovery, and the complete synchronized snapshot pipeline. Robot-native,
+paused live scene, and deployment validation are pending. No robot connection,
+motion command, or physical movement occurred during this host validation.
+
 ## Object deduplication and persistent-depth clearing (deployed; scene checks pending)
 
 The current candidate addresses three live stationary-map failures. Two
@@ -323,19 +349,21 @@ medium, charging, stale, and unavailable telemetry.
 - Detected objects are listed in the Objects tab. Pending objects may be
   renamed or removed but cannot be navigation targets. They appear as hollow
   amber map markers with the current validation reason; confirmed landmarks
-  are solid. Expected classroom
-  classes require three qualifying detections in four fresh frames (each at
-  least 0.50 confidence and median at least 0.65). Every other model class
-  remains eligible but requires four in five (each at least 0.60 and median at
-  least 0.75) with tighter box and map-position agreement. Depth coverage,
-  surface consistency, and inlier gates apply before either tier can create an
-  observation. Two consecutive same-view misses remove a pending candidate;
-  confirmed landmarks use only qualifying hits for their stored coordinate,
-  remain fixed for the mapping session, and clear with the map.
-- Stationary preview uses a single latest-frame queue slot and never changes
-  validation evidence. Camera boxes clear immediately when motion begins and
-  expire after one second without a new result, so an old box cannot remain
-  over unrelated live video.
+  are solid. Both tiers require three qualifying hits in the latest eight fresh
+  stationary observations. Expected classes require 0.50 per hit and a 0.55
+  median, except measured luggage at 0.30/0.33; other classes require
+  0.60/0.75 with tighter geometry. Depth quality and geometric gates apply
+  before a detection contributes map evidence. Pending misses remain in the
+  rolling window and abandoned pending candidates expire by age.
+- Confirmed landmarks freeze their validated 3-D coordinate. Five consecutive
+  eligible clear-view YOLO misses remove one automatically; detections reset
+  the count, while occluded, invalid-depth, stale-TF, and image-edge views add
+  no evidence. Automatic removal permits rediscovery, while manual removal
+  suppresses the same class/location for the mapping session.
+- Continued stopped-endpoint inference uses a single latest-frame queue slot
+  and remains validation-eligible. Camera boxes clear immediately when motion
+  begins and expire after one second without a new result, so an old box cannot
+  remain over unrelated live video.
 - During stationary surveys, tentative objects remain nonblocking by default.
   The legacy `object_focus` behavior is opt-in; when enabled, motion stops until
   the object is confirmed, missed twice, or the 15-second limit expires.

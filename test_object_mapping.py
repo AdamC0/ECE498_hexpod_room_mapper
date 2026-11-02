@@ -11,7 +11,7 @@ import numpy as np
 from object_mapping import (COCO_CLASSES, ObjectTracker, TensorRtYoloDetector,
                             TransformCache, YoloOnnxDetector, backproject,
                             canonical_object_label, decode_depth_image, load_labels,
-                            sample_box_depth, transform_point)
+                            landmark_visibility, sample_box_depth, transform_point)
 
 
 class ObjectMappingTests(unittest.TestCase):
@@ -189,6 +189,50 @@ class ObjectMappingTests(unittest.TestCase):
                            box=(10, 10, 60, 80))
         tracker.prune(1000)
         self.assertEqual(len(tracker.snapshot(True, 1000)), 1)
+
+    def test_confirmed_track_requires_five_eligible_misses_and_hit_resets(self):
+        tracker = ObjectTracker(priority_labels=['chair'])
+        group = ('endpoint', 1)
+        for observation in range(1, 4):
+            track = tracker.update('chair', 0., 0., .75, observation,
+                                   observation_id=observation,
+                                   validation_group=group,
+                                   box=(30, 30, 70, 70), z=2.)
+        self.assertTrue(track['confirmed'])
+        self.assertTrue(tracker.rename(track['id'], 'Reading chair'))
+        for observation in range(4, 8):
+            tracker.finish_observation(group, observation, [], [track['id']], 5)
+        self.assertEqual(tracker.snapshot(True, 7)[0]['absence_misses'], 4)
+        tracker.finish_observation(group, 8, [track['id']], [track['id']], 5)
+        self.assertEqual(tracker.snapshot(True, 8)[0]['absence_misses'], 0)
+        for observation in range(9, 14):
+            removed = tracker.finish_observation(
+                group, observation, [], [track['id']], 5)
+        self.assertEqual([item['name'] for item in removed], ['Reading chair'])
+        self.assertEqual(tracker.tracks, [])
+        replacement = tracker.update('chair', 0., 0., .8, 14, z=2.)
+        self.assertIsNotNone(replacement)
+
+    def test_landmark_visibility_requires_inset_clear_depth_or_detection(self):
+        track = {'label': 'chair', 'x': 0., 'y': 0., 'z': 2.}
+        depth = np.full((100, 100), 2.5, np.float32)
+        k = (100., 0., 50., 0., 100., 50., 0., 0., 1.)
+        identity = ((0., 0., 0.), (0., 0., 0., 1.))
+        self.assertEqual(landmark_visibility(track, [], depth, k, identity),
+                         (False, True))
+        detection = {'label': 'chair', 'box': (40, 40, 60, 60)}
+        self.assertEqual(landmark_visibility(track, [detection], depth, k, identity),
+                         (True, False))
+        depth[:] = .5
+        self.assertEqual(landmark_visibility(track, [], depth, k, identity),
+                         (False, False))
+        depth[:] = 0.
+        self.assertEqual(landmark_visibility(track, [], depth, k, identity),
+                         (False, False))
+        edge_track = dict(track, x=-.9)
+        depth[:] = 2.5
+        self.assertEqual(landmark_visibility(edge_track, [], depth, k, identity),
+                         (False, False))
 
     def test_confirmation_uses_only_qualifying_hits_and_freezes_position(self):
         tracker = ObjectTracker(priority_labels=['chair'])

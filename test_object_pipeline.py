@@ -70,6 +70,9 @@ class ObjectPipelineTests(unittest.TestCase):
         n.object_preview_enabled = True
         n.object_preview_next_capture = 0.0
         n.object_detection_ttl = 1.0
+        n.object_removal_misses = 5
+        n.object_removal_image_margin = .10
+        n.object_removal_occlusion_margin = .15
         n.survey = SimpleNamespace(settled_at=98., required_stamp=99.9,
                                    localize=Mock())
         n.object_focus_enabled = False
@@ -116,6 +119,45 @@ class ObjectPipelineTests(unittest.TestCase):
         tracks = n.object_tracker.snapshot(True, 100.)
         self.assertEqual(len(tracks), 1)
         self.assertEqual(tracks[0]['tier'], 'expected')
+
+    def test_clear_view_yolo_misses_remove_confirmed_landmark(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        for stamp in (99.70, 99.71, 99.72):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            snapshot = n.capture_object_snapshot()
+            snapshot['validation_group'] = ('endpoint', 1)
+            n.process_object_snapshot(snapshot)
+        self.assertEqual(len(n.object_tracker.snapshot(True, 100.)), 1)
+        n.detector.detect.side_effect = lambda _frame: []
+        for stamp in (99.73, 99.74, 99.75, 99.76):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            snapshot = n.capture_object_snapshot()
+            snapshot['validation_group'] = ('endpoint', 1)
+            n.process_object_snapshot(snapshot)
+        self.assertEqual(n.object_tracker.snapshot(True, 100.)[0]['absence_misses'], 4)
+        n.camera_stamp = n.registered_depth_stamp = 99.77
+        snapshot = n.capture_object_snapshot()
+        snapshot['validation_group'] = ('endpoint', 2)
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(n.object_tracker.tracks, [])
+        self.assertIn('1 stale removed', n.object_status)
+
+    def test_nearer_depth_occlusion_does_not_count_yolo_miss(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        for stamp in (99.70, 99.71, 99.72):
+            n.camera_stamp = n.registered_depth_stamp = stamp
+            snapshot = n.capture_object_snapshot()
+            snapshot['validation_group'] = ('endpoint', 1)
+            n.process_object_snapshot(snapshot)
+        n.detector.detect.side_effect = lambda _frame: []
+        n.registered_depth[:] = .5
+        n.camera_stamp = n.registered_depth_stamp = 99.73
+        snapshot = n.capture_object_snapshot()
+        snapshot['validation_group'] = ('endpoint', 2)
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(n.object_tracker.snapshot(True, 100.)[0]['absence_misses'], 0)
 
     def test_poor_depth_support_cannot_create_validation_track(self):
         n = self.node
