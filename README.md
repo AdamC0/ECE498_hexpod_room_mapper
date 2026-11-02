@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Visibility-aware stale object removal (host validated; deployment pending)
+## Visibility-aware stale object removal (deployed; scene validation pending)
 
 Confirmed object landmarks now retain their full 3-D map position. During a
 fresh synchronized stationary YOLO observation, a missing landmark accumulates
@@ -20,11 +20,17 @@ semantics. Defaults are configurable with `_object_removal_misses:=5`,
 `_object_removal_image_margin:=0.10`, and
 `_object_removal_occlusion_margin:=0.15`.
 
-All 228 host tests pass, including projection/inset gating, closer-depth
-occlusion, invalid-depth rejection, miss reset, renamed-landmark removal,
-rediscovery, and the complete synchronized snapshot pipeline. Robot-native,
-paused live scene, and deployment validation are pending. No robot connection,
-motion command, or physical movement occurred during this host validation.
+All 228 host and robot-native tests pass, including projection/inset gating,
+closer-depth occlusion, invalid-depth rejection, miss reset, renamed-landmark
+removal, rediscovery, and the complete synchronized snapshot pipeline. Commit
+`eefe879` is deployed with byte-matching runtime files. Hector's existing frame
+was preserved and exactly one TensorRT mapper is `AUTO PAUSED` with command
+`stop`. Live object JSON includes the new `z` and `absence_misses` fields; one
+track confirmed through the normal pipeline after restart. LiDAR/pose measured
+about 12.05/11.97 Hz and RGB/native/registered depth about
+29.85/29.54/29.87-30.05 Hz. Camera and map endpoints returned HTTP 200. This is
+deployment and no-motion pipeline evidence, not validation of five-miss
+removal in a controlled labeled scene. No motion was commanded or observed.
 
 ## Object deduplication and persistent-depth clearing (deployed; scene checks pending)
 

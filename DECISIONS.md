@@ -1622,3 +1622,16 @@ its existing suppression behavior.
 All 228 host tests pass and production Python compiles. Robot-native, paused
 scene, and deployment validation remain pending; no robot connection or motion
 was used for this change.
+
+Deployment follow-up: all 228 tests passed natively on PT with the mapper
+stopped and the ROS environment sourced. Commit `eefe879` runtime files matched
+the workstation hashes; the prior files are recoverably stored in
+`~/room_mapper/backup_pre_eefe879/`. The production launcher preserved the live
+Hector frame and restored exactly one drive-enabled TensorRT mapper
+`AUTO PAUSED` with command `stop`. Live object JSON contained the new `z` and
+`absence_misses` fields and one track confirmed after restart. LiDAR/pose were
+about 12.05/11.97 Hz, while RGB/native/registered depth were about
+29.85/29.54/29.87-30.05 Hz. Camera and map endpoints returned HTTP 200 and the
+battery was about 91%. This is native-test, deployment, and paused pipeline
+evidence only; the controlled five-miss, occlusion, reset, and rediscovery scene
+checks remain pending. No motion was commanded or physically observed.

@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Visibility-aware confirmed-object removal candidate - 2026-11-02
+## Visibility-aware confirmed-object removal deployed - 2026-11-02
 
 Confirmed landmarks now retain Z as well as map X/Y. Each fresh synchronized
 stationary result projects that saved point into the captured RGB/depth view.
@@ -12,11 +12,17 @@ counter. Five consecutive eligible misses remove the landmark, including a
 renamed one, without adding manual suppression, so later rediscovery remains
 possible. Pending-track behavior is unchanged.
 
-All 228 host tests pass and production Python compiles. Coverage includes
-projection/inset checks, occlusion and invalid depth, reset after a hit,
-five-miss removal across observations, renamed objects, rediscovery, and the
-full synchronized processing path. Robot-native tests, paused live validation,
-and deployment are pending. No robot connection or motion occurred.
+All 228 host and robot-native tests pass and production Python compiles.
+Commit `eefe879` is deployed with matching hashes after a recoverable backup to
+`~/room_mapper/backup_pre_eefe879/`. The launcher preserved the existing Hector
+frame and restored exactly one drive-enabled TensorRT mapper `AUTO PAUSED` with
+command `stop`. Live object JSON exposes `z` and `absence_misses`; the normal
+paused pipeline confirmed one track after restart. LiDAR/pose measured about
+12.05/11.97 Hz and RGB/native/registered depth about 29.85/29.54/29.87-30.05
+Hz. Camera/map endpoints returned HTTP 200 and battery was about 91%. This is
+native-test, deployment, and no-motion pipeline evidence. Controlled occlusion,
+five-miss removal, reset-on-detection, and rediscovery scene checks remain
+pending. No motion was commanded or physically observed.
 
 ## Live-map false-positive, duplicate, and clearing candidate - 2026-11-01
 
