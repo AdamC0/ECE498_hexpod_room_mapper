@@ -758,7 +758,8 @@ class ObjectTracker:
                                                     self.priority_labels else "other"),
                      "_evidence": [], "_validation_group": validation_group,
                      "_last_validation_observation": None, "_consecutive_misses": 0,
-                     "_last_removal_observation": None, "_z_count": 0}
+                     "_absence_misses": 0, "_last_absence_observation": None,
+                     "_z_count": 0}
             self.next_id += 1
             self.tracks.append(track)
         if observation_id is not None and track["last_observation"] == observation_id:
@@ -770,7 +771,7 @@ class ObjectTracker:
             track["last_seen"] = now
             track["last_observation"] = observation_id
             track["confidence"] = max(float(confidence), track["confidence"] * .98)
-            track["_consecutive_misses"] = 0
+            track["_absence_misses"] = 0
             return track
         old_x, old_y = track["x"], track["y"]
         n = track["count"] + 1
@@ -788,6 +789,7 @@ class ObjectTracker:
             track["_z_count"] = z_count
         track["last_observation"] = observation_id
         track["confidence"] = max(float(confidence), track["confidence"] * .98)
+        track["_absence_misses"] = 0
         if self.validation_enabled:
             track["_validation_group"] = validation_group
             track["_last_validation_observation"] = observation_id
@@ -820,34 +822,32 @@ class ObjectTracker:
         return track
 
     def finish_observation(self, validation_group, observation_id, seen_track_ids,
-                           eligible_confirmed_track_ids=None,
-                           confirmed_miss_limit=None):
-        """Record pending evidence and remove repeatedly absent confirmed tracks.
+                           eligible_track_ids=None, miss_limit=None):
+        """Record pending evidence and remove repeatedly absent map tracks.
 
         Intermittent detectors commonly miss two adjacent frames even while an
         object remains visible. The rolling evidence window prevents stale hits
         from confirming a pending track, and normal max-age pruning removes
-        abandoned candidates. Confirmed misses must be prequalified by camera
-        projection and depth visibility before they are supplied here.
+        abandoned candidates. Removal misses for pending and confirmed tracks
+        must be prequalified by camera projection and depth visibility before
+        they are supplied here.
         """
         if not self.validation_enabled:
             return []
         seen_track_ids = set(seen_track_ids)
-        eligible_confirmed_track_ids = set(eligible_confirmed_track_ids or ())
+        eligible_track_ids = set(eligible_track_ids or ())
         removed = []
         for track in self.tracks:
+            if track["id"] in seen_track_ids:
+                track["_absence_misses"] = 0
+                track["_last_absence_observation"] = observation_id
+            elif (miss_limit is not None and track["id"] in eligible_track_ids and
+                  track.get("_last_absence_observation") != observation_id):
+                track["_last_absence_observation"] = observation_id
+                track["_absence_misses"] = track.get("_absence_misses", 0) + 1
+                if track["_absence_misses"] >= int(miss_limit):
+                    removed.append(track)
             if track.get("confirmed"):
-                if track["id"] in seen_track_ids:
-                    track["_consecutive_misses"] = 0
-                    track["_last_removal_observation"] = observation_id
-                elif (confirmed_miss_limit is not None and
-                      track["id"] in eligible_confirmed_track_ids and
-                      track.get("_last_removal_observation") != observation_id):
-                    track["_last_removal_observation"] = observation_id
-                    track["_consecutive_misses"] = \
-                        track.get("_consecutive_misses", 0) + 1
-                    if track["_consecutive_misses"] >= int(confirmed_miss_limit):
-                        removed.append(track)
                 continue
             if (track["id"] in seen_track_ids or
                     track.get("_validation_group") != validation_group or
@@ -914,7 +914,7 @@ class ObjectTracker:
             item["confirmed"] = confirmed
             item["name"] = track.get("name", track["label"])
             item["position_std"] = math.sqrt(track["m2"] / max(1, track["count"] - 1))
-            item["absence_misses"] = track.get("_consecutive_misses", 0)
+            item["absence_misses"] = track.get("_absence_misses", 0)
             if self.validation_enabled:
                 if confirmed:
                     validation = {"reason": "confirmed"}

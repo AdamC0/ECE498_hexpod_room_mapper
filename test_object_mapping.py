@@ -163,6 +163,7 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertEqual(len(tracker.tracks), 1)
         pending = tracker.snapshot(False, 3)[0]
         self.assertEqual(pending['validation']['misses'], 2)
+        self.assertEqual(pending['absence_misses'], 0)
         self.assertIn('1/3 detections', pending['validation_reason'])
         self.assertIsNotNone(track)
 
@@ -212,6 +213,35 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertEqual(tracker.tracks, [])
         replacement = tracker.update('chair', 0., 0., .8, 14, z=2.)
         self.assertIsNotNone(replacement)
+
+    def test_pending_track_uses_clear_view_misses_but_keeps_age_fallback(self):
+        tracker = ObjectTracker(max_age=30, priority_labels=['chair'])
+        group = ('endpoint', 1)
+        track = tracker.update('chair', 0., 0., .75, 1,
+                               observation_id=1, validation_group=group,
+                               box=(30, 30, 70, 70), z=2.)
+        for observation in range(2, 6):
+            tracker.finish_observation(group, observation, [], [track['id']], 5)
+        pending = tracker.snapshot(False, 5)[0]
+        self.assertFalse(pending['confirmed'])
+        self.assertEqual(pending['absence_misses'], 4)
+        tracker.finish_observation(group, 6, [track['id']], [track['id']], 5)
+        self.assertEqual(tracker.snapshot(False, 6)[0]['absence_misses'], 0)
+        # An out-of-view or occluded observation supplies no eligible ID. It
+        # pauses observation removal, while the existing age timer still runs.
+        tracker.finish_observation(('endpoint', 2), 7, [], [], 5)
+        self.assertEqual(len(tracker.snapshot(False, 30)), 1)
+        self.assertEqual(tracker.snapshot(False, 30)[0]['absence_misses'], 0)
+        self.assertEqual(tracker.snapshot(False, 32), [])
+
+        track = tracker.update('chair', 0., 0., .75, 40,
+                               observation_id=40, validation_group=group,
+                               box=(30, 30, 70, 70), z=2.)
+        for observation in range(41, 46):
+            removed = tracker.finish_observation(
+                group, observation, [], [track['id']], 5)
+        self.assertEqual([item['id'] for item in removed], [track['id']])
+        self.assertEqual(tracker.tracks, [])
 
     def test_landmark_visibility_requires_inset_clear_depth_or_detection(self):
         track = {'label': 'chair', 'x': 0., 'y': 0., 'z': 2.}

@@ -1,5 +1,20 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Pending-object clear-view removal candidate - 2026-11-02
+
+Pending candidates now use the same five eligible clear-view misses as
+confirmed landmarks. A new private absence counter is independent of the
+rolling confirmation evidence, preventing confirmation misses from
+accidentally accelerating removal. Same-class boxes at the projected point
+reset absence and refresh pending `last_seen` even if depth quality prevents a
+new map observation. Out-of-view, edge, invalid-depth, and nearer-occluded
+frames add no absence evidence; the existing 300 s pending age timer remains
+the fallback in those conditions. Automatic removal still permits rediscovery.
+
+All 231 host tests pass and production Python compiles. Robot-native validation
+and deployment are pending. PT remains on the prior confirmed-object-only
+revision, paused and stopped as recorded below.
+
 ## Visibility-aware confirmed-object removal deployed - 2026-11-02
 
 Confirmed landmarks now retain Z as well as map X/Y. Each fresh synchronized

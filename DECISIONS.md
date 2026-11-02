@@ -1635,3 +1635,21 @@ about 12.05/11.97 Hz, while RGB/native/registered depth were about
 battery was about 91%. This is native-test, deployment, and paused pipeline
 evidence only; the controlled five-miss, occlusion, reset, and rediscovery scene
 checks remain pending. No motion was commanded or physically observed.
+
+## Extend clear-view removal to pending candidates - 2026-11-02
+
+The operator requested observation-based removal for pending objects while
+retaining the timer when the candidate is not observable. Chosen: apply the
+same five eligible clear-view misses to pending and confirmed tracks, but keep
+this absence counter separate from pending confirmation-window misses. Only a
+central-image projection with registered depth reaching the saved 3-D position
+advances absence. Out-of-view, edge, invalid-depth, and nearer-occluded frames
+pause that counter, while the existing 300 s pending age fallback continues
+from the last matched observation.
+
+A same-class YOLO box at the projected location resets clear-view absence and
+refreshes the pending age timer even when depth quality is insufficient for a
+new mapped observation. Automatic removal remains non-suppressing so later
+rediscovery is allowed. All 231 host tests pass and production Python compiles;
+robot-native validation and deployment remain pending. PT continues running
+the previous confirmed-object-only deployment.

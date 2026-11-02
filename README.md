@@ -1,5 +1,23 @@
 # JetHexa Room Mapper
 
+## Pending-object clear-view removal (host validated; deployment pending)
+
+The same five-observation visibility rule now applies to pending candidates as
+well as confirmed landmarks. Confirmation-window misses and clear-view absence
+misses use separate counters: only a central-image view with valid registered
+depth reaching the saved 3-D position advances removal. A matching same-class
+box resets the absence count and refreshes the pending age timer even when its
+depth is not good enough to remap. Out-of-view, image-edge, invalid-depth, and
+nearer-occluded observations add no absence evidence; pending tracks in those
+conditions still expire through the existing 300 s age fallback measured from
+their last matched observation. Automatic removal remains non-suppressing, so
+the object may be detected again later.
+
+All 231 host tests pass, including pending clear-view removal, detection reset,
+unmapped-box timer refresh, out-of-view/occluded timer fallback, and separation
+from confirmation evidence. Robot-native validation and deployment are
+pending. The robot continues running the prior confirmed-object-only revision.
+
 ## Visibility-aware stale object removal (deployed; scene validation pending)
 
 Confirmed object landmarks now retain their full 3-D map position. During a

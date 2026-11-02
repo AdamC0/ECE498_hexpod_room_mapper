@@ -1358,8 +1358,6 @@ class RoomMapper:
                     mapped += 1
             eligible_misses = []
             for track in self.object_tracker.tracks:
-                if not track.get("confirmed"):
-                    continue
                 detected, clear_view = landmark_visibility(
                     track, detections, depth, k, transform,
                     image_margin=getattr(self, "object_removal_image_margin", .10),
@@ -1367,12 +1365,17 @@ class RoomMapper:
                         self, "object_removal_occlusion_margin", .15))
                 if detected:
                     seen_track_ids.append(track["id"])
+                    # A same-class box at the saved projection proves the
+                    # candidate is still visible even when depth quality is
+                    # insufficient to remap it. Refresh the pending age timer
+                    # as well as resetting observation-based absence.
+                    track["last_seen"] = now
                 elif clear_view:
                     eligible_misses.append(track["id"])
             removed_tracks = self.object_tracker.finish_observation(
                 validation_group, observation_id, seen_track_ids,
-                eligible_confirmed_track_ids=eligible_misses,
-                confirmed_miss_limit=getattr(self, "object_removal_misses", 5))
+                eligible_track_ids=eligible_misses,
+                miss_limit=getattr(self, "object_removal_misses", 5))
             self.object_detections = detections if display_current else []
             self.object_detections_stamp = now if display_current else 0.0
             confirmed = len(self.object_tracker.snapshot(True, now))
