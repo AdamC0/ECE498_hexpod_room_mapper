@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Automatic pose-jump reset candidate - 2026-11-02
+## Automatic pose-jump reset deployed - 2026-11-02
 
 Crossing the existing 0.25 m / 20 degree pose-jump threshold now marks the map
 untrusted, stops motion, and schedules exactly one automatic reset from the
@@ -12,8 +12,14 @@ sessions remain paused. Manual Clear Map still always pauses.
 
 Reset-service failure clears the pending request and leaves the robot paused
 with an invalid map, avoiding an unbounded retry loop. All 245 Windows-host
-tests pass and production Python compiles. Native validation and deployment on
-the currently faulted robot remain pending.
+tests pass and production Python compiles. All 245 tests also pass natively on
+PT. Commit `52f177e` was deployed after backup to
+`~/room_mapper/backup_pre_52f177e/` and an explicit fresh-map startup. A paused
+synthetic 1.00 m pose jump triggered exactly one automatic reset, returned the
+live pose to approximately `(0,0)`, left zero persistent/temporary depth cells,
+and correctly remained `AUTO PAUSED` with command `stop`. Hector is the only
+SLAM stack and exactly one mapper is running. No physical motion was commanded;
+active-session conditional resume remains pending supervised validation.
 
 ## Static landmark retention deployed - 2026-11-02
 

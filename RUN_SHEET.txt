@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-AUTOMATIC POSE-JUMP RESET (HOST VALIDATED; DEPLOYMENT PENDING):
+AUTOMATIC POSE-JUMP RESET (DEPLOYED; ACTIVE RESUME CHECK PENDING):
   [x] Stop immediately and schedule one automatic map reset after a pose jump
       beyond 0.25 m / 20 degrees.
   [x] Clear Hector, fused depth state, routes, object snapshots, and landmarks
@@ -26,9 +26,12 @@ AUTOMATIC POSE-JUMP RESET (HOST VALIDATED; DEPLOYMENT PENDING):
       five-second pose guard plus fresh pose/map checks; preserve paused state.
   [x] On reset-service failure, remain paused and faulted without retry looping.
   [x] Keep manual CLEAR MAP always-pausing and pass all 245 host tests.
-  [ ] Pass all tests natively and deploy paused on a freshly reset Hector map.
-  [ ] Under direct supervision, induce only a controlled synthetic pose jump;
-      verify stop, one reset, guard interval, and conditional resume.
+  [x] Pass all 245 tests natively and deploy paused on a freshly reset Hector
+      map at commit 52f177e.
+  [x] While paused, inject a synthetic 1.00 m jump and verify exactly one reset,
+      a fresh approximately (0,0) frame, cleared depth cells, and paused stop.
+  [ ] Under direct motion supervision, verify that an active session stops,
+      resets once, waits through fresh-map guards, and conditionally resumes.
 
 STATIC LANDMARK RETENTION (DEPLOYED; LIVE OBJECT CHECK PENDING):
   [x] Exempt confirmed configured furniture/fixtures from YOLO-absence removal.

@@ -1809,6 +1809,14 @@ session stays paused, and manual Clear Map continues to pause unconditionally.
 The pending request is consumed before the service call. A failed reset thus
 leaves the robot paused and the map untrusted instead of retrying forever.
 This changes recovery policy but not the pose thresholds or collision limits.
-All 245 host tests pass and production Python compiles. Robot-native validation,
-paused deployment on a fresh Hector frame, and a directly supervised recovery
-exercise remain pending.
+All 245 host tests pass and production Python compiles. All 245 tests also pass
+natively on PT. Commit `52f177e` was deployed after a recoverable file backup
+and explicit fresh-map startup. Predeployment telemetry unexpectedly showed the
+old invalid-frame mapper active, so it was paused before any process or file
+change. The deployed mapper then remained paused for a synthetic 1.00 m pose
+jump: exactly one automatic reset ran, the pose returned to approximately
+`(0,0)`, temporary and persistent depth cells remained zero, and status said
+`remaining paused` with command `stop`. Exactly one mapper and Hector are
+running; no RTAB-Map process exists. No physical motion was commanded during
+deployment. Conditional resume of an active session remains pending direct
+supervision.
