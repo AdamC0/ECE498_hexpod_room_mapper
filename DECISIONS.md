@@ -1691,3 +1691,26 @@ The launcher preserved Hector and restored exactly one TensorRT mapper
 `AUTO PAUSED` with command `stop`. The reported near-field person and
 skateboard session markers were gone after restart; controlled live five-miss
 validation remains pending. No motion was commanded or physically observed.
+
+## Record downloadable RGB + YOLO video on the robot - 2026-11-02
+
+The operator requested website controls to start and stop recording the RGB
+feed on the robot and download the result. Chosen: a dedicated background
+writer samples the latest camera image at 640x480 and 10 FPS and draws only
+fresh YOLO boxes, labels, confidence, and sampled depth. It deliberately does
+not reuse the full browser-camera renderer, because that would burn LiDAR,
+depth-health, and pause-state presentation into the video.
+
+Each recording receives a timestamped filename in `recordings/`. MP4V/MP4 is
+attempted first for compact, browser-friendly output; MJPEG/AVI is the fallback
+for legacy target OpenCV builds. Stop releases the container before it becomes
+downloadable, shutdown also closes an active writer, and the newest completed
+file is rediscovered after mapper restart. The HTTP server streams the fixed
+completed path rather than accepting a client-selected filesystem path.
+
+Concurrent starts, unavailable RGB, and less than 256 MB free are rejected.
+Files are retained instead of silently overwriting the previous recording;
+storage cleanup remains an explicit operator action. The default FPS and
+directory are configurable. All 235 host tests pass and production Python
+compiles. Robot-native codec validation, a paused short-clip download check,
+and deployment remain pending.

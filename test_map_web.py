@@ -1,7 +1,10 @@
 """ROS-independent integration tests for the embedded web server."""
 
 import json
+import os
+import shutil
 import socket
+import tempfile
 import threading
 import unittest
 import urllib.error
@@ -49,6 +52,8 @@ class FakeNode:
         self.commanded_moving = False
         self.object_tracker = ObjectTrackerStub()
         self.commands = []
+        self.video_recording_dir = None
+        self.video_recording_fps = 10.0
 
     def web_status(self):
         return 'test status'
@@ -69,8 +74,14 @@ class WebServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.node = FakeNode()
+        cls.node.video_recording_dir = tempfile.mkdtemp(prefix='room_mapper_video_test_')
         cls.port = map_web.start(cls.node, 0)
         cls.base = 'http://127.0.0.1:%d' % cls.port
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.node.video_recorder.close()
+        shutil.rmtree(cls.node.video_recording_dir, ignore_errors=True)
 
     def request(self, path, method='GET'):
         request = urllib.request.Request(self.base + path, method=method)
@@ -99,6 +110,11 @@ class WebServerTests(unittest.TestCase):
             self.assertIn('WHY PENDING:', body)
             self.assertIn('RECOVER CAMERA', body)
             self.assertIn("fetch('/recover-camera'", body)
+            self.assertIn("id='record-start'", body)
+            self.assertIn("id='record-stop'", body)
+            self.assertIn("id='record-download'", body)
+            self.assertIn("fetch('/recording.json')", body)
+            self.assertIn("fetch('/recording/'+action", body)
             self.assertIn("max='200'", body)
             self.assertNotIn('Navigate to this map position?', body)
 
@@ -269,6 +285,74 @@ class WebServerTests(unittest.TestCase):
             n.commanded_moving = True
             moving = map_web.draw_camera(n)
             self.assertEqual(tuple(moving[48, 64]), (0, 0, 0))
+
+    def test_recording_camera_has_only_rgb_and_yolo_annotations(self):
+        n = FakeNode()
+        n.camera = np.zeros((100, 100, 3), np.uint8)
+        n.paused = True
+        n.view = {'blocked': True, 'front': .2, 'depth': .3}
+        clean = map_web.draw_recording_camera(n)
+        self.assertFalse(clean.any())
+        n.object_detections = [{
+            'label': 'chair', 'confidence': .9, 'box': (10, 10, 20, 20),
+            'map_point': None}]
+        n.object_detections_stamp = time.time()
+        annotated = map_web.draw_recording_camera(n)
+        self.assertEqual(tuple(annotated[48, 64]), (0, 180, 255))
+        self.assertEqual(tuple(annotated[24, 10]), (0, 0, 0))
+
+    def test_recording_status_controls_and_download(self):
+        recorder = self.node.video_recorder
+        status = {'recording': False, 'available': True,
+                  'filename': 'yolo_test.mp4', 'bytes': 5, 'frames': 0,
+                  'started_at': None, 'duration': 0.0, 'error': ''}
+        with mock.patch.object(recorder, 'status', return_value=status):
+            with self.request('/recording.json') as response:
+                self.assertEqual(json.loads(response.read().decode())['filename'],
+                                 'yolo_test.mp4')
+        with mock.patch.object(recorder, 'start', return_value='Recording started'):
+            with self.request('/recording/start', 'POST') as response:
+                self.assertEqual(response.read(), b'Recording started')
+        with mock.patch.object(recorder, 'stop', return_value='Recording stopped'):
+            with self.request('/recording/stop', 'POST') as response:
+                self.assertEqual(response.read(), b'Recording stopped')
+
+        path = os.path.join(self.node.video_recording_dir, 'yolo_test.mp4')
+        with open(path, 'wb') as video:
+            video.write(b'video')
+        with mock.patch.object(recorder, 'completed_path', return_value=path):
+            with self.request('/recording/download') as response:
+                self.assertEqual(response.headers.get_content_type(), 'video/mp4')
+                self.assertIn('yolo_test.mp4', response.headers['Content-Disposition'])
+                self.assertEqual(response.read(), b'video')
+
+    def test_video_recorder_finalizes_a_background_recording(self):
+        n = FakeNode()
+        n.video_recording_dir = tempfile.mkdtemp(prefix='room_mapper_video_unit_')
+        n.camera = np.zeros((100, 100, 3), np.uint8)
+        recorder = map_web.YoloVideoRecorder(
+            n, n.video_recording_dir, fps=30.0)
+        path = os.path.join(n.video_recording_dir, 'test.mp4')
+
+        class Writer:
+            def write(self, frame):
+                self.last_frame = frame.copy()
+                with open(path, 'ab') as output:
+                    output.write(b'x')
+
+            def release(self):
+                pass
+
+        writer = Writer()
+        with mock.patch.object(recorder, '_open_writer', return_value=(writer, path)):
+            self.assertIn('Recording started', recorder.start())
+            deadline = time.time() + 1.0
+            while recorder.status()['frames'] < 2 and time.time() < deadline:
+                time.sleep(.01)
+            self.assertIn('Recording stopped', recorder.stop())
+        self.assertTrue(recorder.status()['available'])
+        self.assertEqual(writer.last_frame.shape, (480, 640, 3))
+        shutil.rmtree(n.video_recording_dir, ignore_errors=True)
 
     def test_navigation_endpoints_reject_invalid_input(self):
         for path in ('/navigate?px=-1&py=20', '/navigate?px=nope&py=20',

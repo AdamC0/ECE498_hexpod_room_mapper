@@ -8,6 +8,7 @@ mapper's pause/resume safety controls.
 import json
 import math
 import os
+import shutil
 import socket
 import subprocess
 import threading
@@ -32,10 +33,10 @@ PAGE = """<!doctype html><html><head><meta charset='utf-8'>
 .manual{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:22px;align-items:center;margin-top:18px;padding:18px}.manual-copy h2{font-size:.9rem}.manual-copy p{margin:8px 0 0;color:var(--muted);font-size:.82rem;line-height:1.5}.drive-pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,54px);gap:8px;justify-content:center;touch-action:none;user-select:none}.drive{min-height:54px;padding:0;border-color:#355064;background:#1b2a36;color:#d9f8fb;font-size:1.15rem;box-shadow:inset 0 1px rgba(255,255,255,.05)}.drive:hover{background:#243b49}.drive.active{border-color:var(--cyan);background:#174854;box-shadow:0 0 0 3px rgba(56,214,232,.14)}.drive.turn-left{grid-column:1;grid-row:1}.drive.forward{grid-column:2;grid-row:1}.drive.turn-right{grid-column:3;grid-row:1}.drive.strafe-left{grid-column:1;grid-row:2}.drive-stop{grid-column:2;grid-row:2;border-color:#8d3c43;background:#622830;color:#fff}.drive.strafe-right{grid-column:3;grid-row:2}.drive.back{grid-column:2;grid-row:3}.key{display:block;margin-top:2px;color:var(--muted);font-size:.58rem;letter-spacing:.08em}
 .speed-panel{margin-top:18px;padding:18px}.speed-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:15px}.speed-control{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}.speed-control label{color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}.speed-control output{color:var(--cyan);font:800 .82rem ui-monospace,SFMono-Regular,Consolas,monospace}.speed-control input{grid-column:1/-1;width:100%;accent-color:var(--cyan);cursor:pointer}
 .tabs{display:flex;gap:8px;margin:0 0 18px;padding:5px;border:1px solid var(--line);border-radius:14px;background:rgba(8,13,18,.7);width:max-content}.tab{min-height:38px;padding:0 18px;border-color:transparent;background:transparent;color:var(--muted)}.tab.active{background:var(--panel-2);color:var(--text);border-color:#355064}.pane[hidden]{display:none}.map img{cursor:crosshair;touch-action:none;user-select:none}.map img.dragging{cursor:grabbing}.map-tools{position:absolute;z-index:2;right:10px;bottom:10px;display:flex;gap:6px}.map-tools button{min-height:34px;padding:0 11px;border-color:#456275;background:rgba(12,25,34,.9);font-size:.68rem;box-shadow:0 3px 12px rgba(0,0,0,.35)}.map-tools .zoom{width:36px;padding:0;font-size:1.05rem}.map-hint{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:.75rem}.object-panel{padding:18px}.object-intro{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:16px}.object-intro p{margin:7px 0 0;color:var(--muted);font-size:.84rem}.object-count{padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--cyan);font-size:.72rem;font-weight:800}.object-list{display:grid;gap:10px}.object-row{display:grid;grid-template-columns:minmax(160px,1.2fr) minmax(120px,.8fr) auto;gap:14px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:13px;background:rgba(7,12,17,.55)}.object-name{font-weight:800}.object-meta{margin-top:4px;color:var(--muted);font:500 .72rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}.object-state{color:#9af1bf;font-size:.72rem;font-weight:800}.object-state.pending{color:#ffd99c}.object-actions{display:flex;flex-wrap:wrap;gap:7px}.object-actions button{min-height:38px;padding:0 12px;font-size:.68rem;background:#1b4f5a;border-color:#2b7180}.object-actions button:disabled{cursor:not-allowed;opacity:.4}.object-actions .rename{background:#263d55}.object-actions .remove{background:#5b2930;border-color:#813b45}.empty{padding:34px;text-align:center;border:1px dashed var(--line);border-radius:13px;color:var(--muted)}
-.object-reason{margin-top:7px;color:#ffd99c;font:700 .72rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}
+.object-reason{margin-top:7px;color:#ffd99c;font:700 .72rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}.recording-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 12px;border-top:1px solid var(--line);background:rgba(7,12,17,.62)}.recording-bar button{min-height:36px;padding:0 12px;font-size:.66rem}.record-start{background:#168a50}.record-stop{background:#8d3c43}.record-download{border-color:#2b7180;background:#1b4f5a}.recording-status{flex:1;min-width:150px;color:var(--muted);font:600 .7rem/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}.recording-status.active{color:#ff9ca4}
 @media(max-width:800px){.shell{width:min(100% - 20px,680px);padding-top:18px}.grid{grid-template-columns:1fr}.map{max-width:none}.topbar{align-items:flex-start}.controls{bottom:8px}.clear{margin-left:0}.object-row{grid-template-columns:1fr auto}.object-actions{grid-column:1/-1}}@media(max-width:600px){.manual{grid-template-columns:1fr}.manual-copy{text-align:center}.speed-grid{grid-template-columns:1fr}}@media(max-width:480px){.live{padding:7px 9px;font-size:.68rem}.controls button{flex:1;padding:0 12px}.clear{flex-basis:100%!important}.console{padding:14px}#status{font-size:.78rem}.tabs{width:100%}.tab{flex:1}.object-intro{flex-direction:column}.object-row{grid-template-columns:1fr}.object-actions,.object-state{grid-column:1}.object-actions button{flex:1}}
 </style></head><body><main class='shell'><header class='topbar'><div class='brand'><div class='mark'>JH</div><div><h1>JetHexa Room Mapper</h1><p class='eyebrow'>Autonomous spatial intelligence</p></div></div><div class='system-pills'><div class='battery' id='battery' title='Waiting for battery telemetry'>BATTERY --%</div><div class='live'>SYSTEM LIVE</div></div></header><nav class='tabs' aria-label='Views'><button class='tab active' data-tab='dashboard'>DASHBOARD</button><button class='tab' data-tab='objects'>OBJECTS</button></nav><section class='pane' id='dashboard'>
-<section class='grid'><article class='card cam'><div class='card-head'><h2>Camera + YOLO detections</h2><span class='tag'>RGB / LIVE</span></div><div class='frame'><img id='cam' src='/cam.jpg' alt='Live robot camera'></div></article>
+<section class='grid'><article class='card cam'><div class='card-head'><h2>Camera + YOLO detections</h2><span class='tag'>RGB / LIVE</span></div><div class='frame'><img id='cam' src='/cam.jpg' alt='Live robot camera'></div><div class='recording-bar'><button class='record-start' id='record-start'>START RECORDING</button><button class='record-stop' id='record-stop' disabled>STOP RECORDING</button><button class='record-download' id='record-download' disabled>DOWNLOAD VIDEO</button><span class='recording-status' id='recording-status'>No completed recording</span></div></article>
 <article class='card map'><div class='card-head'><h2>SLAM + landmarks</h2><span class='tag' id='map-mode'>ROBOT-CENTERED / 100%</span></div><div class='frame'><img id='map' src='/map.jpg' alt='Robot-centered clickable SLAM occupancy map'><div class='map-tools'><button class='zoom' id='zoom-out' aria-label='Zoom out'>−</button><button id='center-map'>CENTER</button><button class='zoom' id='zoom-in' aria-label='Zoom in'>+</button></div></div><div class='map-hint'>Black cells are persistent fused occupancy; magenta cells are unconfirmed depth obstacles. Joint depth/LiDAR free observations can clear displaced objects without modifying Hector's raw map. Scroll or use +/− to zoom, drag to pan, Center to follow, or click to navigate.</div></article></section>
 <section class='console'><div class='console-head'><span>Telemetry</span><span>● streaming</span></div><pre id='status'>connecting...</pre></section>
 <section class='card speed-panel'><h2>Movement speed</h2><div class='speed-grid'><div class='speed-control'><label for='translation-speed'>Translation</label><output id='translation-value'>100%</output><input id='translation-speed' type='range' min='50' max='200' step='5' value='100'></div><div class='speed-control'><label for='rotation-speed'>Rotation</label><output id='rotation-value'>100%</output><input id='rotation-speed' type='range' min='50' max='200' step='5' value='100'></div></div></section>
@@ -57,6 +58,12 @@ function show(t){document.getElementById('status').textContent=t}
 function refreshBattery(){fetch('/battery.json').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(b=>{let el=document.getElementById('battery');el.className='battery';if(!b.available||b.percentage===null){el.textContent='BATTERY --%';el.title=b.source||'Waiting for battery telemetry';return}let pct=Math.round(b.percentage);el.textContent=(b.charging?'CHARGING ':'BATTERY ')+pct+'%';if(b.charging)el.classList.add('charging');else if(pct<=20)el.classList.add('low');else if(pct<=40)el.classList.add('medium');el.title=(b.voltage===null?'':b.voltage.toFixed(2)+' V | ')+(b.source||'battery telemetry')}).catch(()=>{let el=document.getElementById('battery');el.className='battery';el.textContent='BATTERY --%'})}refreshBattery();setInterval(refreshBattery,2000);
 function post(u){fetch(u,{method:'POST'}).then(async r=>{let t=await r.text();if(!r.ok)throw Error(t);show(t)}).catch(e=>show('Web request failed: '+e.message))}
 async function recoverCamera(button){button.disabled=true;let label=button.textContent;button.textContent='RECOVERING...';show('Camera recovery running; this can take up to two minutes.');try{let r=await fetch('/recover-camera',{method:'POST'}),t=await r.text();if(!r.ok)throw Error(t);show(t)}catch(e){show('Camera recovery failed: '+e.message)}finally{button.disabled=false;button.textContent=label}}
+const recordStart=document.getElementById('record-start'),recordStop=document.getElementById('record-stop'),recordDownload=document.getElementById('record-download'),recordStatus=document.getElementById('recording-status');
+function formatBytes(bytes){if(!bytes)return '0 B';let units=['B','KB','MB','GB'],i=Math.min(units.length-1,Math.floor(Math.log(bytes)/Math.log(1024)));return (bytes/Math.pow(1024,i)).toFixed(i?1:0)+' '+units[i]}
+function renderRecording(r){recordStart.disabled=r.recording;recordStop.disabled=!r.recording;recordDownload.disabled=!r.available;recordStatus.classList.toggle('active',r.recording);if(r.recording)recordStatus.textContent='RECORDING '+Math.floor(r.duration)+' s | '+r.frames+' frames';else if(r.available)recordStatus.textContent=r.filename+' | '+formatBytes(r.bytes);else recordStatus.textContent=r.error||'No completed recording'}
+async function refreshRecording(){try{let r=await fetch('/recording.json');if(!r.ok)throw Error('HTTP '+r.status);renderRecording(await r.json())}catch(e){recordStatus.textContent='Recording status unavailable';recordStatus.classList.remove('active')}}
+async function recordingAction(action){let button=action==='start'?recordStart:recordStop;button.disabled=true;try{let r=await fetch('/recording/'+action,{method:'POST'}),t=await r.text();if(!r.ok)throw Error(t);show(t)}catch(e){show('Video recording failed: '+e.message)}finally{await refreshRecording()}}
+recordStart.addEventListener('click',()=>recordingAction('start'));recordStop.addEventListener('click',()=>recordingAction('stop'));recordDownload.addEventListener('click',()=>{if(!recordDownload.disabled)window.location='/recording/download'});refreshRecording();setInterval(refreshRecording,1000);
 const translationSpeed=document.getElementById('translation-speed'),rotationSpeed=document.getElementById('rotation-speed');let speedTimer=null;
 function showSpeed(){document.getElementById('translation-value').textContent=translationSpeed.value+'%';document.getElementById('rotation-value').textContent=rotationSpeed.value+'%'}
 function sendSpeed(){showSpeed();if(speedTimer)clearTimeout(speedTimer);speedTimer=setTimeout(()=>{let q=new URLSearchParams({translation:translationSpeed.value,rotation:rotationSpeed.value});post('/speed?'+q)},120)}
@@ -112,14 +119,56 @@ def jpeg(img, quality=75):
     return buf.tobytes() if ok else b''
 
 
-def draw_camera(node):
+def camera_image(node):
+    """Return a 640x480 RGB-camera image in OpenCV BGR order."""
     frame = node.camera
     if frame is None:
-        img = np.zeros((480, 640, 3), np.uint8)
-        cv2.putText(img, 'waiting for camera...', (170, 240), cv2.FONT_HERSHEY_SIMPLEX, .8, (255,255,255), 2)
-        return img
+        return None, 640, 480
     source_h, source_w = frame.shape[:2]
-    img = cv2.resize(frame, (640, 480)).copy()
+    return cv2.resize(frame, (640, 480)).copy(), source_w, source_h
+
+
+def fresh_detections(node):
+    """Copy only detections that are still valid for the current camera view."""
+    with node.object_lock:
+        age = time.time() - getattr(node, 'object_detections_stamp', 0.0)
+        fresh = (not getattr(node, 'commanded_moving', False) and
+                 0.0 <= age <= getattr(node, 'object_detection_ttl', 1.0))
+        return [dict(d) for d in node.object_detections] if fresh else []
+
+
+def draw_detections(img, detections, source_w, source_h):
+    """Draw YOLO boxes and labels on a camera image in place."""
+    sx, sy = 640.0 / source_w, 480.0 / source_h
+    for detection in detections:
+        x1, y1, x2, y2 = detection['box']
+        p1, p2 = (int(x1*sx), int(y1*sy)), (int(x2*sx), int(y2*sy))
+        mapped = detection.get('map_point') is not None
+        box_color = (60, 210, 60) if mapped else (0, 180, 255)
+        cv2.rectangle(img, p1, p2, box_color, 2)
+        text = '%s %.0f%%' % (detection['label'], 100*detection['confidence'])
+        if detection.get('depth') is not None:
+            text += ' %.1fm' % detection['depth']
+        cv2.putText(img, text, (p1[0], max(42, p1[1]-5)),
+                    cv2.FONT_HERSHEY_SIMPLEX, .5, box_color, 2)
+    return img
+
+
+def draw_recording_camera(node):
+    """Render raw RGB with YOLO annotations and no mapper/status overlays."""
+    img, source_w, source_h = camera_image(node)
+    if img is None:
+        return np.zeros((480, 640, 3), np.uint8)
+    return draw_detections(img, fresh_detections(node), source_w, source_h)
+
+
+def draw_camera(node):
+    img, source_w, source_h = camera_image(node)
+    if img is None:
+        img = np.zeros((480, 640, 3), np.uint8)
+        cv2.putText(img, 'waiting for camera...', (170, 240), cv2.FONT_HERSHEY_SIMPLEX,
+                    .8, (255,255,255), 2)
+        return img
     v = node.view
     color = (40, 40, 235) if v.get('blocked') else (60, 200, 60)
     label = 'BLOCKED' if v.get('blocked') else 'clear'
@@ -144,24 +193,171 @@ def draw_camera(node):
                       (28, 28, 155), -1)
         cv2.putText(img, label, (x, y), font, scale, (255,255,255), thickness,
                     cv2.LINE_AA)
-    with node.object_lock:
-        age = time.time() - getattr(node, 'object_detections_stamp', 0.0)
-        fresh = (not getattr(node, 'commanded_moving', False) and
-                 0.0 <= age <= getattr(node, 'object_detection_ttl', 1.0))
-        detections = ([dict(d) for d in node.object_detections] if fresh else [])
-    sx, sy = 640.0 / source_w, 480.0 / source_h
-    for detection in detections:
-        x1, y1, x2, y2 = detection['box']
-        p1, p2 = (int(x1*sx), int(y1*sy)), (int(x2*sx), int(y2*sy))
-        mapped = detection.get('map_point') is not None
-        box_color = (60, 210, 60) if mapped else (0, 180, 255)
-        cv2.rectangle(img, p1, p2, box_color, 2)
-        text = '%s %.0f%%' % (detection['label'], 100*detection['confidence'])
-        if detection.get('depth') is not None:
-            text += ' %.1fm' % detection['depth']
-        cv2.putText(img, text, (p1[0], max(42, p1[1]-5)),
-                    cv2.FONT_HERSHEY_SIMPLEX, .5, box_color, 2)
-    return img
+    return draw_detections(img, fresh_detections(node), source_w, source_h)
+
+
+class YoloVideoRecorder:
+    """Write timestamped RGB+YOLO videos without blocking camera callbacks."""
+
+    FRAME_SIZE = (640, 480)
+    MINIMUM_FREE_BYTES = 256 * 1024 * 1024
+    CODECS = (('mp4v', '.mp4'), ('MJPG', '.avi'))
+
+    def __init__(self, node, output_dir=None, fps=10.0):
+        self.node = node
+        self.output_dir = output_dir or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 'recordings')
+        self.fps = float(fps)
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.writer = None
+        self.current_path = None
+        self.started_at = None
+        self.frames = 0
+        self.last_completed_path = None
+        self.last_error = ''
+        self._find_latest_completed()
+
+    def _find_latest_completed(self):
+        try:
+            candidates = [os.path.join(self.output_dir, name)
+                          for name in os.listdir(self.output_dir)
+                          if name.lower().endswith(('.mp4', '.avi'))]
+            candidates = [path for path in candidates
+                          if os.path.isfile(path) and os.path.getsize(path) > 0]
+            if candidates:
+                self.last_completed_path = max(candidates, key=os.path.getmtime)
+        except OSError:
+            pass
+
+    def _open_writer(self, stem):
+        for codec, extension in self.CODECS:
+            path = os.path.join(self.output_dir, stem + extension)
+            writer = cv2.VideoWriter(
+                path, cv2.VideoWriter_fourcc(*codec), self.fps, self.FRAME_SIZE)
+            if writer.isOpened():
+                return writer, path
+            writer.release()
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass
+        raise RuntimeError('No supported MP4 or AVI video encoder is available')
+
+    def start(self):
+        with self.lock:
+            if self.thread is not None and self.thread.is_alive():
+                raise RuntimeError('A video recording is already active')
+            if getattr(self.node, 'camera', None) is None:
+                raise RuntimeError('RGB camera is not ready')
+            os.makedirs(self.output_dir, exist_ok=True)
+            if shutil.disk_usage(self.output_dir).free < self.MINIMUM_FREE_BYTES:
+                raise RuntimeError('Less than 256 MB is free for video recording')
+            stamp = time.time()
+            base_stem = 'yolo_%s_%03d' % (
+                time.strftime('%Y%m%d_%H%M%S', time.localtime(stamp)),
+                int((stamp % 1.0) * 1000))
+            stem = base_stem
+            suffix = 1
+            while any(os.path.exists(os.path.join(self.output_dir, stem + extension))
+                      for _, extension in self.CODECS):
+                stem = '%s_%d' % (base_stem, suffix)
+                suffix += 1
+            writer, path = self._open_writer(stem)
+            self.stop_event.clear()
+            self.writer = writer
+            self.current_path = path
+            self.started_at = time.time()
+            self.frames = 0
+            self.last_error = ''
+            self.thread = threading.Thread(
+                target=self._record_loop, args=(writer, path), daemon=True)
+            self.thread.start()
+            return 'Recording started: ' + os.path.basename(path)
+
+    def _record_loop(self, writer, path):
+        interval = 1.0 / max(1.0, self.fps)
+        deadline = time.monotonic()
+        error = ''
+        try:
+            while not self.stop_event.is_set():
+                writer.write(draw_recording_camera(self.node))
+                with self.lock:
+                    self.frames += 1
+                deadline += interval
+                self.stop_event.wait(max(0.0, deadline - time.monotonic()))
+        except Exception as exc:
+            error = 'Video recording failed: %s' % exc
+        finally:
+            writer.release()
+            completed = False
+            try:
+                completed = os.path.isfile(path) and os.path.getsize(path) > 0
+            except OSError:
+                pass
+            with self.lock:
+                if self.writer is writer:
+                    self.writer = None
+                    self.current_path = None
+                    if completed and not error:
+                        self.last_completed_path = path
+                    self.last_error = error
+
+    def stop(self):
+        with self.lock:
+            thread = self.thread
+            active = thread is not None and thread.is_alive()
+            if not active:
+                raise RuntimeError('No video recording is active')
+            self.stop_event.set()
+        if thread is not threading.current_thread():
+            thread.join(timeout=5.0)
+        if thread.is_alive():
+            raise RuntimeError('Video recorder did not stop within five seconds')
+        with self.lock:
+            path = self.last_completed_path
+            error = self.last_error
+        if error:
+            raise RuntimeError(error)
+        return 'Recording stopped: ' + (os.path.basename(path) if path else 'no video saved')
+
+    def close(self):
+        with self.lock:
+            active = self.thread is not None and self.thread.is_alive()
+            self.stop_event.set()
+            thread = self.thread
+        if active and thread is not threading.current_thread():
+            thread.join(timeout=5.0)
+
+    def status(self):
+        with self.lock:
+            recording = self.thread is not None and self.thread.is_alive()
+            started_at = self.started_at
+            frames = self.frames
+            path = self.current_path if recording else self.last_completed_path
+            error = self.last_error
+        exists = bool(path and os.path.isfile(path))
+        size = os.path.getsize(path) if exists else 0
+        return {
+            'recording': recording,
+            'available': bool(not recording and exists and size > 0),
+            'filename': os.path.basename(path) if path else None,
+            'bytes': size,
+            'frames': frames if recording else 0,
+            'started_at': started_at if recording else None,
+            'duration': max(0.0, time.time() - started_at) if recording and started_at else 0.0,
+            'error': error,
+        }
+
+    def completed_path(self):
+        with self.lock:
+            path = self.last_completed_path
+            recording = self.thread is not None and self.thread.is_alive()
+        if recording or not path or not os.path.isfile(path):
+            return None
+        return path
 
 
 def to_screen(x, y, cx, cy, scale):
@@ -272,6 +468,11 @@ class Server(ThreadingMixIn, HTTPServer):
 
 
 def start(node, port=8000):
+    recording_dir = getattr(node, 'video_recording_dir', None)
+    recording_fps = getattr(node, 'video_recording_fps', 10.0)
+    recorder = YoloVideoRecorder(node, recording_dir, recording_fps)
+    node.video_recorder = recorder
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -287,6 +488,32 @@ def start(node, port=8000):
                 self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError):
                 # Browsers may cancel an old JPEG request when a refresh starts.
+                pass
+        def send_file(self, path):
+            try:
+                size = os.path.getsize(path)
+                filename = os.path.basename(path)
+                content_type = ('video/mp4' if filename.lower().endswith('.mp4')
+                                else 'video/x-msvideo')
+                recording = open(path, 'rb')
+            except OSError:
+                self.send_error(404)
+                return
+            try:
+                self.send_response(200)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Content-Length', str(size))
+                self.send_header('Content-Disposition',
+                                 'attachment; filename="%s"' % filename)
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                with recording:
+                    while True:
+                        chunk = recording.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError):
                 pass
         def do_GET(self):
             path = urlparse(self.path).path
@@ -315,6 +542,14 @@ def start(node, port=8000):
                 self.reply(json.dumps(node.web_battery()), 'application/json')
             elif path == '/speed.json':
                 self.reply(json.dumps(node.web_speed()), 'application/json')
+            elif path == '/recording.json':
+                self.reply(json.dumps(recorder.status()), 'application/json')
+            elif path == '/recording/download':
+                recording_path = recorder.completed_path()
+                if recording_path is None:
+                    self.reply('No completed recording is available', status=404)
+                else:
+                    self.send_file(recording_path)
             elif path == '/objects.json':
                 with node.object_lock:
                     objects = node.object_tracker.snapshot(False)
@@ -336,6 +571,17 @@ def start(node, port=8000):
                     return
                 _, message, status = recover_camera()
                 self.reply(message, status=status)
+            elif u.path in ('/recording/start', '/recording/stop'):
+                try:
+                    message = (recorder.start() if u.path.endswith('/start')
+                               else recorder.stop())
+                except RuntimeError as exc:
+                    self.reply(str(exc), status=409)
+                    return
+                except (OSError, ValueError) as exc:
+                    self.reply('Video recording failed: %s' % exc, status=500)
+                    return
+                self.reply(message)
             elif u.path == '/manual':
                 command = parse_qs(u.query).get('command', [''])[0]
                 if command not in ('forward', 'back', 'strafe_left', 'strafe_right',

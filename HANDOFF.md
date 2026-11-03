@@ -1,5 +1,21 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## RGB + YOLO video recording candidate - 2026-11-02
+
+The web camera card adds start, stop, and download controls for a robot-local
+640x480, 10 FPS annotated recording. The recording renderer contains raw RGB
+plus only fresh YOLO boxes, labels, confidence, and sampled range; it omits the
+live page's LiDAR/depth line, paused banner, map, and other UI overlays. Files
+are timestamped in `recordings/`; MP4V/MP4 is preferred with MJPEG/AVI fallback.
+The newest completed recording remains downloadable after page refresh or
+mapper restart.
+
+Recording refuses missing RGB, concurrent starts, and less than 256 MB free.
+Stop and mapper shutdown release the writer before the file becomes
+downloadable. Downloads are streamed in 1 MB chunks. All 235 host tests pass
+and production Python compiles. Robot-native tests, target codec verification,
+a short start/stop/download check, and deployment are pending.
+
 ## Depth-hole object-removal correction deployed - 2026-11-02
 
 The operator reported stale person and skateboard markers directly ahead. Live

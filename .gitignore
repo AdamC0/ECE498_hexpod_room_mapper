@@ -35,3 +35,6 @@ models/gpu_trial/
 
 # Runtime logs from the standalone launcher (when redirected locally).
 .room_mapper_logs/
+
+# Timestamped RGB + YOLO recordings created by the web dashboard.
+recordings/

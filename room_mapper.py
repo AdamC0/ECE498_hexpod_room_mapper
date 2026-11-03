@@ -102,6 +102,13 @@ class RoomMapper:
         if self.reset_service_type not in ("trigger", "empty"):
             raise ValueError("reset_service_type must be trigger or empty")
         self.web_port = int(rospy.get_param("~web_port", 8000))
+        self.video_recording_dir = os.path.abspath(os.path.expanduser(str(
+            rospy.get_param("~video_recording_dir", os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "recordings")))))
+        self.video_recording_fps = float(rospy.get_param("~video_recording_fps", 10.0))
+        if (not math.isfinite(self.video_recording_fps) or
+                not 1.0 <= self.video_recording_fps <= 30.0):
+            raise ValueError("video_recording_fps must be between 1 and 30")
         battery_topics = rospy.get_param(
             "~battery_topics", ["/battery", "/battery_state", "/voltage"])
         if isinstance(battery_topics, str):
@@ -2644,6 +2651,9 @@ class RoomMapper:
         }
 
     def shutdown(self):
+        recorder = getattr(self, "video_recorder", None)
+        if recorder is not None:
+            recorder.close()
         with self.control_lock:
             self.shutting_down = True
             if hasattr(self, "object_queue_lock"):

@@ -634,11 +634,13 @@ class MapperTests(unittest.TestCase):
         n = self.controller()
         n.control_lock, n.shutting_down = threading.RLock(), False
         n.timer, n.control_step = Mock(), Mock()
+        n.video_recorder = Mock()
         n.shutdown()
         n.safe_step(None)
         n.control_step.assert_not_called()
         n.timer.shutdown.assert_called_once_with()
         n.send.assert_called_once_with(('stop',))
+        n.video_recorder.close.assert_called_once_with()
 
     def test_motion_is_bursted_then_settled(self):
         n = self.node
