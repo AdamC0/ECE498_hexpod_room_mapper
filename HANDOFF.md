@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Static landmark retention candidate - 2026-11-02
+## Static landmark retention deployed - 2026-11-02
 
 Confirmed tracks whose canonical class is in `_object_static_classes` are now
 session-persistent and ignore observation-based YOLO absence removal. They
@@ -15,8 +15,13 @@ bed, blackboard/whiteboard, sink, oven, refrigerator, toilet, power outlet,
 clock, podium, and lectern. The consequence is deliberate: moved furniture
 leaves its old semantic marker until explicit removal or map clearing. Planner
 occupancy is unchanged and remains governed by Hector/depth fusion. All 242
-host tests pass and production Python compiles; robot-native validation and
-paused deployment are pending.
+tests pass on the Windows host and natively on PT. Commit `1e857cb` was deployed
+after backing up the changed files under
+`/home/hiwonder/room_mapper/backup_pre_1e857cb`. Exactly one drive-enabled
+mapper was restored `AUTO PAUSED` with command `stop`; Hector remained the only
+SLAM stack. The restarted scene reported no mapped detections, so a live
+confirmed-furniture retention check remains pending. No deployment motion was
+commanded.
 
 ## Moving YOLO preview deployed - 2026-11-02
 

@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Static landmark retention (host validated; deployment pending)
+## Static landmark retention (deployed)
 
 Confirmed furniture and fixed fixtures now remain on the object map for the
 entire mapping session even when later YOLO observations miss them. Static
@@ -14,8 +14,11 @@ toilet, power outlet, clock, podium, and lectern. Override the list with
 `_object_static_classes`. “Permanent” means the current mapping session:
 manual `REMOVE`, `CLEAR MAP`, mapper restart, and SLAM-frame invalidation still
 clear these landmarks. If furniture is physically moved, the old marker must
-therefore be removed explicitly. All 242 host tests pass; robot-native
-validation and paused deployment are pending.
+therefore be removed explicitly. All 242 tests pass on both the host and robot.
+The revision was deployed paused on 2026-11-02 with exactly one drive-enabled
+mapper, command `stop`, and Hector as the only SLAM stack. A live confirmed
+static-landmark retention check remains pending because the post-restart scene
+contained no mapped detections.
 
 ## Moving YOLO preview (deployed; supervised motion check pending)
 

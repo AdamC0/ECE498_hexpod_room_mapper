@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-STATIC LANDMARK RETENTION (HOST VALIDATED; DEPLOYMENT PENDING):
+STATIC LANDMARK RETENTION (DEPLOYED; LIVE OBJECT CHECK PENDING):
   [x] Exempt confirmed configured furniture/fixtures from YOLO-absence removal.
   [x] Keep pending static-class candidates subject to normal five-miss and age
       expiry until they satisfy the full confirmation policy.
@@ -25,7 +25,8 @@ STATIC LANDMARK RETENTION (HOST VALIDATED; DEPLOYMENT PENDING):
       manual Remove, Clear Map, restart, and SLAM invalidation effective.
   [x] Keep semantic retention independent of Hector and depth-planner occupancy.
   [x] Pass all 242 host tests and compile production Python.
-  [ ] Stop the mapper and pass all tests natively before paused deployment.
+  [x] Stop the mapper, pass all 242 tests natively, and deploy AUTO PAUSED with
+      command stop while Hector remains the only SLAM stack.
   [ ] Confirm a live confirmed furniture JSON record has static_landmark=true
       and remains after absence misses; use manual Remove if it was moved.
 

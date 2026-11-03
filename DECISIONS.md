@@ -1781,5 +1781,10 @@ of the semantic map. Manual Remove, Clear Map, mapper restart, and invalid SLAM
 frame cleanup remain authoritative. A physically moved static object therefore
 requires explicit semantic-marker removal; this policy does not retain or
 alter planner occupancy, Hector, or depth fusion. All 242 host tests pass and
-production Python compiles. Robot-native validation and paused deployment are
-pending.
+production Python compiles. All 242 tests also pass natively on PT. Commit
+`1e857cb` was deployed after a remote file backup; exactly one drive-enabled
+mapper was restored `AUTO PAUSED` with command `stop`, and Hector remained the
+only SLAM stack. Deployment preflight found autonomy active, so it was paused
+before the mapper was stopped; no deployment motion was commanded. The
+post-restart scene contained no mapped detections, leaving the live
+confirmed-static-object retention check pending.
