@@ -1788,3 +1788,27 @@ only SLAM stack. Deployment preflight found autonomy active, so it was paused
 before the mapper was stopped; no deployment motion was commanded. The
 post-restart scene contained no mapped detections, leaving the live
 confirmed-static-object retention check pending.
+
+## Automatically reset an invalid map after a pose jump - 2026-11-02
+
+The live autonomous run stopped repeatedly despite a physically clear path.
+Telemetry first showed false close-depth/replanning cycles, then Hector jumped
+from roughly `(1.3, -0.2)` to `(6.2, -2.0)` m and the controller correctly
+latched its map untrusted. The user directed that a detected pose jump reset
+the map automatically.
+
+Chosen: crossing the existing 0.25 m / 20 degree discontinuity threshold stops
+motion and queues one reset for the serialized controller loop. The service
+call is never made directly from the pose subscriber. Recovery clears Hector,
+the local/fused planner including depth cells, routes, queued object evidence,
+and semantic landmarks because none can survive a coordinate-frame reset. It
+then applies the existing five-second pose guard and fresh pose/map gates.
+Autonomy is restored only when it was active at the jump; a paused or manual
+session stays paused, and manual Clear Map continues to pause unconditionally.
+
+The pending request is consumed before the service call. A failed reset thus
+leaves the robot paused and the map untrusted instead of retrying forever.
+This changes recovery policy but not the pose thresholds or collision limits.
+All 245 host tests pass and production Python compiles. Robot-native validation,
+paused deployment on a fresh Hector frame, and a directly supervised recovery
+exercise remain pending.

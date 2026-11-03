@@ -1,5 +1,20 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Automatic pose-jump reset candidate - 2026-11-02
+
+Crossing the existing 0.25 m / 20 degree pose-jump threshold now marks the map
+untrusted, stops motion, and schedules exactly one automatic reset from the
+serialized controller loop. Successful recovery clears Hector, the fused
+planner and its persistent depth cells, routes, object snapshots, and semantic
+landmarks. It then requires a fresh map and the existing five-second pose guard.
+Autonomy is restored only if it was active before the jump; paused/manual
+sessions remain paused. Manual Clear Map still always pauses.
+
+Reset-service failure clears the pending request and leaves the robot paused
+with an invalid map, avoiding an unbounded retry loop. All 245 Windows-host
+tests pass and production Python compiles. Native validation and deployment on
+the currently faulted robot remain pending.
+
 ## Static landmark retention deployed - 2026-11-02
 
 Confirmed tracks whose canonical class is in `_object_static_classes` are now

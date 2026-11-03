@@ -1,5 +1,19 @@
 # JetHexa Room Mapper
 
+## Automatic pose-jump map recovery (host validated; deployment pending)
+
+A pose discontinuity beyond the existing 0.25 m / 20 degree guard now stops
+the robot and schedules one automatic Hector reset. The reset also clears the
+planner copy, depth obstacles, routes, and semantic landmarks because all are
+tied to the discarded coordinate frame. An autonomous run resumes only after
+the existing five-second pose guard and fresh pose/map checks pass. A session
+that was already paused remains paused.
+
+The reset is deliberately one-shot. If the configured SLAM reset service
+fails, the robot stays paused with an invalid-map fault instead of retrying in
+a loop. Manual `CLEAR MAP` retains its existing always-pause behavior. All 245
+host tests pass; robot-native validation and paused deployment are pending.
+
 ## Static landmark retention (deployed)
 
 Confirmed furniture and fixed fixtures now remain on the object map for the

@@ -786,6 +786,18 @@ class MapperTests(unittest.TestCase):
         n.pose_callback(msg)
         self.assertFalse(n.map_trusted)
         self.assertIn('SLAM LOST', n.web_msg)
+        self.assertTrue(n.automatic_map_reset_pending)
+        self.assertIn('pose jumped', n.automatic_map_reset_reason)
+
+    def test_control_step_runs_one_shot_pending_automatic_map_reset(self):
+        n = self.controller()
+        n.automatic_map_reset_pending = True
+        n.automatic_map_reset_reason = 'pose jumped 1.00 m / 0 deg'
+        n.reset_mapping = Mock()
+        n.control_step()
+        n.reset_mapping.assert_called_once_with(
+            automatic=True, reason='pose jumped 1.00 m / 0 deg')
+        self.assertFalse(n.automatic_map_reset_pending)
 
     def test_covariance_stamped_visual_pose_is_accepted(self):
         n = self.node
@@ -863,6 +875,54 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.state, SEARCH)
         n.call_reset_service.assert_called_once_with()
         n.clear_object_tracks.assert_called_once_with()
+
+    def test_automatic_map_reset_restores_active_autonomy_after_guards(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.paused, n.web_msg = False, ''
+        n.manual_cmd, n.manual_until = None, 0.
+        n.send = Mock()
+        n.map_lock, n.data_lock = threading.Lock(), threading.Lock()
+        n.explorer = SimpleNamespace(reset=Mock())
+        n.t_map, n.t_map_heartbeat, n.pose = 123., 456., (8., 9., .3)
+        n.scan_settle, n.settle_until = .65, 0.
+        n.survey = SimpleNamespace(reset=Mock())
+        n.prev_pose, n.pose_guard_start, n.map_trusted = (8., 9., .3), 0., False
+        n.automatic_map_reset_pending = True
+        n.automatic_map_reset_reason = 'pose jumped 5.00 m / 20 deg'
+        n.motion_generation = 7
+        n.path, n.phase, n.phase_start = [(3., 4.)], 'go', 0.
+        n.state, n.state_start = FAULT, 0.
+        n.web_map_center = (8., 9.)
+        n.call_reset_service = Mock()
+        n.clear_object_tracks = Mock()
+        with patch('room_mapper.time.time', return_value=100.), \
+                patch('room_mapper.rospy.logwarn'):
+            result = n.reset_mapping(
+                automatic=True, reason='pose jumped 5.00 m / 20 deg')
+        self.assertTrue(result)
+        self.assertFalse(n.paused)
+        self.assertTrue(n.map_trusted)
+        self.assertFalse(n.automatic_map_reset_pending)
+        self.assertEqual(n.path, [])
+        self.assertEqual(n.phase, 'survey')
+        self.assertEqual(n.state, SEARCH)
+        self.assertEqual(n.web_map_center, None)
+        self.assertEqual(n.pose_guard_start, 105.)
+        self.assertIn('autonomy will resume after fresh-map checks', n.web_msg)
+
+    def test_failed_automatic_map_reset_stays_paused_without_retry(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.paused, n.map_trusted, n.web_msg = False, False, ''
+        n.manual_cmd, n.manual_until = None, 0.
+        n.send = Mock()
+        n.call_reset_service = Mock(side_effect=RuntimeError('service unavailable'))
+        with patch('room_mapper.rospy.logerr'):
+            result = n.reset_mapping(automatic=True, reason='pose jump')
+        self.assertFalse(result)
+        self.assertTrue(n.paused)
+        self.assertFalse(n.map_trusted)
+        self.assertIn('Automatic map reset failed', n.web_msg)
+        n.call_reset_service.assert_called_once_with()
 
     def test_depth_map_reports_and_forwards_confirmed_clears(self):
         n = RoomMapper.__new__(RoomMapper)

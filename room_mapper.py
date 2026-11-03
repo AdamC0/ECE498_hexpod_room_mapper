@@ -554,6 +554,8 @@ class RoomMapper:
         self.motion_generation = 0
         self.map_generation = 0
         self.map_trusted = True
+        self.automatic_map_reset_pending = False
+        self.automatic_map_reset_reason = ""
         self.prev_pose = None
         self.pose_guard_start = time.time() + 5.0
         self.paused = self.start_paused
@@ -1829,9 +1831,13 @@ class RoomMapper:
                                       math.cos(pose[2] - self.prev_pose[2])))
                 if distance > self.max_pose_jump or turn > self.max_yaw_jump:
                     self.map_trusted = False
+                    self.automatic_map_reset_pending = True
+                    self.automatic_map_reset_reason = (
+                        "pose jumped %.2f m / %.0f deg" %
+                        (distance, math.degrees(turn)))
                     self.clear_object_tracks()
-                    self.web_msg = ("SLAM LOST: pose jumped %.2f m / %.0f deg; restart mapper "
-                                    "before continuing" % (distance, math.degrees(turn)))
+                    self.web_msg = ("SLAM LOST: %s; automatic map reset scheduled" %
+                                    self.automatic_map_reset_reason)
                     rospy.logerr(self.web_msg)
             self.prev_pose = pose
             self.pose = pose
@@ -2222,6 +2228,14 @@ class RoomMapper:
             t_pose, t_scan, t_camera, t_depth = self.t_pose, self.t_scan, self.t_camera, self.t_depth
         # Web safety controls must still work while a sensor or map is faulty.
         self.handle_web()
+        if getattr(self, "automatic_map_reset_pending", False):
+            reason = getattr(self, "automatic_map_reset_reason", "pose jump")
+            # Clear the request before calling the service. A failed service
+            # call leaves the map untrusted and stopped instead of creating an
+            # unbounded reset loop in the controller timer.
+            self.automatic_map_reset_pending = False
+            self.reset_mapping(automatic=True, reason=reason)
+            return
         if getattr(self, "commanded_moving", False):
             self.capture_motion_preview_snapshot(now)
         manual_cmd = getattr(self, "manual_cmd", None)
@@ -2260,7 +2274,8 @@ class RoomMapper:
                       and self.map_trusted)
         if self.use_map and not mapping_ok:
             self.send(("stop",))
-            reason = ("SLAM pose jump detected; mapper restart required" if not self.map_trusted
+            reason = ("SLAM map invalid; automatic reset failed or is unavailable"
+                      if not self.map_trusted
                       else "waiting for fresh SLAM pose and map")
             self.set_state(FAULT, reason)
             return
@@ -2529,8 +2544,15 @@ class RoomMapper:
         self.send(("stop",))
         self.web_msg = "Route cancelled; autonomy paused"
 
-    def reset_mapping(self):
-        """Stop, clear Hector/local state, and begin a fresh stationary survey."""
+    def reset_mapping(self, automatic=False, reason=""):
+        """Stop, clear Hector/local state, and begin a fresh stationary survey.
+
+        A web-requested clear always pauses. An automatic pose-jump recovery
+        remembers whether autonomy was active and restores that state only
+        after resetting local state; the normal pose/map guards still prevent
+        movement until the new SLAM frame is ready.
+        """
+        resume_autonomy = bool(automatic and not self.paused)
         self.manual_cmd = None
         self.manual_until = 0.0
         self.paused = True
@@ -2538,9 +2560,10 @@ class RoomMapper:
         try:
             self.call_reset_service()
         except Exception as exc:
-            self.web_msg = "CLEAR MAP failed; robot remains paused: %s" % exc
+            prefix = "Automatic map reset failed" if automatic else "CLEAR MAP failed"
+            self.web_msg = "%s; robot remains paused: %s" % (prefix, exc)
             rospy.logerr(self.web_msg)
-            return
+            return False
         now = time.time()
         with self.map_lock:
             self.explorer.reset()
@@ -2553,6 +2576,8 @@ class RoomMapper:
             self.prev_pose = None
             self.pose_guard_start = now + 5.0
             self.map_trusted = True
+            self.automatic_map_reset_pending = False
+            self.automatic_map_reset_reason = ""
             self.pending_spin_yaw = None
             self.spin_stall_count = 0
             # Any inference captured against the old map must fail its
@@ -2569,9 +2594,20 @@ class RoomMapper:
         self.phase, self.phase_start = "survey", now
         self.state, self.state_start = SEARCH, now
         self.state_reason = "fresh map survey"
-        self.web_map_center = pose[:2] if pose else None
+        # The old pose belongs to the discarded frame. Let the first pose in
+        # the new frame establish the automatic reset's viewport center.
+        self.web_map_center = None if automatic else (pose[:2] if pose else None)
         self.clear_object_tracks()
-        self.web_msg = "Map and object landmarks cleared; PAUSED for a fresh survey"
+        self.paused = not resume_autonomy
+        if automatic:
+            mode = "autonomy will resume after fresh-map checks" if resume_autonomy \
+                else "remaining paused"
+            self.web_msg = ("SLAM pose jump recovered: map and landmarks reset (%s); %s" %
+                            (reason or "threshold exceeded", mode))
+            rospy.logwarn(self.web_msg)
+        else:
+            self.web_msg = "Map and object landmarks cleared; PAUSED for a fresh survey"
+        return True
 
     def handle_web(self):
         commands, self.web_pending = self.web_pending, []
