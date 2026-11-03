@@ -1,5 +1,20 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Ten-second depth-cell hold candidate - 2026-11-02
+
+Temporary and promoted depth-sourced planner cells now retain the timestamp of
+their latest occupied observation. Each hit restarts a hard 10-second hold.
+Temporary clear observations and joint depth/LiDAR clear evidence are ignored
+during that interval and cannot pre-accumulate. Afterward, the normal two-clear
+temporary or four-clear joint policy must complete; time alone does not remove
+an out-of-view cell. This is configured by `_depth_map_minimum_hold:=10`.
+
+Planner/Hector reset, mapper restart, and automatic pose-jump recovery still
+clear the state immediately. The legacy TTL path remains only for direct
+library callers that explicitly select a zero minimum hold; production
+configuration requires at least one second. All 247 host tests pass and
+production Python compiles. Robot-native validation and deployment are pending.
+
 ## Automatic pose-jump reset deployed - 2026-11-02
 
 Crossing the existing 0.25 m / 20 degree pose-jump threshold now marks the map
@@ -857,7 +872,8 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - close-depth exclusion is disabled (`0.00 m`)
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
-- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 5 s temporary TTL
+- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 10 s minimum
+  hold from the latest hit, then positive-clear removal only
 - object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
   depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses

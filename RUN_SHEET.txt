@@ -17,6 +17,19 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+DEPTH-CELL MINIMUM HOLD (HOST VALIDATED; DEPLOYMENT PENDING):
+  [x] Apply a 10 s hard hold to temporary and promoted depth cells starting at
+      the latest occupied observation; every repeated hit restarts it.
+  [x] Ignore temporary and joint clear evidence during the hold so it cannot
+      pre-accumulate toward removal.
+  [x] After the hold, require the existing consecutive positive-clear policy;
+      never remove an out-of-view cell because time alone elapsed.
+  [x] Keep Clear Map, restart, and pose-jump reset as immediate exceptions.
+  [x] Pass all 247 host tests and compile production Python.
+  [ ] Pass all tests natively and deploy with one paused TensorRT mapper.
+  [ ] In a supervised measured-object check, verify latest-hit restart, no
+      removal before 10 s, and removal only after post-hold clear evidence.
+
 AUTOMATIC POSE-JUMP RESET (DEPLOYED; ACTIVE RESUME CHECK PENDING):
   [x] Stop immediately and schedule one automatic map reset after a pose jump
       beyond 0.25 m / 20 degrees.
@@ -398,7 +411,8 @@ HECTOR + DEPTH PLANNER VALIDATION (DEPLOYED 2026-10-19):
   [x] Operator confirmed correct movement and substantially improved map.
   [ ] Place a measured low object in view and confirm the depth planner count
       rises at the correct map location without marking clear floor occupied.
-  [ ] Move the object and confirm unconfirmed planner cells clear within 5 s.
+  [ ] Move the object and confirm planner cells remain for at least 10 s from
+      the last hit, then clear only after the required positive-free sequence.
 
   RTAB-Map is non-production after its first motion test failed the expected
   LiDAR map/robot-position behavior. Never run it alongside Hector and keep it
@@ -413,7 +427,7 @@ CURRENT SAFETY CALIBRATION:
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
   Depth planner range / height:        0.15-2.0 m / 0.025-0.50 m
-  Unconfirmed depth obstacle lifetime: 5 s
+  Depth obstacle minimum hold:          10 s from latest hit; clear evidence after
   Manual dead-man:                     0.55 s
 
   Close depth is no longer excluded; invalid/dropout regions remain stop inputs.

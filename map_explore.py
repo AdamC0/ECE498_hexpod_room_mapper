@@ -38,6 +38,7 @@ class ExploreMap:
         self.state = np.full((self.n, self.n), UNKNOWN, np.uint8)
         self.slam_state = self.state.copy()
         self.depth_obstacles = {}
+        self.depth_obstacle_last_hits = {}
         self.depth_obstacle_clear_counts = {}
         self.depth_obstacle_hit_counts = {}
         self.persistent_depth_obstacles = set()
@@ -45,6 +46,7 @@ class ExploreMap:
         self.joint_clear_counts = {}
         self.joint_clear_last_observed = {}
         self.depth_obstacle_ttl = 5.0
+        self.depth_obstacle_minimum_hold = 0.0
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -54,6 +56,7 @@ class ExploreMap:
         self.state.fill(UNKNOWN)
         self.slam_state.fill(UNKNOWN)
         self.depth_obstacles.clear()
+        self.depth_obstacle_last_hits.clear()
         self.depth_obstacle_clear_counts.clear()
         self.depth_obstacle_hit_counts.clear()
         self.persistent_depth_obstacles.clear()
@@ -98,23 +101,31 @@ class ExploreMap:
         self.have_map = True
 
     def update_depth_obstacles(self, world_cells, now=None, ttl=5.0,
-                               observed_free_cells=None, clear_confirmations=2):
+                               observed_free_cells=None, clear_confirmations=2,
+                               minimum_hold=0.0):
         """Overlay temporary depth obstacles without changing the LiDAR map.
 
         Cells are expressed in the same world-aligned grid as ``self.cell``.
-        Expiration prevents moved objects and stale camera data from becoming
-        permanent walls. ``observed_free_cells`` contains only cells positively
-        traversed by valid depth rays. A live overlay cell is removed after the
-        configured number of consecutive clear observations.
+        With a zero minimum hold, expiration prevents stale camera data from
+        becoming permanent walls. ``observed_free_cells`` contains only cells
+        positively traversed by valid depth rays. A live overlay cell is removed after the
+        configured number of consecutive clear observations. A positive
+        ``minimum_hold`` makes every occupied hit restart a hard lockout. Free
+        observations during that lockout do not accumulate, and time alone no
+        longer expires the cell; it must be positively cleared afterward.
         """
         now = time.time() if now is None else float(now)
         ttl = float(ttl)
+        minimum_hold = float(minimum_hold)
         clear_confirmations = int(clear_confirmations)
         if not math.isfinite(now) or not math.isfinite(ttl) or ttl <= 0:
             raise ValueError('Depth obstacle time and TTL must be valid')
         if not 1 <= clear_confirmations <= 10:
             raise ValueError('Depth clear confirmations must be between 1 and 10')
+        if not math.isfinite(minimum_hold) or not 0.0 <= minimum_hold <= 120.0:
+            raise ValueError('Depth obstacle minimum hold must be between 0 and 120 seconds')
         self.depth_obstacle_ttl = ttl
+        self.depth_obstacle_minimum_hold = minimum_hold
         occupied = set()
         for world_r, world_c in world_cells:
             r = int(world_r + self.half / self.cell)
@@ -122,6 +133,7 @@ class ExploreMap:
             if self.inside(r, c):
                 occupied.add((r, c))
                 self.depth_obstacles[(r, c)] = now
+                self.depth_obstacle_last_hits[(r, c)] = now
                 self.depth_obstacle_clear_counts.pop((r, c), None)
 
         observed_free = set()
@@ -138,9 +150,15 @@ class ExploreMap:
                 del self.depth_obstacle_clear_counts[cell]
         cleared = 0
         for cell in observed_free.intersection(self.depth_obstacles):
+            last_hit = self.depth_obstacle_last_hits.get(cell, -float('inf'))
+            if now - last_hit < self.depth_obstacle_minimum_hold:
+                self.depth_obstacle_clear_counts.pop(cell, None)
+                continue
             count = self.depth_obstacle_clear_counts.get(cell, 0) + 1
             if count >= clear_confirmations:
                 del self.depth_obstacles[cell]
+                if cell not in self.persistent_depth_obstacles:
+                    self.depth_obstacle_last_hits.pop(cell, None)
                 self.depth_obstacle_clear_counts.pop(cell, None)
                 cleared += 1
             else:
@@ -154,7 +172,8 @@ class ExploreMap:
                                   temporary_clear_confirmations=2,
                                   promotion_confirmations=3,
                                   joint_clear_confirmations=4,
-                                  joint_clear_evidence_ttl=5.0):
+                                  joint_clear_evidence_ttl=5.0,
+                                  minimum_hold=0.0):
         """Fuse depth occupancy with live LiDAR without altering ``slam_state``.
 
         Repeated depth hits promote a temporary obstacle to session-persistent
@@ -195,7 +214,8 @@ class ExploreMap:
         cleared_temporary = self.update_depth_obstacles(
             depth_occupied_cells, now, ttl,
             observed_free_cells=depth_free_cells,
-            clear_confirmations=temporary_clear_confirmations)
+            clear_confirmations=temporary_clear_confirmations,
+            minimum_hold=minimum_hold)
 
         for cell in list(self.depth_obstacle_hit_counts):
             if cell not in depth_occupied:
@@ -273,6 +293,11 @@ class ExploreMap:
         cleared_persistent = 0
         suppressed_slam = 0
         for cell in joint_free & candidates:
+            last_hit = self.depth_obstacle_last_hits.get(cell, -float('inf'))
+            if now - last_hit < self.depth_obstacle_minimum_hold:
+                self.joint_clear_counts.pop(cell, None)
+                self.joint_clear_last_observed.pop(cell, None)
+                continue
             count = self.joint_clear_counts.get(cell, 0) + 1
             self.joint_clear_last_observed[cell] = now
             if count < joint_clear_confirmations:
@@ -283,6 +308,7 @@ class ExploreMap:
             if cell in self.persistent_depth_obstacles:
                 self.persistent_depth_obstacles.remove(cell)
                 self.depth_obstacle_hit_counts.pop(cell, None)
+                self.depth_obstacle_last_hits.pop(cell, None)
                 cleared_persistent += 1
             if (self.slam_state[cell] == OCCUPIED and
                     cell not in self.suppressed_slam_obstacles):
@@ -320,9 +346,16 @@ class ExploreMap:
                 not self.suppressed_slam_obstacles):
             return
         now = time.time() if now is None else float(now)
-        cutoff = now - self.depth_obstacle_ttl
-        self.depth_obstacles = {cell: stamp for cell, stamp in self.depth_obstacles.items()
-                                if stamp >= cutoff}
+        if self.depth_obstacle_minimum_hold <= 0.0:
+            cutoff = now - self.depth_obstacle_ttl
+            self.depth_obstacles = {
+                cell: stamp for cell, stamp in self.depth_obstacles.items()
+                if stamp >= cutoff}
+            live_depth_cells = (set(self.depth_obstacles) |
+                                self.persistent_depth_obstacles)
+            self.depth_obstacle_last_hits = {
+                cell: stamp for cell, stamp in self.depth_obstacle_last_hits.items()
+                if cell in live_depth_cells}
         self.depth_obstacle_clear_counts = {
             cell: count for cell, count in self.depth_obstacle_clear_counts.items()
             if cell in self.depth_obstacles}

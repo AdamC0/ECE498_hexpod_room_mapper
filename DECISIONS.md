@@ -1820,3 +1820,27 @@ jump: exactly one automatic reset ran, the pose returned to approximately
 running; no RTAB-Map process exists. No physical motion was commanded during
 deployment. Conditional resume of an active session remains pending direct
 supervision.
+
+## Retain every depth obstacle for at least ten seconds - 2026-11-02
+
+The operator reported that depth planner cells disappeared too quickly and the
+robot then forgot genuine obstacles. We agreed that the policy applies to both
+temporary and promoted depth cells, every occupied hit restarts the timer,
+removal after the timer still requires the existing consecutive clear evidence,
+and map reset/restart remains an immediate exception.
+
+Chosen: store the latest depth-occupied time separately from temporary TTL
+state. A production default `_depth_map_minimum_hold:=10` blocks both temporary
+two-clear removal and persistent four-joint-clear removal until ten seconds
+after the latest hit. Evidence observed during the hold is discarded rather
+than banked. With a positive minimum hold, time alone no longer expires a
+temporary cell; an out-of-view or invalid observation therefore retains the
+obstacle until it is positively disproven. Clear Map, mapper restart, and
+automatic pose-jump reset clear timestamps and cells together.
+
+The legacy time-expiry behavior remains available only to direct library users
+that explicitly pass a zero minimum hold; production parameter validation
+requires 1-120 seconds. This favors collision conservatism over rapid removal
+of false positives and does not change Hector's raw map. All 247 host tests
+pass and production Python compiles. Robot-native validation, deployment, and
+a supervised measured-obstacle timing check remain pending.

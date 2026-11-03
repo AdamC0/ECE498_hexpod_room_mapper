@@ -148,6 +148,68 @@ class DepthOverlayTests(unittest.TestCase):
         self.assertEqual(cleared, 1)
         self.assertEqual(explorer.depth_obstacle_count(now=12.), 0)
 
+    def test_minimum_hold_restarts_and_requires_new_clear_streak_afterward(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        explorer.update_depth_obstacles(
+            [cell], now=10., ttl=5., minimum_hold=10.)
+        # Free evidence inside the hold neither removes nor pre-accumulates.
+        for now in (18., 19.):
+            cleared = explorer.update_depth_obstacles(
+                [], now=now, ttl=5., observed_free_cells=[cell],
+                clear_confirmations=2, minimum_hold=10.)
+            self.assertEqual(cleared, 0)
+        # A repeated hit restarts the full hold.
+        explorer.update_depth_obstacles(
+            [cell], now=19., ttl=5., minimum_hold=10.)
+        self.assertEqual(explorer.depth_obstacle_count(now=28.9), 1)
+        self.assertEqual(explorer.depth_obstacle_count(now=40.), 1)
+        cleared = explorer.update_depth_obstacles(
+            [], now=29., ttl=5., observed_free_cells=[cell],
+            clear_confirmations=2, minimum_hold=10.)
+        self.assertEqual(cleared, 0)
+        cleared = explorer.update_depth_obstacles(
+            [], now=30., ttl=5., observed_free_cells=[cell],
+            clear_confirmations=2, minimum_hold=10.)
+        self.assertEqual(cleared, 1)
+        self.assertEqual(explorer.depth_obstacle_count(now=30.), 0)
+
+    def test_persistent_depth_cell_cannot_clear_during_minimum_hold(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        planner_cell = explorer.to_cell(1.05, .05)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=2,
+                minimum_hold=10.)
+        self.assertIn(planner_cell, explorer.persistent_depth_obstacles)
+        for now in (19., 20.):
+            result = explorer.update_fused_observations(
+                [], [cell], [], [cell], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=2,
+                minimum_hold=10.)
+            self.assertEqual(result['cleared_persistent'], 0)
+            self.assertEqual(result['joint_clear_max_evidence'], 0)
+        result = explorer.update_fused_observations(
+            [], [cell], [], [cell], now=21.,
+            promotion_confirmations=2, joint_clear_confirmations=2,
+            minimum_hold=10.)
+        self.assertEqual(result['cleared_persistent'], 0)
+        self.assertEqual(result['joint_clear_max_evidence'], 1)
+        result = explorer.update_fused_observations(
+            [], [cell], [], [cell], now=22.,
+            promotion_confirmations=2, joint_clear_confirmations=2,
+            minimum_hold=10.)
+        self.assertEqual(result['cleared_persistent'], 1)
+        self.assertNotIn(planner_cell, explorer.persistent_depth_obstacles)
+        explorer.reset()
+        self.assertFalse(explorer.depth_obstacle_last_hits)
+
     def test_clear_streak_requires_consecutive_valid_observations(self):
         explorer = ExploreMap(size_m=4., cell=.1)
         raw = np.zeros((80, 80), np.int16)

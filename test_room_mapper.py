@@ -938,6 +938,7 @@ class MapperTests(unittest.TestCase):
         n.depth_map_protected_range = .6
         n.depth_map_clear_observations = 2
         n.depth_map_ttl = 30.
+        n.depth_map_minimum_hold = 10.
         n.map_frame = 'map'
         n.tf_buffer = Mock()
         n.tf_buffer.lookup.return_value = ((0., 0., .2), (0., 0., 0., 1.))
@@ -954,7 +955,7 @@ class MapperTests(unittest.TestCase):
         project.assert_called_once()
         n.explorer.update_depth_obstacles.assert_called_once_with(
             [(0, 1)], 100., 30., observed_free_cells=[(0, 2)],
-            clear_confirmations=2)
+            clear_confirmations=2, minimum_hold=10.)
         self.assertEqual(n.depth_map_last_cleared, 3)
         self.assertIn('5 temporary obstacle cells', n.depth_map_status)
         self.assertIn('cleared 3 this update', n.depth_map_status)
@@ -978,6 +979,7 @@ class MapperTests(unittest.TestCase):
         n.depth_lidar_sync_tolerance = .35
         n.depth_map_settled_tf_max_age = 1.
         n.depth_map_ttl = 30.
+        n.depth_map_minimum_hold = 10.
         n.commanded_moving, n.settle_until = False, 90.
         n.lidar_fusion_stamp = 99.1
         n.lidar_fusion_occupied = [(1, 1)]
@@ -1007,7 +1009,7 @@ class MapperTests(unittest.TestCase):
             [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
             now=100., ttl=30., temporary_clear_confirmations=2,
             promotion_confirmations=3, joint_clear_confirmations=4,
-            joint_clear_evidence_ttl=5.)
+            joint_clear_evidence_ttl=5., minimum_hold=10.)
         n.tf_buffer.lookup.assert_called_once_with(
             'map', 'camera', 99., max_age=1.)
         n.explorer.update_depth_obstacles.assert_not_called()
