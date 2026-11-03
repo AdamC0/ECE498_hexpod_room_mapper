@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Close-object verification and turn-loss reset candidate - 2026-11-02
+## Close-object verification and turn-loss reset deployed - 2026-11-02
 
 The approved autonomous-only policy uses moving YOLO as a stop request, then
 requires settled registered depth inside 3.0 m. A candidate matching a track
@@ -17,7 +17,16 @@ but, unlike pose jumps, did not queue the reset. Both turn-progress loss paths
 now schedule the same one-shot automatic reset. Actual service failures are
 stored and reported separately. All 253 workstation tests pass and production
 Python compiles. Robot-native validation, deployment, and supervised motion
-validation are pending. The live robot was stopped in FAULT during diagnosis.
+validation were pending. The live robot was stopped in FAULT during diagnosis.
+
+Deployment follow-up: all 253 tests passed natively after sourcing the JetHexa
+ROS workspace. Commit `3e4c185` was copied with matching hashes after backup to
+`~/room_mapper/backup_pre_3e4c185/`. The invalid Hector frame was explicitly
+reset. Exactly one TensorRT mapper is now AUTO PAUSED with command `stop`, pose
+near the fresh origin, and Hector is the only SLAM stack. RGB, depth, LiDAR,
+pose, map, registered-depth fusion, YOLO, and the web UI are live. No physical
+motion was commanded. Supervised close-object and active turn-loss checks are
+still pending.
 
 ## Sparse-upper lower-floor fallback deployed - 2026-11-02
 

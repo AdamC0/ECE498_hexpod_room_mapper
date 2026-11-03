@@ -1908,3 +1908,12 @@ unreset invalid frame and a misleading fault, without changing the three-turn,
 3-degree loss threshold or adding reset retries. All 253 host tests pass and
 production Python compiles. Native validation and paused deployment remain
 pending.
+
+Deployment follow-up: all 253 tests passed natively after sourcing the robot's
+ROS workspace. Commit `3e4c185` was deployed with matching hashes after backup
+to `backup_pre_3e4c185`. Because the predeployment mapper was stopped on the
+known-invalid frame, startup explicitly reset Hector. Exactly one TensorRT
+mapper is AUTO PAUSED with command `stop`, pose returned near the fresh origin,
+and Hector is the only SLAM stack. Live synchronized object processing and the
+depth planner are active. No physical motion was commanded; supervised novel,
+far, already-mapped, timeout, and active turn-loss cases remain pending.

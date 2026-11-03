@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Close-object verification and turn-loss recovery (deployment pending)
+## Close-object verification and turn-loss recovery (deployed; motion check pending)
 
 During autonomous frontier travel only, a moving YOLO detection can request a
 stop for a possible new object. After the robot settles, registered depth must
@@ -16,8 +16,11 @@ Three consecutive turns with insufficient heading progress now use the same
 one-shot automatic Hector reset already used for pose jumps. A genuine reset
 service exception is retained and shown in the fault text; the previous generic
 "failed or unavailable" message no longer masks a reset that was never queued.
-All 253 workstation tests pass; robot-native validation and deployment remain
-pending.
+All 253 tests pass on the workstation and natively on the robot. Commit
+`3e4c185` is deployed with matching file hashes after a fresh Hector reset.
+Exactly one TensorRT mapper is AUTO PAUSED with command `stop`, Hector is the
+only SLAM stack, and no physical motion was commanded. The close-object and
+active turn-loss paths remain pending direct supervised validation.
 
 ## Sparse-upper depth fallback (deployed; motion check pending)
 

@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYMENT PENDING):
+CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYED; MOTION CHECK PENDING):
   [x] Limit moving-detection stops to autonomous frontier phase; exclude manual
       drive and clicked/object routes.
   [x] Require settled registered depth inside 3.0 m and immediately resume for
@@ -27,7 +27,7 @@ CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYMENT PENDING):
   [x] Schedule the one-shot automatic map reset after repeated turn-progress
       SLAM loss and distinguish an actual reset-service failure in status.
   [x] Pass all 253 host tests and compile production Python.
-  [ ] Pass all tests natively, deploy paused, explicitly reset the currently
+  [x] Pass all 253 tests natively, deploy commit 3e4c185 paused, explicitly reset the
       invalid Hector frame, and confirm one mapper with Hector only.
   [ ] Under direct supervision, validate the <3 m/new, >3 m, already-mapped,
       timeout, and active turn-loss automatic-reset cases.
