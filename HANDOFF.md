@@ -1,6 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Ten-second depth-cell hold candidate - 2026-11-02
+## Sparse-upper lower-floor fallback candidate - 2026-11-02
+
+Live read-only sampling found 286/286 native-depth frames with zero valid
+pixels throughout both the primary and widened upper image, despite a normal
+RGB classroom view. Current depth existed only around source rows 285-469,
+mostly floor. The old paused status looked ready because collision evaluation
+does not run while paused; resuming would fault immediately.
+
+Floor calibration now accepts a row with 10% rather than 30% central coverage,
+while still requiring enough rows in at least 70% of calibration frames. A
+calibrated, currently valid lower-floor region may supply bump/dropout sensing
+with LiDAR and retained planner cells when the upper band is sparse. Complete
+lower dropout remains a 0.30 m stop, and no usable floor model preserves the
+existing upper-sparsity fault. All 250 host tests pass; native/deployment and
+physical-motion validation are pending.
+
+## Ten-second depth-cell hold deployed - 2026-11-02
 
 Temporary and promoted depth-sourced planner cells now retain the timestamp of
 their latest occupied observation. Each hit restarts a hard 10-second hold.
@@ -12,8 +28,11 @@ an out-of-view cell. This is configured by `_depth_map_minimum_hold:=10`.
 Planner/Hector reset, mapper restart, and automatic pose-jump recovery still
 clear the state immediately. The legacy TTL path remains only for direct
 library callers that explicitly select a zero minimum hold; production
-configuration requires at least one second. All 247 host tests pass and
-production Python compiles. Robot-native validation and deployment are pending.
+configuration requires at least one second. All 247 tests pass on the host and
+natively on PT. Commit `81a3c28` was deployed after backup to
+`~/room_mapper/backup_pre_81a3c28/`, with an explicit fresh Hector reset and one
+paused TensorRT mapper. Live status showed `10 s minimum hold; clear evidence
+required`. No motion was commanded. A measured-object timing check is pending.
 
 ## Automatic pose-jump reset deployed - 2026-11-02
 

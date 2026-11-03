@@ -145,8 +145,12 @@ class RoomMapper:
             raise ValueError("depth ignore distance must be nonnegative and below depth_stop")
         self.floor_margin = float(rospy.get_param("~floor_margin", 0.25))
         self.floor_frames_needed = int(rospy.get_param("~floor_frames", 20))
-        if self.floor_frames_needed < 1:
-            raise ValueError("floor_frames must be positive")
+        self.floor_row_min_fraction = float(rospy.get_param(
+            "~floor_row_min_fraction", 0.10))
+        if (self.floor_frames_needed < 1 or
+                not math.isfinite(self.floor_row_min_fraction) or
+                not 0.05 <= self.floor_row_min_fraction <= 0.50):
+            raise ValueError("floor calibration parameters are invalid")
         self.band_top = float(rospy.get_param("~depth_band_top", 0.20))
         self.band_split = float(rospy.get_param("~depth_band_split", 0.55))
         self.band_bottom = float(rospy.get_param("~depth_band_bottom", 0.95))
@@ -1683,7 +1687,7 @@ class RoomMapper:
         for r in range(int(self.band_split * h), int(self.band_bottom * h)):
             values = cols[r][cols[r] > 0.1]
             self.floor_zero_sum[r] += 1.0 - values.size / float(cols.shape[1])
-            if values.size > 0.3 * cols.shape[1]:
+            if values.size > getattr(self, 'floor_row_min_fraction', 0.10) * cols.shape[1]:
                 self.floor_sum[r] += np.median(values)
                 self.floor_count[r] += 1
         self.floor_frames += 1
@@ -1732,7 +1736,11 @@ class RoomMapper:
         values = top[(top > 0.1) & np.isfinite(top)]
         min_valid = max(getattr(self, "min_depth_valid_pixels", 200),
                         int(getattr(self, "min_depth_valid_fraction", 0.02) * top.size))
-        if values.size < min_valid:
+        upper_sparse = values.size < min_valid
+        floor_rows_available = bool(
+            self.floor_profile is not None and not self.floor_unavailable and
+            np.isfinite(self.floor_profile[split:bottom]).any())
+        if upper_sparse and not floor_rows_available:
             now = time.time()
             if getattr(self, "depth_sparse_since", None) is None:
                 self.depth_sparse_since = now
@@ -1754,13 +1762,15 @@ class RoomMapper:
                                   "right": float("inf")}
             return float("inf")
         self.depth_sparse_since = None
-        self.depth_health = ("ready (upper-only; floor unavailable)"
-                             if self.floor_unavailable else "ready")
+        self.depth_health = ("ready (lower-floor + LiDAR; upper sparse)"
+                             if upper_sparse else "ready")
         ignore_distance = getattr(self, "depth_ignore_at_or_below", 0.0)
         obstacle_values = values[values > ignore_distance]
         nearest = (float(np.percentile(obstacle_values, 10))
-                   if obstacle_values.size >= 30 else float("inf"))
-        source = "high" if nearest < 99 else ""
+                   if not upper_sparse and obstacle_values.size >= 30
+                   else float("inf"))
+        source = "high" if nearest < 99 else (
+            "lower-floor + LiDAR" if upper_sparse else "")
         sectors = {}
         names = ("left", "center", "right")
         edges = np.linspace(0, top.shape[1], 4, dtype=int)
@@ -1770,7 +1780,8 @@ class RoomMapper:
             required = max(20, int(getattr(
                 self, "min_depth_valid_fraction", 0.02) * part.size))
             sectors[name] = (float(np.percentile(part_values, 10))
-                             if part_values.size >= required else float("inf"))
+                             if not upper_sparse and part_values.size >= required
+                             else float("inf"))
         if self.floor_profile is not None:
             low = depth[split:bottom, c0:c1]
             floor = self.floor_profile[split:bottom][:, None]

@@ -1,6 +1,22 @@
 # JetHexa Room Mapper
 
-## Ten-second depth-obstacle retention (host validated; deployment pending)
+## Sparse-upper depth fallback (host validated; deployment pending)
+
+The live classroom view can contain zero structured-light returns throughout
+the upper 55% while still providing current floor depth in the lower image.
+Floor calibration now admits rows with at least 10% valid central samples,
+while retaining its multi-frame/row requirements. When that calibrated lower
+floor remains valid, upper-band sparsity uses lower-floor bump/dropout sensing,
+LiDAR, and the fused planner instead of entering an insufficient-upper-depth
+fault. Status reports `lower-floor + LiDAR; upper sparse`.
+
+This does not treat arbitrary depth loss as clear. Missing lower-floor returns
+still produce the existing 0.30 m dropout stop, and a scene without a usable
+floor model still faults after the 1.5 s grace. Elevated geometry invisible to
+both sparse depth and the LiDAR scan plane remains a limitation. All 250 host
+tests pass; robot-native validation and paused deployment are pending.
+
+## Ten-second depth-obstacle retention (deployed)
 
 Every registered-depth obstacle cell now receives a hard 10-second minimum
 hold beginning at its most recent occupied observation. A repeated hit restarts
@@ -13,8 +29,10 @@ positive-clear policy must complete. This keeps an out-of-view obstacle in the
 planner instead of forgetting it on a timer. `CLEAR MAP`, mapper restart, and
 automatic pose-jump reset still discard all cells immediately because their
 coordinate frame is being replaced. The default is configurable with
-`_depth_map_minimum_hold:=10`. All 247 host tests pass; robot-native validation
-and paused deployment are pending.
+`_depth_map_minimum_hold:=10`. All 247 tests pass on the host and robot. Commit
+`81a3c28` is deployed with one paused TensorRT mapper; live status reports the
+10 s minimum hold and clear-evidence requirement. A measured-object timing
+check remains pending.
 
 ## Automatic pose-jump map recovery (deployed)
 

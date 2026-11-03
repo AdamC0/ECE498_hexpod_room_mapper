@@ -17,7 +17,21 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-DEPTH-CELL MINIMUM HOLD (HOST VALIDATED; DEPLOYMENT PENDING):
+SPARSE-UPPER LOWER-FLOOR FALLBACK (HOST VALIDATED; DEPLOYMENT PENDING):
+  [x] Confirm the live failure: zero valid upper pixels while lower floor depth
+      and RGB continue publishing.
+  [x] Calibrate stable floor rows from 10% central coverage while retaining the
+      multi-frame and minimum-row gates.
+  [x] When the calibrated lower floor is current, use bump/dropout sensing plus
+      LiDAR and fused planner cells instead of an upper-sparsity fault.
+  [x] Keep complete lower dropout as a 0.30 m stop and fault when neither upper
+      depth nor a calibrated lower-floor fallback is usable.
+  [x] Pass all 250 host tests and compile production Python.
+  [ ] Pass all tests natively and deploy with the robot paused.
+  [ ] Under supervision, confirm upper-sparse travel, floor-bump stop, complete
+      dropout stop, and the limitations of elevated/dark/reflective geometry.
+
+DEPTH-CELL MINIMUM HOLD (DEPLOYED; MEASURED CHECK PENDING):
   [x] Apply a 10 s hard hold to temporary and promoted depth cells starting at
       the latest occupied observation; every repeated hit restarts it.
   [x] Ignore temporary and joint clear evidence during the hold so it cannot
@@ -26,7 +40,8 @@ DEPTH-CELL MINIMUM HOLD (HOST VALIDATED; DEPLOYMENT PENDING):
       never remove an out-of-view cell because time alone elapsed.
   [x] Keep Clear Map, restart, and pose-jump reset as immediate exceptions.
   [x] Pass all 247 host tests and compile production Python.
-  [ ] Pass all tests natively and deploy with one paused TensorRT mapper.
+  [x] Pass all 247 tests natively and deploy commit 81a3c28 with one paused
+      TensorRT mapper and live 10 s policy status.
   [ ] In a supervised measured-object check, verify latest-hit restart, no
       removal before 10 s, and removal only after post-hold clear evidence.
 

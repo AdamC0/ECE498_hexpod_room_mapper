@@ -28,6 +28,7 @@ class MapperTests(unittest.TestCase):
         n.band_top, n.band_split, n.band_bottom = 0.2, 0.55, 0.95
         n.band_left, n.band_right = 0.2, 0.8
         n.floor_margin, n.floor_frames_needed = 0.15, 3
+        n.floor_row_min_fraction = .10
         n.floor_profile = n.floor_sum = n.floor_count = n.floor_zero_sum = None
         n.floor_frames, n.floor_zero_frac = 0, 0.0
         n.floor_failures, n.floor_unavailable = 0, False
@@ -184,10 +185,36 @@ class MapperTests(unittest.TestCase):
         self.assertIsNotNone(self.node.floor_profile)
         self.assertTrue(self.node.depth_health.startswith('ready'))
 
-    def test_invalid_upper_depth_is_unknown(self):
+    def test_complete_depth_loss_uses_floor_dropout_stop(self):
         self.calibrate()
-        self.node.depth_ahead(np.zeros((100, 100), np.float32))
-        self.assertNotEqual(self.node.depth_health, 'ready')
+        self.assertAlmostEqual(
+            self.node.depth_ahead(np.zeros((100, 100), np.float32)), .30)
+        self.assertEqual(self.node.depth_source, 'depth dropout / too close')
+
+    def test_sparse_upper_band_uses_valid_lower_floor_and_lidar(self):
+        self.calibrate()
+        frame = self.node.floor.copy()
+        frame[:55] = 0.
+        self.assertGreater(self.node.depth_ahead(frame), .6)
+        self.assertEqual(self.node.depth_source, 'lower-floor + LiDAR')
+        self.assertIn('upper sparse', self.node.depth_health)
+
+    def test_sparse_upper_band_still_detects_lower_floor_bump(self):
+        self.calibrate()
+        frame = self.node.floor.copy()
+        frame[:55] = 0.
+        frame[60:80, 40:60] = .4
+        self.assertAlmostEqual(self.node.depth_ahead(frame), .4, places=5)
+        self.assertEqual(self.node.depth_source, 'floor-bump')
+
+    def test_sparse_floor_rows_can_complete_calibration(self):
+        frame = np.zeros((100, 100), np.float32)
+        frame[60:80, 45:55] = 1.0
+        for _ in range(self.node.floor_frames_needed):
+            self.node.learn_floor(frame)
+        self.assertIsNotNone(self.node.floor_profile)
+        self.assertFalse(self.node.floor_unavailable)
+        self.assertGreaterEqual(np.count_nonzero(np.isfinite(self.node.floor_profile)), 10)
 
     def test_brief_sparse_depth_reuses_recent_result_then_faults(self):
         n = self.node

@@ -1844,3 +1844,34 @@ requires 1-120 seconds. This favors collision conservatism over rapid removal
 of false positives and does not change Hector's raw map. All 247 host tests
 pass and production Python compiles. Robot-native validation, deployment, and
 a supervised measured-obstacle timing check remain pending.
+
+Deployment follow-up: commit `81a3c28` passed all 247 tests natively and was
+deployed with matching hashes after backup to `backup_pre_81a3c28`. The prior
+session was already stopped on insufficient upper depth and had an implausible
+SLAM frame, so deployment used an explicit fresh-map startup. Exactly one
+TensorRT mapper is paused with Hector only. Live telemetry reports the 10 s
+minimum hold and positive-clear requirement. No motion was commanded; measured
+latest-hit/clear timing remains pending.
+
+## Use calibrated lower-floor depth when the upper image is sparse - 2026-11-02
+
+After the hold deployment, 286 consecutive native-depth frames contained zero
+valid pixels in both the normal and widened upper image. RGB showed a normal
+classroom view under dark tables, while valid depth occupied only the lower
+floor region (source rows about 285-469). Paused status misleadingly retained
+its previous ready result because collision evaluation intentionally returns
+early while paused; autonomy would fault on resume.
+
+Chosen: reduce per-row floor-calibration admission from 30% to 10% central
+coverage, while keeping multi-frame consistency, the 70% per-row frame rule,
+and the minimum usable-row count. If the upper band is sparse but this floor
+profile exists and has current valid/dropout evidence, use lower-floor bump and
+dropout sensing together with LiDAR and the retained fused planner. Do not use
+stale scalar depth or label arbitrary zeros clear. Complete lower-floor loss
+still produces the conservative 0.30 m dropout stop; without a usable floor
+profile, sustained upper sparsity still faults after the 1.5 s grace.
+
+This removes a false fault mode but cannot guarantee detection of elevated,
+dark, reflective, transparent, or invalid geometry outside the LiDAR plane.
+All 250 host tests pass and production Python compiles. Robot-native validation,
+paused deployment, and supervised physical checks remain pending.
