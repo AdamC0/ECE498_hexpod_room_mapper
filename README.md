@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Sparse-upper depth fallback (host validated; deployment pending)
+## Sparse-upper depth fallback (deployed; motion check pending)
 
 The live classroom view can contain zero structured-light returns throughout
 the upper 55% while still providing current floor depth in the lower image.
@@ -13,8 +13,11 @@ fault. Status reports `lower-floor + LiDAR; upper sparse`.
 This does not treat arbitrary depth loss as clear. Missing lower-floor returns
 still produce the existing 0.30 m dropout stop, and a scene without a usable
 floor model still faults after the 1.5 s grace. Elevated geometry invisible to
-both sparse depth and the LiDAR scan plane remains a limitation. All 250 host
-tests pass; robot-native validation and paused deployment are pending.
+both sparse depth and the LiDAR scan plane remains a limitation. All 250 tests
+pass on the host and robot. Commit `d03e7a6` is deployed with one paused mapper.
+The live scene learned 38-41 usable floor rows and a read-only evaluation
+reported `ready (lower-floor + LiDAR; upper sparse)` with no fault. Physical
+motion and obstacle/dropout checks remain pending direct supervision.
 
 ## Ten-second depth-obstacle retention (deployed)
 

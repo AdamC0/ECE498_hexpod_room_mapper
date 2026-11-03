@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-SPARSE-UPPER LOWER-FLOOR FALLBACK (HOST VALIDATED; DEPLOYMENT PENDING):
+SPARSE-UPPER LOWER-FLOOR FALLBACK (DEPLOYED; MOTION CHECK PENDING):
   [x] Confirm the live failure: zero valid upper pixels while lower floor depth
       and RGB continue publishing.
   [x] Calibrate stable floor rows from 10% central coverage while retaining the
@@ -27,7 +27,10 @@ SPARSE-UPPER LOWER-FLOOR FALLBACK (HOST VALIDATED; DEPLOYMENT PENDING):
   [x] Keep complete lower dropout as a 0.30 m stop and fault when neither upper
       depth nor a calibrated lower-floor fallback is usable.
   [x] Pass all 250 host tests and compile production Python.
-  [ ] Pass all tests natively and deploy with the robot paused.
+  [x] Pass all 250 tests natively and deploy commit d03e7a6 paused, preserving
+      the fresh Hector frame.
+  [x] Confirm live calibration learns 38-41 usable rows and read-only collision
+      evaluation reports ready lower-floor + LiDAR with upper sparse.
   [ ] Under supervision, confirm upper-sparse travel, floor-bump stop, complete
       dropout stop, and the limitations of elevated/dark/reflective geometry.
 

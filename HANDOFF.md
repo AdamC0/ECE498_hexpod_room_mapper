@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Sparse-upper lower-floor fallback candidate - 2026-11-02
+## Sparse-upper lower-floor fallback deployed - 2026-11-02
 
 Live read-only sampling found 286/286 native-depth frames with zero valid
 pixels throughout both the primary and widened upper image, despite a normal
@@ -13,8 +13,13 @@ while still requiring enough rows in at least 70% of calibration frames. A
 calibrated, currently valid lower-floor region may supply bump/dropout sensing
 with LiDAR and retained planner cells when the upper band is sparse. Complete
 lower dropout remains a 0.30 m stop, and no usable floor model preserves the
-existing upper-sparsity fault. All 250 host tests pass; native/deployment and
-physical-motion validation are pending.
+existing upper-sparsity fault. All 250 tests pass on the host and natively on
+PT. Commit `d03e7a6` was deployed after backup to
+`~/room_mapper/backup_pre_d03e7a6/`, preserving the fresh Hector frame. The
+production mapper learned 41 usable rows; an independent live-frame evaluation
+learned 38 and returned `ready (lower-floor + LiDAR; upper sparse)` with clear
+range. Exactly one mapper remains paused/stopped with Hector only. No physical
+motion was commanded; supervised motion, bump, and dropout checks are pending.
 
 ## Ten-second depth-cell hold deployed - 2026-11-02
 

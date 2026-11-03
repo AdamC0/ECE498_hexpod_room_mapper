@@ -1875,3 +1875,13 @@ This removes a false fault mode but cannot guarantee detection of elevated,
 dark, reflective, transparent, or invalid geometry outside the LiDAR plane.
 All 250 host tests pass and production Python compiles. Robot-native validation,
 paused deployment, and supervised physical checks remain pending.
+
+Deployment follow-up: all 250 tests passed natively and commit `d03e7a6` was
+deployed after backup to `backup_pre_d03e7a6`, preserving the fresh Hector
+frame. The production mapper learned 41 usable floor rows. A separate read-only
+evaluation over live native-depth frames learned 38 rows and returned infinite
+clear range with health `ready (lower-floor + LiDAR; upper sparse)` and source
+`lower-floor + LiDAR`. Exactly one TensorRT mapper is `AUTO PAUSED` on command
+`stop`, with Hector as the only SLAM stack. No motion was commanded. Directly
+supervised travel, floor-bump, full-dropout, and elevated-object checks remain
+pending.
