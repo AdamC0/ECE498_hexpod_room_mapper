@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## RGB + YOLO video recording (host validated; deployment pending)
+## RGB + YOLO video recording (deployed)
 
 The dashboard camera card now has `START RECORDING`, `STOP RECORDING`, and
 `DOWNLOAD VIDEO` controls. Recording runs on the robot at 640x480 and 10 FPS,
@@ -14,8 +14,10 @@ Start is rejected if RGB is unavailable, another recording is active, or less
 than 256 MB remains. Stop finalizes the container before enabling download, and
 mapper shutdown also closes an active writer. The recording rate and directory
 can be changed with `_video_recording_fps` (1-30) and
-`_video_recording_dir`. All 235 host tests pass; robot-native codec validation
-and deployment are pending.
+`_video_recording_dir`. All 235 host and robot-native tests pass. Commit
+`1ec981b` is deployed; a real paused recording produced a readable 640x480,
+10 FPS MP4 with 104 frames, and the website download matched its robot-side
+SHA-256 hash. No motion was commanded.
 
 ## Depth-hole object-removal correction (deployed; controlled scene check pending)
 

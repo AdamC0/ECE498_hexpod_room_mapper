@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## RGB + YOLO video recording candidate - 2026-11-02
+## RGB + YOLO video recording deployed - 2026-11-02
 
 The web camera card adds start, stop, and download controls for a robot-local
 640x480, 10 FPS annotated recording. The recording renderer contains raw RGB
@@ -12,9 +12,19 @@ mapper restart.
 
 Recording refuses missing RGB, concurrent starts, and less than 256 MB free.
 Stop and mapper shutdown release the writer before the file becomes
-downloadable. Downloads are streamed in 1 MB chunks. All 235 host tests pass
-and production Python compiles. Robot-native tests, target codec verification,
-a short start/stop/download check, and deployment are pending.
+downloadable. Downloads are streamed in 1 MB chunks. All 235 host and
+robot-native tests pass and production Python compiles.
+
+Commit `1ec981b` is deployed with matching hashes; the previous files are in
+`~/room_mapper/backup_pre_1ec981b/`. The live target selected MP4V and created
+`yolo_20230302_220404_384.mp4`: 640x480, 10 FPS, 104 readable frames, about
+3.17 MB. Downloading through `/recording/download` produced the same SHA-256
+as the stored file. An extracted real frame contained the clean RGB scene with
+no LiDAR/depth or pause overlay. Exactly one TensorRT mapper remained
+`AUTO PAUSED` with command `stop`, Hector was preserved, and no motion was
+commanded or physically observed. The root filesystem had about 3.8 GB free
+before the short recording; recordings are retained, so storage still requires
+operator management.
 
 ## Depth-hole object-removal correction deployed - 2026-11-02
 

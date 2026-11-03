@@ -1714,3 +1714,14 @@ storage cleanup remains an explicit operator action. The default FPS and
 directory are configurable. All 235 host tests pass and production Python
 compiles. Robot-native codec validation, a paused short-clip download check,
 and deployment remain pending.
+
+Deployment follow-up: commit `1ec981b` passed all 235 tests natively and was
+deployed with matching hashes after backup to
+`~/room_mapper/backup_pre_1ec981b/`. The target selected MP4V/MP4. A real web
+start/stop produced a 640x480, 10 FPS file with 104 readable frames and a valid
+first frame; the HTTP download's SHA-256 exactly matched the robot-side file.
+An extracted frame showed the clean RGB scene without the live LiDAR/depth or
+pause overlay. The launcher preserved Hector and restored exactly one TensorRT
+mapper `AUTO PAUSED` with command `stop`. The root filesystem had about 3.8 GB
+free before this short recording, so retained videos require operator storage
+management. No motion was commanded or physically observed.
