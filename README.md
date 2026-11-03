@@ -1,5 +1,22 @@
 # JetHexa Room Mapper
 
+## Static landmark retention (host validated; deployment pending)
+
+Confirmed furniture and fixed fixtures now remain on the object map for the
+entire mapping session even when later YOLO observations miss them. Static
+landmarks do not accumulate absence misses and are labeled `STATIC` in the
+Objects tab. Pending candidates still use normal five-miss/age expiry, so one
+false furniture detection cannot become permanent before confirmation.
+
+The default static classes are chair, desk and table variants, cabinet/shelf,
+bench, stool, couch, bed, blackboard/whiteboard, sink, oven, refrigerator,
+toilet, power outlet, clock, podium, and lectern. Override the list with
+`_object_static_classes`. “Permanent” means the current mapping session:
+manual `REMOVE`, `CLEAR MAP`, mapper restart, and SLAM-frame invalidation still
+clear these landmarks. If furniture is physically moved, the old marker must
+therefore be removed explicitly. All 242 host tests pass; robot-native
+validation and paused deployment are pending.
+
 ## Moving YOLO preview (deployed; supervised motion check pending)
 
 YOLO now continues at the existing bounded detector cadence while translation
@@ -444,11 +461,11 @@ medium, charging, stale, and unavailable telemetry.
   0.60/0.75 with tighter geometry. Depth quality and geometric gates apply
   before a detection contributes map evidence. Pending misses remain in the
   rolling window and abandoned pending candidates expire by age.
-- Confirmed landmarks freeze their validated 3-D coordinate. Five consecutive
-  eligible clear-view YOLO misses remove one automatically; detections reset
-  the count, while occluded, invalid-depth, stale-TF, and image-edge views add
-  no evidence. Automatic removal permits rediscovery, while manual removal
-  suppresses the same class/location for the mapping session.
+- Confirmed landmarks freeze their validated 3-D coordinate. For non-static
+  classes, five consecutive eligible clear-view YOLO misses remove one
+  automatically; configured static furniture/fixtures ignore absence removal.
+  Automatic removal permits rediscovery, while manual removal suppresses the
+  same class/location for the mapping session.
 - Continued stopped-endpoint inference uses a single latest-frame queue slot
   and remains validation-eligible. Starting motion clears the old stationary
   boxes immediately; fresh moving-preview boxes are display-only and expire

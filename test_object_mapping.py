@@ -214,6 +214,39 @@ class ObjectMappingTests(unittest.TestCase):
         replacement = tracker.update('chair', 0., 0., .8, 14, z=2.)
         self.assertIsNotNone(replacement)
 
+    def test_confirmed_static_landmark_ignores_automatic_absence_removal(self):
+        tracker = ObjectTracker(priority_labels=['chair'], static_labels=['chair'])
+        group = ('endpoint', 1)
+        for observation in range(1, 4):
+            track = tracker.update(
+                'chair', 0., 0., .75, observation,
+                observation_id=observation, validation_group=group,
+                box=(30, 30, 70, 70), z=2.)
+        self.assertTrue(track['confirmed'])
+        self.assertTrue(track['static_landmark'])
+        for observation in range(4, 14):
+            removed = tracker.finish_observation(
+                group, observation, [], [track['id']], 5)
+            self.assertEqual(removed, [])
+        retained = tracker.snapshot(True, 1000)[0]
+        self.assertTrue(retained['static_landmark'])
+        self.assertEqual(retained['absence_misses'], 0)
+        self.assertTrue(tracker.remove(track['id']))
+        self.assertEqual(tracker.tracks, [])
+
+    def test_unconfirmed_static_class_candidate_still_expires(self):
+        tracker = ObjectTracker(priority_labels=['chair'], static_labels=['chair'])
+        group = ('endpoint', 1)
+        track = tracker.update(
+            'chair', 0., 0., .75, 1, observation_id=1,
+            validation_group=group, box=(30, 30, 70, 70), z=2.)
+        self.assertFalse(track['confirmed'])
+        for observation in range(2, 7):
+            removed = tracker.finish_observation(
+                group, observation, [], [track['id']], 5)
+        self.assertEqual([item['id'] for item in removed], [track['id']])
+        self.assertEqual(tracker.tracks, [])
+
     def test_pending_track_uses_clear_view_misses_but_keeps_age_fallback(self):
         tracker = ObjectTracker(max_age=30, priority_labels=['chair'])
         group = ('endpoint', 1)

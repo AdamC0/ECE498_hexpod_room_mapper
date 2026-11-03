@@ -25,7 +25,8 @@ class ObjectTrackerStub:
 
     def snapshot(self, confirmed_only):
         return [{'id': 1, 'label': 'chair', 'name': 'Desk chair',
-                 'x': 1.0, 'y': 0.5, 'count': 3, 'confirmed': True}]
+                 'x': 1.0, 'y': 0.5, 'count': 3, 'confirmed': True,
+                 'static_landmark': True}]
 
 
 class FakeNode:
@@ -108,6 +109,7 @@ class WebServerTests(unittest.TestCase):
             self.assertIn("fetch('/speed.json')", body)
             self.assertIn('validation_reason', body)
             self.assertIn('WHY PENDING:', body)
+            self.assertIn("persistent?'STATIC'", body)
             self.assertIn('RECOVER CAMERA', body)
             self.assertIn("fetch('/recover-camera'", body)
             self.assertIn("id='record-start'", body)
@@ -129,6 +131,7 @@ class WebServerTests(unittest.TestCase):
             objects = json.loads(response.read().decode())
             self.assertEqual(objects[0]['name'], 'Desk chair')
             self.assertTrue(objects[0]['confirmed'])
+            self.assertTrue(objects[0]['static_landmark'])
         with self.request('/battery.json') as response:
             battery = json.loads(response.read().decode())
             self.assertEqual(battery['percentage'], 72.4)

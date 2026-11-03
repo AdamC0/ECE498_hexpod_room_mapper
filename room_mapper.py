@@ -436,6 +436,15 @@ class RoomMapper:
             large_classes = large_classes.split(",")
         self.object_large_classes = [str(item).strip() for item in large_classes
                                      if str(item).strip()]
+        static_classes = rospy.get_param("~object_static_classes", [
+            "chair", "cabinet/shelf", "desk", "bench", "dining table", "stool",
+            "couch", "coffee table", "side table", "bed", "blackboard/whiteboard",
+            "sink", "oven", "refrigerator", "toilet", "power outlet", "clock",
+            "podium", "lectern"])
+        if isinstance(static_classes, str):
+            static_classes = static_classes.split(",")
+        self.object_static_classes = [str(item).strip() for item in static_classes
+                                      if str(item).strip()]
         if (not 1 <= self.object_min_observations <= 20 or
                 not math.isfinite(self.object_track_max_age) or
                 not 30.0 <= self.object_track_max_age <= 3600.0 or
@@ -592,7 +601,8 @@ class RoomMapper:
                                             expected_policy=expected_policy,
                                             other_policy=other_policy,
                                             large_labels=self.object_large_classes,
-                                            class_policies=class_policies)
+                                            class_policies=class_policies,
+                                            static_labels=self.object_static_classes)
         self.object_detections = []
         self.object_detections_stamp = 0.0
         self.registered_depth = None

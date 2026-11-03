@@ -1758,3 +1758,28 @@ The paused pipeline processed fresh stationary detections normally. This does
 not validate recognition cadence or overlay continuity during physical motion;
 that check remains directly supervised. No motion was commanded or physically
 observed during deployment.
+
+## Retain confirmed static furniture landmarks for the mapping session - 2026-11-02
+
+The operator requested that objects which do not typically move, such as
+furniture, remain permanently on the map. Chosen: add a configurable static
+class set to the semantic tracker. Once a static-class track satisfies the
+unchanged confirmation policy, eligible YOLO misses no longer increment its
+absence counter or remove it. Pending candidates receive no exemption and keep
+both observation-based and age expiry, preventing a single false chair or desk
+from becoming permanent.
+
+The defaults follow the deployed Objects365 vocabulary and cover chair,
+cabinet/shelf, desk, bench, dining/coffee/side table, stool, couch, bed,
+blackboard/whiteboard, sink, oven, refrigerator, toilet, power outlet, clock,
+podium, and lectern. The list is overridable with `_object_static_classes`.
+Confirmed static records expose `static_landmark: true` and the web UI labels
+them `STATIC`.
+
+Permanence is scoped to the current mapping session, consistent with the rest
+of the semantic map. Manual Remove, Clear Map, mapper restart, and invalid SLAM
+frame cleanup remain authoritative. A physically moved static object therefore
+requires explicit semantic-marker removal; this policy does not retain or
+alter planner occupancy, Hector, or depth fusion. All 242 host tests pass and
+production Python compiles. Robot-native validation and paused deployment are
+pending.

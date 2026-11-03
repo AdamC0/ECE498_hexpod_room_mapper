@@ -638,7 +638,7 @@ class ObjectTracker:
 
     def __init__(self, merge_distance=.65, min_observations=3, max_age=120.0,
                  priority_labels=None, expected_policy=None, other_policy=None,
-                 large_labels=None, class_policies=None):
+                 large_labels=None, class_policies=None, static_labels=None):
         self.merge_distance = float(merge_distance)
         self.min_observations = int(min_observations)
         self.max_age = float(max_age)
@@ -647,6 +647,8 @@ class ObjectTracker:
                                 for label in (priority_labels or [])}
         self.large_labels = {str(label).strip().lower()
                              for label in (large_labels or [])}
+        self.static_labels = {str(label).strip().lower()
+                              for label in (static_labels or [])}
         self.expected_policy = dict({
             "hits": 3, "window": 8, "minimum_confidence": .50,
             "median_confidence": .55, "position_tolerance": .25,
@@ -768,6 +770,7 @@ class ObjectTracker:
                      "last_seen": now, "last_observation": None,
                      "confirmed": False, "tier": ("expected" if label.lower() in
                                                     self.priority_labels else "other"),
+                     "static_landmark": label.lower() in self.static_labels,
                      "_evidence": [], "_validation_group": validation_group,
                      "_last_validation_observation": None, "_consecutive_misses": 0,
                      "_absence_misses": 0, "_last_absence_observation": None,
@@ -850,10 +853,13 @@ class ObjectTracker:
         eligible_track_ids = set(eligible_track_ids or ())
         removed = []
         for track in self.tracks:
+            static_confirmed = (track.get("confirmed", False) and
+                                track.get("static_landmark", False))
             if track["id"] in seen_track_ids:
                 track["_absence_misses"] = 0
                 track["_last_absence_observation"] = observation_id
-            elif (miss_limit is not None and track["id"] in eligible_track_ids and
+            elif (not static_confirmed and miss_limit is not None and
+                  track["id"] in eligible_track_ids and
                   track.get("_last_absence_observation") != observation_id):
                 track["_last_absence_observation"] = observation_id
                 track["_absence_misses"] = track.get("_absence_misses", 0) + 1

@@ -1,5 +1,23 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Static landmark retention candidate - 2026-11-02
+
+Confirmed tracks whose canonical class is in `_object_static_classes` are now
+session-persistent and ignore observation-based YOLO absence removal. They
+remain normal solid map markers and show `STATIC` in the Objects tab. Static
+status begins only after normal three-hit confidence/depth/geometry
+confirmation; pending furniture retains the five-miss and 300-second expiry
+paths. Manual Remove, Clear Map, mapper restart, and SLAM invalidation still
+clear static landmarks.
+
+Defaults cover chair, desk/table variants, cabinet/shelf, bench, stool, couch,
+bed, blackboard/whiteboard, sink, oven, refrigerator, toilet, power outlet,
+clock, podium, and lectern. The consequence is deliberate: moved furniture
+leaves its old semantic marker until explicit removal or map clearing. Planner
+occupancy is unchanged and remains governed by Hector/depth fusion. All 242
+host tests pass and production Python compiles; robot-native validation and
+paused deployment are pending.
+
 ## Moving YOLO preview deployed - 2026-11-02
 
 YOLO now admits bounded RGB-only snapshots while motion is commanded. These
