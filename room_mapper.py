@@ -403,6 +403,12 @@ class RoomMapper:
             "~object_removal_occlusion_margin", 0.15))
         self.object_burst_frames = int(rospy.get_param("~object_burst_frames", 5))
         self.object_burst_interval = float(rospy.get_param("~object_burst_interval", 0.18))
+        self.novel_object_stop_enabled = bool(rospy.get_param(
+            "~novel_object_stop_enabled", True))
+        self.novel_object_range = float(rospy.get_param("~novel_object_range", 3.0))
+        self.novel_object_frames = int(rospy.get_param("~novel_object_frames", 5))
+        self.novel_object_timeout = float(rospy.get_param("~novel_object_timeout", 15.0))
+        self.novel_object_cooldown = float(rospy.get_param("~novel_object_cooldown", 20.0))
         self.object_expected_hits = int(rospy.get_param("~object_expected_hits", 3))
         self.object_expected_window = int(rospy.get_param("~object_expected_window", 8))
         self.object_expected_min_confidence = float(rospy.get_param(
@@ -463,6 +469,13 @@ class RoomMapper:
                 not .05 <= self.object_removal_occlusion_margin <= .50 or
                 not 2 <= self.object_burst_frames <= 8 or
                 not .05 <= self.object_burst_interval <= .5 or
+                not math.isfinite(self.novel_object_range) or
+                not .5 <= self.novel_object_range <= 8.0 or
+                not 2 <= self.novel_object_frames <= 8 or
+                not math.isfinite(self.novel_object_timeout) or
+                not 5.0 <= self.novel_object_timeout <= 60.0 or
+                not math.isfinite(self.novel_object_cooldown) or
+                not 5.0 <= self.novel_object_cooldown <= 300.0 or
                 not 1 <= self.object_expected_hits <= self.object_expected_window <= 8 or
                 not 1 <= self.object_other_hits <= self.object_other_window <= 8 or
                 not 0.01 <= self.object_expected_min_confidence <= \
@@ -564,6 +577,7 @@ class RoomMapper:
         self.map_trusted = True
         self.automatic_map_reset_pending = False
         self.automatic_map_reset_reason = ""
+        self.automatic_map_reset_failure = ""
         self.prev_pose = None
         self.pose_guard_start = time.time() + 5.0
         self.paused = self.start_paused
@@ -652,6 +666,10 @@ class RoomMapper:
         self.object_preview_next_capture = 0.0
         self.object_motion_preview_next_capture = 0.0
         self.object_motion_preview_stamp = 0.0
+        self.novel_object_request = None
+        self.novel_object_verification = None
+        self.novel_object_sequence = 0
+        self.novel_object_cooldowns = {}
         self.object_focus_id = None
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
@@ -1085,6 +1103,10 @@ class RoomMapper:
                     self.object_endpoint_done != endpoint_key):
                 time.sleep(.02)
                 continue
+            verification = getattr(self, "novel_object_verification", None)
+            if verification is not None and verification.get("acquiring", False):
+                time.sleep(.02)
+                continue
             with self.object_queue_lock:
                 snapshot = (self.object_pending_snapshots.pop(0)
                             if self.object_pending_snapshots else None)
@@ -1105,6 +1127,13 @@ class RoomMapper:
             finally:
                 with self.object_queue_lock:
                     self.object_snapshots_processed += 1
+                verification_id = snapshot.get("novel_verification_id")
+                if verification_id is not None:
+                    with self.control_lock:
+                        verification = getattr(self, "novel_object_verification", None)
+                        if (verification is not None and
+                                verification.get("id") == verification_id):
+                            verification["processed"] += 1
                 # Schedule from completion, not start. A slow detector must not
                 # immediately begin another inference and monopolize the CPU.
                 next_run = time.time() + period
@@ -1183,7 +1212,9 @@ class RoomMapper:
     def enqueue_object_snapshot(self, snapshot):
         """Queue bounded immutable observations and discard the oldest overflow."""
         with self.object_queue_lock:
-            if len(self.object_pending_snapshots) >= self.object_burst_frames:
+            queue_limit = max(self.object_burst_frames,
+                              getattr(self, "novel_object_frames", 5))
+            if len(self.object_pending_snapshots) >= queue_limit:
                 self.object_pending_snapshots.pop(0)
                 self.object_snapshots_replaced += 1
             self.object_pending_snapshots.append(snapshot)
@@ -1267,6 +1298,171 @@ class RoomMapper:
             self.object_snapshots_captured += 1
         self.object_motion_preview_next_capture = now + 1.0 / max(.1, self.object_hz)
         return True
+
+    @staticmethod
+    def novel_object_direction(box, image_width):
+        """Bucket a moving candidate so failed views receive a local cooldown."""
+        center = (float(box[0]) + float(box[2])) * .5
+        if center < image_width / 3.0:
+            return "left"
+        if center > image_width * 2.0 / 3.0:
+            return "right"
+        return "center"
+
+    def request_novel_object_verification_locked(self, detections, frame, now):
+        """Remember one moving-view candidate for the control timer to stop on."""
+        if (not getattr(self, "novel_object_stop_enabled", True) or
+                getattr(self, "novel_object_request", None) is not None or
+                getattr(self, "novel_object_verification", None) is not None or
+                getattr(self, "paused", True) or getattr(self, "phase", "") != "go" or
+                not getattr(self, "commanded_moving", False)):
+            return False
+        cooldowns = getattr(self, "novel_object_cooldowns", {})
+        expired = [key for key, deadline in cooldowns.items() if now >= deadline]
+        for key in expired:
+            cooldowns.pop(key, None)
+        width = frame.shape[1]
+        for detection in sorted(detections,
+                                key=lambda item: float(item.get("confidence", 0.0)),
+                                reverse=True):
+            label = canonical_object_label(detection.get("label", ""))
+            box = tuple(detection.get("box", ()))
+            if not label or len(box) != 4:
+                continue
+            direction = self.novel_object_direction(box, width)
+            key = (label.lower(), direction)
+            if now < cooldowns.get(key, 0.0):
+                continue
+            self.novel_object_request = {
+                "label": label, "box": box, "direction": direction,
+                "key": key, "requested_at": now,
+                "known_ids": {track["id"] for track in self.object_tracker.tracks},
+            }
+            self.object_status = ("moving preview found possible new %s; stopping for "
+                                  "settled depth verification" % label)
+            return True
+        return False
+
+    def begin_novel_object_verification(self, now):
+        """Stop autonomous frontier travel for a requested moving candidate."""
+        request = getattr(self, "novel_object_request", None)
+        if request is None:
+            return False
+        self.novel_object_request = None
+        if self.paused or self.phase != "go":
+            return False
+        self.send(("stop",))
+        self.path = []
+        self.novel_object_sequence = getattr(self, "novel_object_sequence", 0) + 1
+        self.novel_object_verification = dict(
+            request, id=self.novel_object_sequence, deadline=now + self.novel_object_timeout,
+            next_capture=now, captured=0, processed=0, observations=set(),
+            range_checked=False, acquiring=True)
+        self.phase, self.phase_start = "novel_object_verify", now
+        self.web_msg = ("Possible new %s detected while moving; stopped for settled "
+                        "depth check and %d-frame verification" %
+                        (request["label"], self.novel_object_frames))
+        return True
+
+    def finish_novel_object_verification(self, now, message, cooldown=True):
+        verification = getattr(self, "novel_object_verification", None)
+        if verification is None:
+            return
+        if cooldown:
+            self.novel_object_cooldowns[verification["key"]] = \
+                now + self.novel_object_cooldown
+        self.novel_object_verification = None
+        self.path = []
+        self.phase, self.phase_start = "plan", now
+        self.web_msg = message
+
+    def capture_novel_object_snapshot(self, now):
+        """Range-gate a candidate, then collect distinct settled observations."""
+        verification = getattr(self, "novel_object_verification", None)
+        if verification is None:
+            return
+        if now >= verification["deadline"]:
+            self.finish_novel_object_verification(
+                now, ("Close-object verification hold reached %.0f s after capturing "
+                      "%d/%d frames; frozen observations may finish processing while "
+                      "autonomy resumes" %
+                      (self.novel_object_timeout, verification["captured"],
+                       self.novel_object_frames)))
+            return
+        if verification["captured"] >= self.novel_object_frames:
+            verification["acquiring"] = False
+            if verification["processed"] >= self.novel_object_frames:
+                self.finish_novel_object_verification(
+                    now, "%d close-object frames processed; autonomy resuming" %
+                    self.novel_object_frames)
+            return
+        if now < verification["next_capture"]:
+            return
+        snapshot = self.capture_object_snapshot()
+        if snapshot is None:
+            return
+        observation = tuple(snapshot["stamps"])
+        if observation in verification["observations"]:
+            return
+        if not verification["range_checked"]:
+            sample = sample_box_depth(snapshot["depth"], verification["box"],
+                                      min_pixels=self.object_depth_min_pixels,
+                                      return_quality=True)
+            if sample is None:
+                self.finish_novel_object_verification(
+                    now, "Candidate had no reliable settled depth; autonomy resuming")
+                return
+            distance, u, v, quality = sample
+            quality_ok = (
+                quality["valid_pixels"] >= self.object_depth_min_pixels and
+                quality["coverage"] >= self.object_depth_min_coverage and
+                quality["mad"] <= self.object_depth_max_mad and
+                quality["inlier_ratio"] >= self.object_depth_min_inlier_ratio)
+            if not quality_ok:
+                self.finish_novel_object_verification(
+                    now, "Candidate depth was unreliable; autonomy resuming")
+                return
+            if distance >= self.novel_object_range:
+                self.finish_novel_object_verification(
+                    now, ("Candidate depth %.2f m is outside the %.2f m stop range; "
+                          "autonomy resuming" % (distance, self.novel_object_range)))
+                return
+            transform = snapshot.get("transform")
+            point = (transform_point(backproject(u, v, distance, snapshot["k"]),
+                                     *transform) if transform is not None else None)
+            if point is None:
+                self.finish_novel_object_verification(
+                    now, "Candidate map transform was unavailable; autonomy resuming")
+                return
+            with self.object_lock:
+                known = next((track for track in self.object_tracker.tracks
+                              if track["id"] in verification["known_ids"] and
+                              canonical_object_label(track["label"]).lower() ==
+                              verification["label"].lower() and
+                              math.hypot(track["x"] - point[0],
+                                         track["y"] - point[1]) <=
+                              self.object_merge_distance), None)
+            if known is not None:
+                self.finish_novel_object_verification(
+                    now, ("Settled %s matches mapped %s object %d; autonomy resuming" %
+                          (verification["label"],
+                           "confirmed" if known.get("confirmed") else "pending",
+                           known["id"])))
+                return
+            verification["range_checked"] = True
+            verification["distance"] = distance
+        verification["observations"].add(observation)
+        snapshot["validation_group"] = ("novel-object", verification["id"])
+        snapshot["novel_verification_id"] = verification["id"]
+        self.enqueue_object_snapshot(snapshot)
+        verification["captured"] += 1
+        verification["next_capture"] = now + self.object_burst_interval
+        if verification["captured"] >= self.novel_object_frames:
+            verification["acquiring"] = False
+            self.object_status = ("captured %d/%d close-object frames at %.2f m; "
+                                  "processing" %
+                                  (verification["captured"], self.novel_object_frames,
+                                   verification["distance"]))
 
     def capture_endpoint_snapshot(self, now):
         """Capture a short fresh-frame burst within the bounded endpoint grace."""
@@ -1386,6 +1582,9 @@ class RoomMapper:
                 self.object_detections_stamp = now if same_motion else 0.0
                 self.object_status = ("moving preview: %d detections; %.2f s inference" %
                                       (len(detections), inference_seconds))
+                if same_motion:
+                    self.request_novel_object_verification_locked(
+                        detections, frame, now)
                 return
             ros_now = rospy.Time.now().to_sec()
             capture_ages = tuple(ros_now - s for s in stamps)
@@ -1850,15 +2049,9 @@ class RoomMapper:
                 turn = abs(math.atan2(math.sin(pose[2] - self.prev_pose[2]),
                                       math.cos(pose[2] - self.prev_pose[2])))
                 if distance > self.max_pose_jump or turn > self.max_yaw_jump:
-                    self.map_trusted = False
-                    self.automatic_map_reset_pending = True
-                    self.automatic_map_reset_reason = (
+                    self.invalidate_slam(
                         "pose jumped %.2f m / %.0f deg" %
                         (distance, math.degrees(turn)))
-                    self.clear_object_tracks()
-                    self.web_msg = ("SLAM LOST: %s; automatic map reset scheduled" %
-                                    self.automatic_map_reset_reason)
-                    rospy.logerr(self.web_msg)
             self.prev_pose = pose
             self.pose = pose
             self.t_pose = time.time()
@@ -1866,6 +2059,16 @@ class RoomMapper:
                 self.survey.localize(self.message_time(msg))
             if getattr(self, "web_map_center", None) is None:
                 self.web_map_center = pose[:2]
+
+    def invalidate_slam(self, reason):
+        """Stop trusting the current frame and schedule one bounded map reset."""
+        self.map_trusted = False
+        self.automatic_map_reset_pending = True
+        self.automatic_map_reset_reason = str(reason)
+        self.automatic_map_reset_failure = ""
+        self.clear_object_tracks()
+        self.web_msg = "SLAM LOST: %s; automatic map reset scheduled" % reason
+        rospy.logerr(self.web_msg)
 
     def clear_object_tracks(self):
         """Discard landmarks tied to a SLAM frame that is no longer valid."""
@@ -1878,6 +2081,10 @@ class RoomMapper:
             self.object_detections = []
             self.object_detections_stamp = 0.0
         self.map_generation = getattr(self, "map_generation", 0) + 1
+        if hasattr(self, "novel_object_request"):
+            self.novel_object_request = None
+        if hasattr(self, "novel_object_verification"):
+            self.novel_object_verification = None
         if hasattr(self, "object_queue_lock"):
             with self.object_queue_lock:
                 self.object_pending_snapshots = []
@@ -2000,13 +2207,10 @@ class RoomMapper:
                 self.spin_stall_count = getattr(self, "spin_stall_count", 0) + 1
                 limit = getattr(self, "max_spin_stalls", 3)
                 if self.spin_stall_count >= limit:
-                    self.map_trusted = False
-                    self.clear_object_tracks()
-                    self.web_msg = ("SLAM LOST: %d consecutive turns made less than %.1f deg "
-                                    "progress; robot remains stopped" %
-                                    (self.spin_stall_count,
-                                     math.degrees(self.min_spin_progress)))
-                    rospy.logerr(self.web_msg)
+                    self.invalidate_slam(
+                        "%d consecutive turns made less than %.1f deg progress" %
+                        (self.spin_stall_count,
+                         math.degrees(self.min_spin_progress)))
                 else:
                     self.web_msg = ("Turn made only %.1f deg progress; retrying (%d/%d)" %
                                     (math.degrees(progress), self.spin_stall_count, limit))
@@ -2061,9 +2265,8 @@ class RoomMapper:
                                      if progress < self.min_spin_progress else 0)
             if self.spin_stall_count >= self.max_spin_stalls:
                 self.send(("stop",))
-                self.map_trusted = False
-                self.clear_object_tracks()
-                self.web_msg = "SLAM LOST: repeated turns made insufficient heading progress"
+                self.invalidate_slam(
+                    "repeated turns made insufficient heading progress")
                 return
             self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
             self.motion_until = now + self.spin_burst
@@ -2258,6 +2461,9 @@ class RoomMapper:
             return
         if getattr(self, "commanded_moving", False):
             self.capture_motion_preview_snapshot(now)
+        if getattr(self, "novel_object_request", None) is not None:
+            if self.begin_novel_object_verification(now):
+                return
         manual_cmd = getattr(self, "manual_cmd", None)
         if manual_cmd is not None and now > getattr(self, "manual_until", 0.0):
             self.stop_manual("Manual drive stopped: browser command timed out")
@@ -2294,9 +2500,12 @@ class RoomMapper:
                       and self.map_trusted)
         if self.use_map and not mapping_ok:
             self.send(("stop",))
-            reason = ("SLAM map invalid; automatic reset failed or is unavailable"
-                      if not self.map_trusted
-                      else "waiting for fresh SLAM pose and map")
+            failure = getattr(self, "automatic_map_reset_failure", "")
+            reason = (("SLAM map invalid; automatic reset failed: %s" % failure)
+                      if not self.map_trusted and failure else
+                      "SLAM map invalid; no automatic reset is pending"
+                      if not self.map_trusted else
+                      "waiting for fresh SLAM pose and map")
             self.set_state(FAULT, reason)
             return
         if self.drive and now < self.pose_guard_start:
@@ -2375,6 +2584,17 @@ class RoomMapper:
         self.view = {"front": front, "nearest": lidar["nearest"], "blocked": blocked,
                      "depth": depth_near, "depth_limit": depth_limit, "depth_source": self.depth_source,
                      "depth_primary": True, "lidar_emergency": lidar_emergency}
+
+        if self.phase == "novel_object_verify":
+            self.send(("stop",))
+            self.capture_novel_object_snapshot(now)
+            if self.phase == "novel_object_verify":
+                verification = self.novel_object_verification
+                self.set_state(
+                    SEARCH, "holding for close-object verification %d/%d captured, %d processed" %
+                    (verification["captured"], self.novel_object_frames,
+                     verification["processed"]))
+            return
 
         if self.state == HOLD:
             self.send(("stop",))
@@ -2548,6 +2768,10 @@ class RoomMapper:
         self.manual_cmd = None
         self.manual_until = 0.0
         self.paused = True
+        self.novel_object_request = None
+        self.novel_object_verification = None
+        if self.phase == "novel_object_verify":
+            self.phase, self.phase_start = "plan", time.time()
         self.send(("stop",))
         self.web_msg = message
 
@@ -2559,6 +2783,8 @@ class RoomMapper:
         self.path = []
         self.user_goal = None
         self.nav_goal = None
+        self.novel_object_request = None
+        self.novel_object_verification = None
         if self.phase == "user_go":
             self.phase = "goal_cancelled"
         self.send(("stop",))
@@ -2581,6 +2807,8 @@ class RoomMapper:
             self.call_reset_service()
         except Exception as exc:
             prefix = "Automatic map reset failed" if automatic else "CLEAR MAP failed"
+            if automatic:
+                self.automatic_map_reset_failure = str(exc)
             self.web_msg = "%s; robot remains paused: %s" % (prefix, exc)
             rospy.logerr(self.web_msg)
             return False
@@ -2598,6 +2826,7 @@ class RoomMapper:
             self.map_trusted = True
             self.automatic_map_reset_pending = False
             self.automatic_map_reset_reason = ""
+            self.automatic_map_reset_failure = ""
             self.pending_spin_yaw = None
             self.spin_stall_count = 0
             # Any inference captured against the old map must fail its

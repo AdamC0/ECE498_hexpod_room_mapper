@@ -17,6 +17,21 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYMENT PENDING):
+  [x] Limit moving-detection stops to autonomous frontier phase; exclude manual
+      drive and clicked/object routes.
+  [x] Require settled registered depth inside 3.0 m and immediately resume for
+      a candidate matching a pre-existing pending/confirmed landmark.
+  [x] Capture five distinct settled RGB/depth/TF frames for a novel candidate,
+      bound the hold to 15 s, and apply a 20 s class/direction cooldown.
+  [x] Schedule the one-shot automatic map reset after repeated turn-progress
+      SLAM loss and distinguish an actual reset-service failure in status.
+  [x] Pass all 253 host tests and compile production Python.
+  [ ] Pass all tests natively, deploy paused, explicitly reset the currently
+      invalid Hector frame, and confirm one mapper with Hector only.
+  [ ] Under direct supervision, validate the <3 m/new, >3 m, already-mapped,
+      timeout, and active turn-loss automatic-reset cases.
+
 SPARSE-UPPER LOWER-FLOOR FALLBACK (DEPLOYED; MOTION CHECK PENDING):
   [x] Confirm the live failure: zero valid upper pixels while lower floor depth
       and RGB continue publishing.

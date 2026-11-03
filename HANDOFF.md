@@ -1,5 +1,24 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Close-object verification and turn-loss reset candidate - 2026-11-02
+
+The approved autonomous-only policy uses moving YOLO as a stop request, then
+requires settled registered depth inside 3.0 m. A candidate matching a track
+that existed before the stop resumes immediately. A novel candidate captures
+five distinct settled synchronized RGB/depth/TF observations; the stop lasts
+at most 15 seconds, after which frozen observations may finish through the
+normal capture-time-TF pipeline. Failed/known class-and-image-third candidates
+receive a 20-second cooldown. Manual drive and `user_go` clicked/object routes
+are excluded.
+
+The live `SLAM map invalid; automatic reset failed or is unavailable` report
+was traced to repeated insufficient turn progress: that path invalidated SLAM
+but, unlike pose jumps, did not queue the reset. Both turn-progress loss paths
+now schedule the same one-shot automatic reset. Actual service failures are
+stored and reported separately. All 253 workstation tests pass and production
+Python compiles. Robot-native validation, deployment, and supervised motion
+validation are pending. The live robot was stopped in FAULT during diagnosis.
+
 ## Sparse-upper lower-floor fallback deployed - 2026-11-02
 
 Live read-only sampling found 286/286 native-depth frames with zero valid

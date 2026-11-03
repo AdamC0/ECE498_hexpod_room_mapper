@@ -71,6 +71,20 @@ class ObjectPipelineTests(unittest.TestCase):
         n.object_preview_next_capture = 0.0
         n.object_motion_preview_next_capture = 0.0
         n.object_motion_preview_stamp = 0.0
+        n.novel_object_stop_enabled = True
+        n.novel_object_range = 3.0
+        n.novel_object_frames = 5
+        n.novel_object_timeout = 15.0
+        n.novel_object_cooldown = 20.0
+        n.novel_object_request = None
+        n.novel_object_verification = None
+        n.novel_object_sequence = 0
+        n.novel_object_cooldowns = {}
+        n.object_merge_distance = .65
+        n.object_depth_min_pixels = 24
+        n.object_depth_min_coverage = .15
+        n.object_depth_max_mad = .12
+        n.object_depth_min_inlier_ratio = .60
         n.object_detection_ttl = 1.0
         n.object_removal_misses = 5
         n.object_removal_image_margin = .10
@@ -95,6 +109,72 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertEqual(tracks[0]['count'], 3)
         np.testing.assert_allclose(n.object_detections[0]['map_point'],
                                    (1., 4.065, .07), atol=1e-6)
+
+    def test_moving_auto_detection_requests_close_object_verification(self):
+        n = self.node
+        n.paused, n.phase, n.commanded_moving = False, 'go', True
+        snapshot = {
+            'frame': n.camera.copy(), 'depth': None, 'k': None,
+            'stamps': (99.9, 99.9), 'transform': None,
+            'motion_generation': 0, 'map_generation': 0,
+            'observation_id': 99.9, 'validation_group': ('moving-preview',),
+            'display_only': True,
+        }
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(n.novel_object_request['label'], 'chair')
+        self.assertEqual(n.novel_object_request['direction'], 'center')
+
+    def test_close_novel_candidate_captures_five_distinct_frames(self):
+        n = self.node
+        n.phase, n.path = 'novel_object_verify', []
+        n.novel_object_verification = {
+            'id': 1, 'label': 'chair', 'box': (20, 20, 80, 80),
+            'direction': 'center', 'key': ('chair', 'center'),
+            'known_ids': set(), 'deadline': 115., 'next_capture': 100.,
+            'captured': 0, 'processed': 0, 'observations': set(),
+            'range_checked': False, 'acquiring': True,
+        }
+        snapshots = []
+        for index in range(5):
+            snapshots.append({
+                'frame': n.camera.copy(), 'depth': n.registered_depth.copy(),
+                'k': n.camera_k, 'stamps': (100. + index, 100. + index),
+                'transform': ((0., 0., 0.), (0., 0., 0., 1.)),
+                'motion_generation': 0, 'map_generation': 0,
+                'observation_id': 100. + index,
+            })
+        n.capture_object_snapshot = Mock(side_effect=snapshots)
+        for index in range(5):
+            n.capture_novel_object_snapshot(100. + index * .2)
+        self.assertEqual(n.novel_object_verification['captured'], 5)
+        self.assertFalse(n.novel_object_verification['acquiring'])
+        self.assertEqual(len(n.object_pending_snapshots), 5)
+        self.assertTrue(all(item['novel_verification_id'] == 1
+                            for item in n.object_pending_snapshots))
+
+    def test_settled_candidate_matching_pending_track_resumes_immediately(self):
+        n = self.node
+        track = n.object_tracker.update('chair', 0., 0., .9, 99.)
+        n.phase, n.path = 'novel_object_verify', []
+        n.novel_object_verification = {
+            'id': 1, 'label': 'chair', 'box': (20, 20, 80, 80),
+            'direction': 'center', 'key': ('chair', 'center'),
+            'known_ids': {track['id']}, 'deadline': 115., 'next_capture': 100.,
+            'captured': 0, 'processed': 0, 'observations': set(),
+            'range_checked': False, 'acquiring': True,
+        }
+        snapshot = {
+            'frame': n.camera.copy(), 'depth': n.registered_depth.copy(),
+            'k': n.camera_k, 'stamps': (100., 100.),
+            'transform': ((0., 0., 0.), (0., 0., 0., 1.)),
+            'motion_generation': 0, 'map_generation': 0, 'observation_id': 100.,
+        }
+        n.capture_object_snapshot = Mock(return_value=snapshot)
+        n.capture_novel_object_snapshot(100.)
+        self.assertIsNone(n.novel_object_verification)
+        self.assertEqual(n.phase, 'plan')
+        self.assertEqual(n.object_pending_snapshots, [])
+        self.assertIn('matches mapped pending', n.web_msg)
 
     def test_baggage_label_flicker_updates_one_map_track(self):
         n = self.node

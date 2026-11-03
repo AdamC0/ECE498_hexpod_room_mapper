@@ -103,6 +103,8 @@ class MapperTests(unittest.TestCase):
                 n.send_path(('spin', 1.))
         n.send.assert_called_once_with(('stop',))
         self.assertFalse(n.map_trusted)
+        self.assertTrue(n.automatic_map_reset_pending)
+        self.assertIn('insufficient heading progress', n.automatic_map_reset_reason)
 
     def test_floor_and_body_bob_are_clear(self):
         self.calibrate()
@@ -949,6 +951,7 @@ class MapperTests(unittest.TestCase):
         self.assertTrue(n.paused)
         self.assertFalse(n.map_trusted)
         self.assertIn('Automatic map reset failed', n.web_msg)
+        self.assertEqual(n.automatic_map_reset_failure, 'service unavailable')
         n.call_reset_service.assert_called_once_with()
 
     def test_depth_map_reports_and_forwards_confirmed_clears(self):

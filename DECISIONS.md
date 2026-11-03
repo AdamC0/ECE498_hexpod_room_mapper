@@ -1885,3 +1885,26 @@ clear range with health `ready (lower-floor + LiDAR; upper sparse)` and source
 `stop`, with Hector as the only SLAM stack. No motion was commanded. Directly
 supervised travel, floor-bump, full-dropout, and elevated-object checks remain
 pending.
+
+## Stop to verify a close novel object and reset turn-progress SLAM loss - 2026-11-02
+
+The operator approved an autonomous frontier-only stop when moving YOLO sees a
+possible new object. The stopped view must provide quality registered depth
+inside 3.0 m. If its projected location matches a pending or confirmed track
+that existed before the stop, resume without a full burst. Otherwise capture
+five distinct settled synchronized RGB/depth/TF frames even if the first later
+creates a pending track. Bound the hold to 15 seconds; slow frozen snapshots
+may finish asynchronously using capture-time TF. Failed or already-known
+class/image-third candidates receive a 20-second cooldown. Manual control and
+clicked/object routes are deliberately excluded.
+
+During the same live session, repeated weak turn progress produced `SLAM map
+invalid; automatic reset failed or is unavailable`. The reset service was
+present; the turn-loss paths marked the map untrusted without setting the
+one-shot reset request used by pose jumps. Chosen: route both turn-progress
+invalidations through the same automatic reset scheduler and retain the actual
+exception text only when the service call itself fails. This avoids both an
+unreset invalid frame and a misleading fault, without changing the three-turn,
+3-degree loss threshold or adding reset retries. All 253 host tests pass and
+production Python compiles. Native validation and paused deployment remain
+pending.

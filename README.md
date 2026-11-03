@@ -1,5 +1,24 @@
 # JetHexa Room Mapper
 
+## Close-object verification and turn-loss recovery (deployment pending)
+
+During autonomous frontier travel only, a moving YOLO detection can request a
+stop for a possible new object. After the robot settles, registered depth must
+place the candidate inside `_novel_object_range:=3.0` m. A candidate that
+matches a pending or confirmed landmark resumes immediately; a novel candidate
+captures `_novel_object_frames:=5` distinct synchronized RGB/depth/TF frames.
+The hold is bounded by `_novel_object_timeout:=15` seconds, and failed or
+already-known class/direction views receive a `_novel_object_cooldown:=20`
+second cooldown. Manual control and clicked routes never enter this workflow.
+Slow frozen observations may finish asynchronously after the bounded hold.
+
+Three consecutive turns with insufficient heading progress now use the same
+one-shot automatic Hector reset already used for pose jumps. A genuine reset
+service exception is retained and shown in the fault text; the previous generic
+"failed or unavailable" message no longer masks a reset that was never queued.
+All 253 workstation tests pass; robot-native validation and deployment remain
+pending.
+
 ## Sparse-upper depth fallback (deployed; motion check pending)
 
 The live classroom view can contain zero structured-light returns throughout

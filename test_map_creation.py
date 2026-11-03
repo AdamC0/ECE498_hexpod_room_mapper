@@ -389,6 +389,8 @@ class SurveyMotionTests(unittest.TestCase):
         n.send_actual.assert_not_called()
         self.assertFalse(n.map_trusted)
         self.assertIn('3 consecutive turns', n.web_msg)
+        self.assertTrue(n.automatic_map_reset_pending)
+        self.assertIn('3 consecutive turns', n.automatic_map_reset_reason)
 
 
 if __name__ == '__main__':
