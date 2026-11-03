@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Moving YOLO preview candidate - 2026-11-02
+## Moving YOLO preview deployed - 2026-11-02
 
 YOLO now admits bounded RGB-only snapshots while motion is commanded. These
 results are presentation-only for the live camera and video recorder: no depth
@@ -13,9 +13,16 @@ duplicate RGB frames are rejected.
 
 The transition into motion still clears stationary boxes, but fresh moving
 detections are no longer suppressed by the web renderer. Stationary settled
-captures remain validation-eligible and are unchanged. All 239 host tests pass
-and production Python compiles. Robot-native tests and paused deployment are
-pending; real moving-scene validation requires direct operator supervision.
+captures remain validation-eligible and are unchanged. All 239 host and
+robot-native tests pass and production Python compiles.
+
+Commit `80317b7` is deployed with matching hashes after backup to
+`~/room_mapper/backup_pre_80317b7/`. The launcher preserved Hector and restored
+exactly one drive-enabled TensorRT mapper `AUTO PAUSED` with command `stop`.
+The paused pipeline processed fresh stationary detections normally; this is
+deployment evidence only. No motion was commanded or physically observed, so
+live moving-box cadence, recorded moving overlays, and unchanged track counts
+during actual movement still require a directly supervised labeled check.
 
 ## RGB + YOLO video recording deployed - 2026-11-02
 

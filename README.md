@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Moving YOLO preview (host validated; deployment pending)
+## Moving YOLO preview (deployed; supervised motion check pending)
 
 YOLO now continues at the existing bounded detector cadence while translation
 or rotation is commanded. Moving captures contain fresh RGB only and are
@@ -14,9 +14,10 @@ Only one latest moving snapshot may be queued, and stale RGB is rejected.
 Starting motion still clears the old stationary overlay immediately; fresh
 moving detections may then replace it and retain the existing one-second
 display TTL. Stationary synchronized RGB/depth/TF observations remain the only
-source of object-map evidence. All 239 host tests pass; robot-native validation
-and paused deployment are pending. Direct moving-scene validation requires
-operator supervision.
+source of object-map evidence. All 239 host and robot-native tests pass. Commit
+`80317b7` is deployed with one TensorRT mapper `AUTO PAUSED` on command `stop`
+and Hector preserved. Direct moving-scene validation still requires operator
+supervision; no motion was commanded during deployment.
 
 ## RGB + YOLO video recording (deployed)
 

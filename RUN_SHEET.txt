@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-MOVING YOLO PREVIEW (HOST VALIDATED; DEPLOYMENT PENDING):
+MOVING YOLO PREVIEW (DEPLOYED; SUPERVISED MOTION CHECK PENDING):
   [x] Admit one latest fresh RGB-only snapshot while motion is commanded.
   [x] Show moving boxes in the live camera and video recording at the bounded
       detector cadence without holding or interrupting path motion.
@@ -26,8 +26,9 @@ MOVING YOLO PREVIEW (HOST VALIDATED; DEPLOYMENT PENDING):
   [x] Reject results after a motion-generation change and expire boxes after
       the existing one-second TTL.
   [x] Pass all 239 host tests and compile production Python.
-  [ ] Stop the mapper and pass all tests natively before paused deployment.
-  [ ] Restore one AUTO PAUSED/stop TensorRT mapper with Hector only.
+  [x] Stop the mapper and pass all 239 tests natively before paused deployment.
+  [x] Deploy commit 80317b7 and restore one AUTO PAUSED/stop TensorRT mapper
+      with Hector only; no motion was commanded.
   [ ] With direct supervision, record a short labeled movement and verify fresh
       boxes continue while mapped-object counts remain unchanged.
 

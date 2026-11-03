@@ -1749,3 +1749,12 @@ object-map evidence. All 239 host tests pass and production Python compiles.
 Robot-native validation and paused deployment remain pending. No physical
 motion was used for this host candidate; a labeled moving-scene check requires
 direct operator supervision.
+
+Deployment follow-up: commit `80317b7` passed all 239 tests natively with the
+mapper stopped and was deployed with matching hashes after backup to
+`~/room_mapper/backup_pre_80317b7/`. The launcher preserved Hector and restored
+exactly one drive-enabled TensorRT mapper `AUTO PAUSED` with command `stop`.
+The paused pipeline processed fresh stationary detections normally. This does
+not validate recognition cadence or overlay continuity during physical motion;
+that check remains directly supervised. No motion was commanded or physically
+observed during deployment.
