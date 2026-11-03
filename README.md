@@ -1,5 +1,23 @@
 # JetHexa Room Mapper
 
+## Moving YOLO preview (host validated; deployment pending)
+
+YOLO now continues at the existing bounded detector cadence while translation
+or rotation is commanded. Moving captures contain fresh RGB only and are
+strictly display-only: they can draw boxes in the live camera and recorded
+video, but never sample registered depth, create or refresh map tracks,
+confirm objects, or contribute landmark-absence removal evidence. A result is
+shown only while its captured motion generation is still current, so a late
+moving result cannot appear after the robot stops or changes motion state.
+
+Only one latest moving snapshot may be queued, and stale RGB is rejected.
+Starting motion still clears the old stationary overlay immediately; fresh
+moving detections may then replace it and retain the existing one-second
+display TTL. Stationary synchronized RGB/depth/TF observations remain the only
+source of object-map evidence. All 239 host tests pass; robot-native validation
+and paused deployment are pending. Direct moving-scene validation requires
+operator supervision.
+
 ## RGB + YOLO video recording (deployed)
 
 The dashboard camera card now has `START RECORDING`, `STOP RECORDING`, and
@@ -431,14 +449,15 @@ medium, charging, stale, and unavailable telemetry.
   no evidence. Automatic removal permits rediscovery, while manual removal
   suppresses the same class/location for the mapping session.
 - Continued stopped-endpoint inference uses a single latest-frame queue slot
-  and remains validation-eligible. Camera boxes clear immediately when motion
-  begins and expire after one second without a new result, so an old box cannot
-  remain over unrelated live video.
+  and remains validation-eligible. Starting motion clears the old stationary
+  boxes immediately; fresh moving-preview boxes are display-only and expire
+  after one second without a new result.
 - During stationary surveys, tentative objects remain nonblocking by default.
   The legacy `object_focus` behavior is opt-in; when enabled, motion stops until
   the object is confirmed, missed twice, or the 15-second limit expires.
-- YOLO inference and detections do not interrupt active paths. Object mapping
-  uses stationary observations at stops; depth and LiDAR still block obstacles.
+- YOLO moving-preview inference and detections do not interrupt active paths.
+  Object mapping still uses only stationary observations at stops; depth and
+  LiDAR still block obstacles.
 - RGB failure does not disable depth/LiDAR-protected manual driving. On this
   robot a stalled RGB/UVC stream has required a full robot reboot.
 

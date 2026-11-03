@@ -1725,3 +1725,27 @@ pause overlay. The launcher preserved Hector and restored exactly one TensorRT
 mapper `AUTO PAUSED` with command `stop`. The root filesystem had about 3.8 GB
 free before this short recording, so retained videos require operator storage
 management. No motion was commanded or physically observed.
+
+## Run YOLO preview during motion without mapping from it - 2026-11-02
+
+The operator requested object detection while the robot is moving. Chosen:
+admit RGB-only moving snapshots through the same bounded single-worker queue
+and existing detector cadence. Moving inference is presentation-only for the
+live camera and annotated recording. It deliberately omits registered depth,
+image-time TF, and validation metadata, and its processing branch returns
+before every tracker, confirmation, and absence-removal operation.
+
+Every moving snapshot carries the current motion generation. Its result is
+shown only if that generation still matches, so inference that finishes after
+a stop or state change is discarded. Motion transition still clears the prior
+stationary overlay; the web renderer now permits subsequent fresh moving boxes
+until their existing one-second TTL expires. Admission requires fresh,
+timestamp-distinct RGB and allows only one queued moving snapshot; a newer
+frame replaces that waiting slot, so a slow detector cannot create an
+unbounded motion backlog or hold active paths.
+
+Stationary synchronized RGB/depth/TF observations remain the sole source of
+object-map evidence. All 239 host tests pass and production Python compiles.
+Robot-native validation and paused deployment remain pending. No physical
+motion was used for this host candidate; a labeled moving-scene check requires
+direct operator supervision.

@@ -1,5 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Moving YOLO preview candidate - 2026-11-02
+
+YOLO now admits bounded RGB-only snapshots while motion is commanded. These
+results are presentation-only for the live camera and video recorder: no depth
+sampling, TF projection, tracker update, confirmation, or absence evidence is
+possible. The result is displayed only when its captured motion generation
+still matches the controller, preventing a slow inference from appearing after
+a stop or state transition. At most one moving snapshot waits in the queue;
+newer motion frames replace that slot, preventing a backlog. Stale and
+duplicate RGB frames are rejected.
+
+The transition into motion still clears stationary boxes, but fresh moving
+detections are no longer suppressed by the web renderer. Stationary settled
+captures remain validation-eligible and are unchanged. All 239 host tests pass
+and production Python compiles. Robot-native tests and paused deployment are
+pending; real moving-scene validation requires direct operator supervision.
+
 ## RGB + YOLO video recording deployed - 2026-11-02
 
 The web camera card adds start, stop, and download controls for a robot-local
@@ -731,8 +748,9 @@ the suffix `.pre_room_mapper_alarm_disable_20261012`.
 - Landmark validation uses the bounded, confidence/depth/geometry-gated burst
   described in the live checkpoint. Inference finishes asynchronously and does
   not enter blocking `object_focus` unless legacy mode is explicitly enabled.
-- Object capture remains stationary; inference completion may occur during the
-  next route because image-time TF and registered depth were snapshotted.
+- Object-map capture remains stationary; inference completion may occur during
+  the next route because image-time TF and registered depth were snapshotted.
+  Separate RGB-only moving previews provide boxes without map evidence.
 
 ## Depth/navigation update
 

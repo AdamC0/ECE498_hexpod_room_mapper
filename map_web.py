@@ -132,8 +132,7 @@ def fresh_detections(node):
     """Copy only detections that are still valid for the current camera view."""
     with node.object_lock:
         age = time.time() - getattr(node, 'object_detections_stamp', 0.0)
-        fresh = (not getattr(node, 'commanded_moving', False) and
-                 0.0 <= age <= getattr(node, 'object_detection_ttl', 1.0))
+        fresh = 0.0 <= age <= getattr(node, 'object_detection_ttl', 1.0)
         return [dict(d) for d in node.object_detections] if fresh else []
 
 

@@ -268,7 +268,7 @@ class WebServerTests(unittest.TestCase):
         self.assertNotEqual(tuple(image[center, center]),
                             map_web.PENDING_OBJECT_COLOR)
 
-    def test_camera_boxes_expire_and_are_hidden_during_motion(self):
+    def test_camera_boxes_expire_but_remain_visible_during_motion(self):
         n = FakeNode()
         n.camera = np.zeros((100, 100, 3), np.uint8)
         n.object_detections = [{
@@ -284,7 +284,7 @@ class WebServerTests(unittest.TestCase):
             n.object_detections_stamp = 100.
             n.commanded_moving = True
             moving = map_web.draw_camera(n)
-            self.assertEqual(tuple(moving[48, 64]), (0, 0, 0))
+            self.assertEqual(tuple(moving[48, 64]), (0, 180, 255))
 
     def test_recording_camera_has_only_rgb_and_yolo_annotations(self):
         n = FakeNode()
@@ -297,6 +297,7 @@ class WebServerTests(unittest.TestCase):
             'label': 'chair', 'confidence': .9, 'box': (10, 10, 20, 20),
             'map_point': None}]
         n.object_detections_stamp = time.time()
+        n.commanded_moving = True
         annotated = map_web.draw_recording_camera(n)
         self.assertEqual(tuple(annotated[48, 64]), (0, 180, 255))
         self.assertEqual(tuple(annotated[24, 10]), (0, 0, 0))

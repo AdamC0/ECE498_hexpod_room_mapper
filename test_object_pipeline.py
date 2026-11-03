@@ -69,6 +69,8 @@ class ObjectPipelineTests(unittest.TestCase):
         n.object_endpoint_observations = set()
         n.object_preview_enabled = True
         n.object_preview_next_capture = 0.0
+        n.object_motion_preview_next_capture = 0.0
+        n.object_motion_preview_stamp = 0.0
         n.object_detection_ttl = 1.0
         n.object_removal_misses = 5
         n.object_removal_image_margin = .10
@@ -356,6 +358,72 @@ class ObjectPipelineTests(unittest.TestCase):
         n.set_motion(True)
         self.assertEqual(n.object_detections, [])
         self.assertEqual(n.object_detections_stamp, 0.)
+        stationary = {'display_only': False}
+        n.object_pending_snapshots = [stationary, {'display_only': True}]
+        n.set_motion(False)
+        self.assertEqual(n.object_pending_snapshots, [stationary])
+
+    def test_moving_preview_detects_without_mapping(self):
+        n = self.node
+        n.commanded_moving = True
+        n.motion_generation = 1
+        n.t_camera = 99.9
+        self.assertTrue(n.capture_motion_preview_snapshot(100.))
+        self.assertEqual(len(n.object_pending_snapshots), 1)
+        snapshot = n.object_pending_snapshots.pop(0)
+        self.assertTrue(snapshot['display_only'])
+        self.assertIsNone(snapshot['depth'])
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(len(n.object_detections), 1)
+        self.assertIsNone(n.object_detections[0]['map_point'])
+        self.assertEqual(n.object_tracker.snapshot(False, 100.), [])
+        self.assertIn('moving preview: 1 detections', n.object_status)
+
+    def test_moving_preview_result_is_rejected_after_motion_changes(self):
+        n = self.node
+        n.commanded_moving = True
+        n.motion_generation = 1
+        n.t_camera = 99.9
+        self.assertTrue(n.capture_motion_preview_snapshot(100.))
+        snapshot = n.object_pending_snapshots.pop(0)
+        n.commanded_moving = False
+        n.motion_generation = 2
+        n.process_object_snapshot(snapshot)
+        self.assertEqual(n.object_detections, [])
+        self.assertEqual(n.object_detections_stamp, 0.)
+        self.assertEqual(n.object_tracker.snapshot(False, 100.), [])
+
+    def test_moving_preview_is_latest_only_and_uses_fresh_rgb(self):
+        n = self.node
+        n.commanded_moving = True
+        n.motion_generation = 1
+        n.t_camera = 99.9
+        self.assertTrue(n.capture_motion_preview_snapshot(100.))
+        self.assertFalse(n.capture_motion_preview_snapshot(100.1))
+        n.object_pending_snapshots.clear()
+        n.camera_stamp = 99.91
+        n.t_camera = 90.0
+        n.object_motion_preview_next_capture = 0.0
+        self.assertFalse(n.capture_motion_preview_snapshot(100.))
+
+    def test_moving_preview_has_priority_without_discarding_stationary_evidence(self):
+        n = self.node
+        stationary = n.capture_object_snapshot()
+        n.object_pending_snapshots = [stationary]
+        n.commanded_moving = True
+        n.motion_generation = 1
+        n.t_camera = 99.9
+        self.assertTrue(n.capture_motion_preview_snapshot(100.))
+        self.assertTrue(n.object_pending_snapshots[0]['display_only'])
+        self.assertIs(n.object_pending_snapshots[1], stationary)
+
+        n.camera_stamp = 99.91
+        n.object_motion_preview_next_capture = 0.0
+        self.assertTrue(n.capture_motion_preview_snapshot(100.))
+        self.assertEqual(len(n.object_pending_snapshots), 2)
+        self.assertTrue(n.object_pending_snapshots[0]['display_only'])
+        self.assertIs(n.object_pending_snapshots[1], stationary)
+        self.assertEqual(n.object_snapshots_replaced, 1)
 
     def test_slow_inference_queue_keeps_five_newest_snapshots(self):
         n = self.node

@@ -630,6 +630,8 @@ class RoomMapper:
         self.object_endpoint_next_capture = 0.0
         self.object_endpoint_observations = set()
         self.object_preview_next_capture = 0.0
+        self.object_motion_preview_next_capture = 0.0
+        self.object_motion_preview_stamp = 0.0
         self.object_focus_id = None
         self.object_focus_label = None
         self.object_focus_deadline = 0.0
@@ -1192,6 +1194,55 @@ class RoomMapper:
         self.object_preview_next_capture = now + 1.0 / max(.1, self.object_hz)
         return True
 
+    def capture_motion_preview_snapshot(self, now):
+        """Queue one latest RGB-only inference while the robot is moving.
+
+        Moving observations are presentation-only. They deliberately omit
+        registered depth, TF, and validation metadata so they can never update
+        mapped landmarks or provide absence evidence.
+        """
+        if (not getattr(self, "object_preview_enabled", True) or
+                not getattr(self, "commanded_moving", False) or
+                getattr(self, "detector", None) is None or
+                now < getattr(self, "object_motion_preview_next_capture", 0.0)):
+            return False
+        with self.data_lock:
+            stamp = getattr(self, "camera_stamp", 0.0)
+            frame = None if self.camera is None else self.camera.copy()
+            camera_age = now - getattr(self, "t_camera", 0.0)
+        if (frame is None or stamp <= 0.0 or
+                stamp <= getattr(self, "object_motion_preview_stamp", 0.0) or
+                not 0.0 <= camera_age <= getattr(self, "object_max_age", 2.5)):
+            return False
+        snapshot = {
+            "frame": frame,
+            "depth": None,
+            "k": None,
+            "stamps": (stamp, stamp),
+            "transform": None,
+            "motion_generation": self.motion_generation,
+            "map_generation": getattr(self, "map_generation", 0),
+            "observation_id": stamp,
+            "validation_group": ("moving-preview",),
+            "display_only": True,
+        }
+        self.object_motion_preview_stamp = stamp
+        with self.object_queue_lock:
+            moving_indexes = [index for index, item in
+                              enumerate(self.object_pending_snapshots)
+                              if item.get("display_only", False)]
+            for index in reversed(moving_indexes):
+                self.object_pending_snapshots.pop(index)
+                self.object_snapshots_replaced += 1
+            # Prioritize one current moving view ahead of retained stationary
+            # mapping observations. Motion bursts are bounded, so stationary
+            # evidence resumes afterward without making the live view wait for
+            # the whole endpoint burst to drain.
+            self.object_pending_snapshots.insert(0, snapshot)
+            self.object_snapshots_captured += 1
+        self.object_motion_preview_next_capture = now + 1.0 / max(.1, self.object_hz)
+        return True
+
     def capture_endpoint_snapshot(self, now):
         """Capture a short fresh-frame burst within the bounded endpoint grace."""
         if self.detector is None:
@@ -1278,6 +1329,8 @@ class RoomMapper:
         inference_seconds = time.time() - inference_started
         for detection in detections:
             detection["map_point"] = None
+            if display_only:
+                continue
             depth_min_pixels = getattr(self, "object_depth_min_pixels", 24)
             sample = sample_box_depth(depth, detection["box"],
                                       min_pixels=depth_min_pixels,
@@ -1299,14 +1352,14 @@ class RoomMapper:
         with self.control_lock, self.data_lock, self.object_lock:
             self.object_processing = False
             now = time.time()
-            display_current = (generation == self.motion_generation and
-                               not self.commanded_moving)
+            same_motion = generation == self.motion_generation
+            stationary_display_current = same_motion and not self.commanded_moving
             if display_only:
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections if display_current else []
-                self.object_detections_stamp = now if display_current else 0.0
-                self.object_status = ("preview: %d detections; %.2f s inference" %
+                self.object_detections = detections if same_motion else []
+                self.object_detections_stamp = now if same_motion else 0.0
+                self.object_status = ("moving preview: %d detections; %.2f s inference" %
                                       (len(detections), inference_seconds))
                 return
             ros_now = rospy.Time.now().to_sec()
@@ -1315,16 +1368,16 @@ class RoomMapper:
                 for detection in detections:
                     detection["map_point"] = None
                 if not self.shutting_down:
-                    self.object_detections = detections if display_current else []
-                    self.object_detections_stamp = now if display_current else 0.0
+                    self.object_detections = (detections if stationary_display_current else [])
+                    self.object_detections_stamp = (now if stationary_display_current else 0.0)
                 self.object_status = ("discarded observation after %.2f s: "
                                       "SLAM/map became unavailable" % inference_seconds)
                 return
             if map_generation != getattr(self, "map_generation", 0):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections if display_current else []
-                self.object_detections_stamp = now if display_current else 0.0
+                self.object_detections = (detections if stationary_display_current else [])
+                self.object_detections_stamp = (now if stationary_display_current else 0.0)
                 self.object_status = ("discarded observation after %.2f s: map generation "
                                       "changed" % inference_seconds)
                 return
@@ -1332,16 +1385,16 @@ class RoomMapper:
                     generation != self.motion_generation):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections if display_current else []
-                self.object_detections_stamp = now if display_current else 0.0
+                self.object_detections = (detections if stationary_display_current else [])
+                self.object_detections_stamp = (now if stationary_display_current else 0.0)
                 self.object_status = "discarded observation after %.2f s: motion changed" % \
                     inference_seconds
                 return
             if any(not 0 <= age <= self.object_result_max_age for age in capture_ages):
                 for detection in detections:
                     detection["map_point"] = None
-                self.object_detections = detections if display_current else []
-                self.object_detections_stamp = now if display_current else 0.0
+                self.object_detections = (detections if stationary_display_current else [])
+                self.object_detections_stamp = (now if stationary_display_current else 0.0)
                 self.object_status = ("%d detections shown; map observation discarded after "
                                       "%.2f s: RGB/depth age %.2f/%.2f s exceeds %.2f s" %
                                       (len(detections), inference_seconds,
@@ -1383,8 +1436,8 @@ class RoomMapper:
                 validation_group, observation_id, seen_track_ids,
                 eligible_track_ids=eligible_misses,
                 miss_limit=getattr(self, "object_removal_misses", 5))
-            self.object_detections = detections if display_current else []
-            self.object_detections_stamp = now if display_current else 0.0
+            self.object_detections = (detections if stationary_display_current else [])
+            self.object_detections_stamp = (now if stationary_display_current else 0.0)
             confirmed = len(self.object_tracker.snapshot(True, now))
             removal_text = (", %d stale removed" % len(removed_tracks)
                             if removed_tracks else "")
@@ -1836,6 +1889,14 @@ class RoomMapper:
                 with self.object_lock:
                     self.object_detections = []
                     self.object_detections_stamp = 0.0
+                # A partial stopped-endpoint burst is no longer relevant once
+                # motion begins and must not block moving preview inference.
+                self.object_endpoint_done = getattr(self, "object_endpoint_key", None)
+            elif not moving and hasattr(self, "object_queue_lock"):
+                with self.object_queue_lock:
+                    self.object_pending_snapshots = [
+                        item for item in self.object_pending_snapshots
+                        if not item.get("display_only", False)]
             self.motion_pub.publish(Bool(moving))
 
     def send(self, cmd, interrupt_object=False):
@@ -2151,6 +2212,8 @@ class RoomMapper:
             t_pose, t_scan, t_camera, t_depth = self.t_pose, self.t_scan, self.t_camera, self.t_depth
         # Web safety controls must still work while a sensor or map is faulty.
         self.handle_web()
+        if getattr(self, "commanded_moving", False):
+            self.capture_motion_preview_snapshot(now)
         manual_cmd = getattr(self, "manual_cmd", None)
         if manual_cmd is not None and now > getattr(self, "manual_until", 0.0):
             self.stop_manual("Manual drive stopped: browser command timed out")
