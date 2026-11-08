@@ -158,14 +158,15 @@ controlled five-miss live reproduction remains pending.
 
 The same five-observation visibility rule now applies to pending candidates as
 well as confirmed landmarks. Confirmation-window misses and clear-view absence
-misses use separate counters: only a central-image view with valid registered
-depth reaching the saved 3-D position advances removal. A matching same-class
-box resets the absence count and refreshes the pending age timer even when its
-depth is not good enough to remap. Out-of-view, image-edge, invalid-depth, and
-nearer-occluded observations add no absence evidence; pending tracks in those
-conditions still expire through the existing 300 s age fallback measured from
-their last matched observation. Automatic removal remains non-suppressing, so
-the object may be detected again later.
+misses use separate counters. A central-image view advances removal when
+registered depth reaches the saved 3-D position or when that local depth patch
+is invalid and YOLO has no matching box. A matching same-class box resets the
+absence count and refreshes the pending age timer even when its depth is not
+good enough to remap. Out-of-view, image-edge, and valid nearer-occluded
+observations add no absence evidence; pending tracks in those conditions still
+expire through the existing 300 s age fallback measured from their last
+matched observation. Automatic removal remains non-suppressing, so the object
+may be detected again later.
 
 All 231 host and robot-native tests pass, including pending clear-view removal,
 detection reset, unmapped-box timer refresh, out-of-view/occluded timer
@@ -183,11 +184,13 @@ motion was commanded or observed.
 
 Confirmed object landmarks now retain their full 3-D map position. During a
 fresh synchronized stationary YOLO observation, a missing landmark accumulates
-absence evidence only when that point projects inside the central 80% of the
-RGB image and registered depth reaches the expected range. Image-edge views,
-invalid or sparse depth, stale/missing TF, and a nearer occluding surface do not
-count either way. A matching YOLO box or mapped detection resets the absence
-counter, including when depth quality is insufficient to remap that box.
+absence evidence when that point projects inside the central 80% of the RGB
+image and registered depth reaches the expected range. The later depth-hole
+correction also counts a central miss when the local registered-depth patch is
+invalid. Image-edge views, stale/missing TF, and a valid nearer occluding
+surface do not count either way. A matching YOLO box or mapped detection resets
+the absence counter, including when depth quality is insufficient to remap that
+box.
 
 Five consecutive eligible misses remove the confirmed landmark. The count may
 continue across stopped endpoints, but non-eligible observations merely pause

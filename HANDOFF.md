@@ -1,5 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Repository/documentation audit - 2026-11-08
+
+The repository was clean and synchronized with `origin/main` at commit
+`3ec1299`. No production-code changes have landed after the 2026-11-02
+close-object/turn-loss deployment documented immediately below. The complete
+Windows host suite passed again: 253 tests in `host_test_runner.py`.
+
+`README.md`, `RUN_SHEET.txt`, and the newest `DECISIONS.md` entries already
+match the deployed feature set and outstanding supervised checks. `AGENTS.md`
+was brought forward from its superseded October 26 "latest validation" section
+to the 253-test `3e4c185` deployment, and its architecture/safety summary now
+captures moving display-only YOLO, bounded autonomous close-object stops,
+lower-floor sparse-depth fallback, automatic turn-loss reset, and the 10-second
+depth-cell minimum hold. This audit did not connect to the robot, deploy files,
+issue motion commands, or change the last live-state evidence. Treat the
+November 2 paused/no-motion observations below as the latest robot evidence.
+
 ## Close-object verification and turn-loss reset deployed - 2026-11-02
 
 The approved autonomous-only policy uses moving YOLO as a stop request, then
@@ -194,9 +211,11 @@ confirmed landmarks. A new private absence counter is independent of the
 rolling confirmation evidence, preventing confirmation misses from
 accidentally accelerating removal. Same-class boxes at the projected point
 reset absence and refresh pending `last_seen` even if depth quality prevents a
-new map observation. Out-of-view, edge, invalid-depth, and nearer-occluded
-frames add no absence evidence; the existing 300 s pending age timer remains
-the fallback in those conditions. Automatic removal still permits rediscovery.
+new map observation. At this checkpoint, out-of-view, edge, invalid-depth, and
+nearer-occluded frames added no absence evidence; the later depth-hole
+correction documented above changed central invalid-depth misses to count. The
+existing 300 s pending age timer remains the fallback for non-observable
+conditions. Automatic removal still permits rediscovery.
 
 All 231 host and robot-native tests pass and production Python compiles. Commit
 `a271bae` is deployed with matching hashes after a recoverable backup to
@@ -216,9 +235,11 @@ Confirmed landmarks now retain Z as well as map X/Y. Each fresh synchronized
 stationary result projects that saved point into the captured RGB/depth view.
 A YOLO miss counts only inside the central 80% of the image when registered
 depth is valid and reaches the expected object range. A nearer depth return
-marks the view occluded; invalid depth, missing TF, and edge/out-of-view points
-add no absence evidence. A matching YOLO box or mapped observation resets the
-counter. Five consecutive eligible misses remove the landmark, including a
+marks the view occluded; at this checkpoint invalid depth, missing TF, and
+edge/out-of-view points added no absence evidence. The later depth-hole
+correction documented above changed central invalid-depth misses to count. A
+matching YOLO box or mapped observation resets the counter. Five consecutive
+eligible misses remove the landmark, including a
 renamed one, without adding manual suppression, so later rediscovery remains
 possible. Pending-track behavior is unchanged.
 

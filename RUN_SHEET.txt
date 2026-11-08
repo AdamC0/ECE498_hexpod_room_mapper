@@ -144,8 +144,9 @@ PENDING-OBJECT CLEAR-VIEW REMOVAL (DEPLOYED; SCENE CHECK PENDING):
   [x] Keep absence evidence separate from the rolling confirmation window.
   [x] Reset absence and refresh pending age on a matching projected YOLO box,
       including when depth quality is insufficient for a new map observation.
-  [x] Let out-of-view, edge, invalid-depth, and nearer-occluded tracks retain
-      the existing 300 s age fallback without adding clear-view misses.
+  [x] Let out-of-view, edge, and valid nearer-occluded tracks retain the
+      existing 300 s age fallback without adding clear-view misses. The later
+      depth-hole correction counts a central invalid-depth YOLO miss.
   [x] Pass all 231 host tests and compile production Python.
   [x] Stop the mapper and pass all 231 tests natively on PT before deployment.
   [x] Deploy commit a271bae with matching hashes and exactly one mapper
@@ -162,9 +163,10 @@ VISIBILITY-AWARE CONFIRMED-OBJECT REMOVAL (DEPLOYED; SCENE CHECK PENDING):
       through image-time TF into each fresh settled RGB/depth observation.
   [x] Require five consecutive eligible YOLO misses; reset on a matching box or
       mapped detection and allow the count to continue across stopped endpoints.
-  [x] Count only central-image views with valid registered depth reaching the
-      expected range. Edge/out-of-view, invalid depth, missing TF, and a nearer
-      occluder add no evidence.
+  [x] Count central-image views with registered depth reaching the expected
+      range. The later depth-hole correction also counts a central local-depth
+      hole; edge/out-of-view, missing TF, and a valid nearer occluder add no
+      evidence.
   [x] Keep pending-track expiry unchanged; apply removal to renamed confirmed
       objects and permit later rediscovery after automatic removal.
   [x] Pass all 228 host tests and compile production Python.

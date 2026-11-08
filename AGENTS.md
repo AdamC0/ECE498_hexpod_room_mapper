@@ -45,14 +45,16 @@ one mapper process exists.
   0.13 m leg-clearance margin.
 - `room_mapper.py` handles continuous path gait commands, bounded recovery,
   sensor safety, omnidirectional manual control, clicked routes, and autonomous
-  object focus.
+  object verification. During autonomous frontier travel only, a moving YOLO
+  detection may request a bounded stop to verify a possible novel object.
 - `map_web.py` provides RGB, a robot-following zoomable map, click navigation,
   Cancel Route, manual W/S drive, A/D strafe, Q/E rotation, independent 50-200%
   translation/rotation sliders, object management, and a battery badge.
 - Object mapping uses YOLO, synchronized registered depth, camera intrinsics,
   and timestamped TF. The deployed revision requires three distinct
   settled captures and prefers the Objects365 classroom model with automatic
-  fallback to the retained COCO YOLOv5n model.
+  fallback to the retained COCO YOLOv5n model. Moving captures are RGB-only
+  previews and never update semantic tracks or planner occupancy.
 
 ## Current safety/calibration facts
 
@@ -60,23 +62,32 @@ one mapper process exists.
 - Depth stop: 0.60 m.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
-- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height; unconfirmed cells
-  have a 5 s TTL, while promoted cells persist for the mapping session.
-- Brief sparsity: reuse last valid result for at most 1.5 s; sustained sparsity
-  or no previous valid result still faults.
+- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height. Every temporary
+  or promoted cell has a 10 s minimum hold from its latest occupied hit, then
+  remains until the required positive clear evidence arrives. Time alone does
+  not remove production cells; promoted cells otherwise persist for the
+  mapping session.
+- Brief upper-depth sparsity reuses the last valid result for at most 1.5 s. A
+  calibrated current lower-floor region can then provide bump/dropout sensing
+  with LiDAR and the fused planner; without usable upper or lower-floor depth,
+  sustained sparsity still faults.
 - Map pose jump: 0.25 m / 20 degrees.
 - Turn progress: three consecutive bursts below 3 degrees invalidate SLAM.
-- YOLO capture is stationary, but inference completion is nonblocking by
-  default. The legacy object-focus mode remains opt-in with its 15 s maximum
-  and two-miss limit.
-- YOLO inference does not hold active path motion. Stationary surveys can
-  focus on detections before planning the next route.
+- Stationary synchronized captures are the only source of semantic-map
+  evidence. Moving YOLO preview is display/recording-only, and inference
+  completion remains nonblocking. The legacy object-focus mode remains opt-in
+  with its 15 s maximum and two-miss limit.
+- During autonomous frontier travel only, a moving detection can stop the
+  robot for close-object verification: settled registered depth must place it
+  within 3.0 m, the hold is bounded to 15 s, and a novel candidate requests
+  five distinct settled frames. Manual and clicked/object routes are excluded.
 - Persistent front blockage escalates from turning to a 0.5 s reverse after
   2.5 s only when the speed-scaled reverse distance plus 0.02 m fits inside a
   LiDAR swept-circle path that retains the 0.45 m emergency envelope.
   Floor-bump and depth-dropout alarms prohibit reverse.
 - Active paths use continuous translation and turning with live heading-progress
-  checks; YOLO does not interrupt paths. Recovery retains bounded bursts.
+  checks. Repeated turn-progress loss schedules the same one-shot automatic
+  Hector reset as a pose jump. Recovery otherwise retains bounded bursts.
 - Do not report a map completion/known percentage. The configured occupancy
   grid is not the unknown room boundary; use frontier availability and direct
   map evidence instead.
@@ -122,10 +133,28 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
-The stale-magenta recovery candidate has 215 passing host tests. It lowers only
-the unconfirmed-cell TTL to 5 s and makes `RESUME` reject an invalid SLAM map
-with an explicit `CLEAR MAP` instruction. Robot-native validation and deployment
-are pending; the robot is paused on a freshly cleared Hector frame.
+The deployed baseline is commit `3e4c185` (documented by `3ec1299`) from
+2026-11-02. All 253 tests passed on the Windows host and natively on PT; the
+same 253-test host suite passed again during the 2026-11-08 documentation
+audit. Exactly one TensorRT mapper was last verified `AUTO PAUSED` with command
+`stop` on a freshly reset Hector frame, and Hector was the only SLAM stack.
+RGB, native/registered depth, LiDAR, pose, map, depth fusion, YOLO, and the web
+UI were live. This is deployment and no-motion evidence: supervised
+close-object, active turn-loss reset, sparse-depth motion, and other pending
+physical checks in `RUN_SHEET.txt` remain outstanding.
+
+The current baseline adds autonomous-frontier close-object verification,
+one-shot reset scheduling after repeated turn-progress loss, lower-floor depth
+fallback for a sparse upper image, a 10 s minimum depth-cell hold followed by
+positive-clear removal, automatic pose-jump reset, session-static landmarks,
+moving display-only YOLO preview, and downloadable annotated video recording.
+
+### Earlier validation checkpoints
+
+The stale-magenta recovery candidate had 215 passing host tests. It lowered
+only the unconfirmed-cell TTL to 5 s and made `RESUME` reject an invalid SLAM
+map with an explicit `CLEAR MAP` instruction. It was superseded by the current
+10 s minimum-hold/positive-clear policy and later deployments.
 
 The low-leg follow-up was deployed on 2026-10-26 at commit `f13f296`. All 214
 tests pass on the Windows host and natively on PT. The promotion threshold is
