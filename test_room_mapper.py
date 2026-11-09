@@ -33,6 +33,8 @@ class MapperTests(unittest.TestCase):
         n.floor_frames, n.floor_zero_frac = 0, 0.0
         n.floor_failures, n.floor_unavailable = 0, False
         n.depth, n.depth_source, n.depth_health = None, '', 'waiting'
+        n.min_depth_valid_fraction = .02
+        n.floor_obstacle_min_valid_fraction = .10
         n.depth_ignore_at_or_below = 0.0
         n.depth_sectors = {"left": float("inf"), "center": float("inf"),
                            "right": float("inf")}
@@ -172,6 +174,17 @@ class MapperTests(unittest.TestCase):
         frame[55:95, 20:80] = 0
         self.assertAlmostEqual(self.node.depth_ahead(frame), .30, places=5)
         self.assertEqual(self.node.depth_source, 'depth dropout / too close')
+
+    def test_sparse_floor_noise_uses_upper_depth_and_lidar(self):
+        self.calibrate()
+        frame = self.node.floor.copy()
+        frame[55:95, 20:80] = 0.
+        # Five percent valid lower-floor coverage used to create a false
+        # floor-bump stop from a handful of noisy near returns.
+        frame[55:75, 20:26] = .30
+        self.assertGreater(self.node.depth_ahead(frame), .6)
+        self.assertEqual(self.node.depth_source, 'high')
+        self.assertIn('floor too sparse', self.node.depth_health)
 
     def test_invalid_calibration_retries(self):
         for _ in range(3):
@@ -1073,6 +1086,7 @@ class MapperTests(unittest.TestCase):
         n.depth_map_range_min, n.depth_map_range_max = .15, 2.
         n.depth_map_height_min, n.depth_map_height_max = .025, .5
         n.depth_map_min_points = 3
+        n.depth_map_min_valid_fraction = .10
         n.depth_map_protected_range = .6
         n.depth_map_clear_observations = 2
         n.depth_map_ttl = 30.
@@ -1099,6 +1113,27 @@ class MapperTests(unittest.TestCase):
         self.assertIn('cleared 3 this update', n.depth_map_status)
         loginfo.assert_called_once()
 
+    def test_sparse_registered_depth_does_not_add_planner_obstacles(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.data_lock = threading.Lock()
+        n.depth_map_k = (100., 0., 0., 0., 100., 0., 0., 0., 1.)
+        n.depth_map_info_size = (20, 20)
+        n.depth_map_range_min, n.depth_map_range_max = .15, 2.
+        n.depth_map_min_valid_fraction = .10
+        n.depth_map_status = ''
+        n.tf_buffer = Mock()
+        n.explorer = Mock(cell=.1)
+        n.message_time = Mock(return_value=99.)
+        msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
+        depth = np.zeros((20, 20), np.float32)
+        depth[:1, :] = .30  # 5% valid coverage
+        with patch('room_mapper.time.time', return_value=100.), \
+                patch('room_mapper.project_depth_cells') as project:
+            n.update_depth_obstacle_map(depth, msg)
+        project.assert_not_called()
+        n.tf_buffer.lookup.assert_not_called()
+        self.assertIn('5.0% valid', n.depth_map_status)
+
     def test_depth_map_uses_only_settled_synchronized_lidar_for_fusion(self):
         n = RoomMapper.__new__(RoomMapper)
         n.data_lock, n.object_lock, n.map_lock = (threading.Lock(),
@@ -1110,6 +1145,7 @@ class MapperTests(unittest.TestCase):
         n.depth_map_range_min, n.depth_map_range_max = .15, 2.
         n.depth_map_height_min, n.depth_map_height_max = .025, .5
         n.depth_map_min_points = 3
+        n.depth_map_min_valid_fraction = .10
         n.depth_map_protected_range = .6
         n.depth_map_clear_observations = 2
         n.depth_map_promotion_observations = 3

@@ -1125,5 +1125,10 @@ Only one mapper process should exist. Tests do not command the physical robot.
 - A 30 Hz depth topic can still contain unusable pixels. Brief sparsity uses a
   1.5 s cached decision; sustained sparsity still faults. Inspect valid pixel
   coverage, not only topic rate.
+- Native lower-floor coverage between 2% and 10% is treated as too sparse for
+  floor-bump/dropout inference when the upper depth band is healthy; upper
+  depth and the independent LiDAR stop remain active. Complete lower-depth
+  loss still triggers the conservative 0.30 m dropout stop. Registered-depth
+  frames below 10% valid coverage do not add or clear planner obstacles.
 - Rebooting or resetting Hector loses the in-memory map. Object landmarks are
   cleared when map trust is lost or the map is reset.

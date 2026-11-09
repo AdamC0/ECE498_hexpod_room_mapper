@@ -280,6 +280,8 @@ class RoomMapper:
         self.depth_map_height_min = float(rospy.get_param("~depth_map_height_min", 0.025))
         self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
         self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
+        self.depth_map_min_valid_fraction = float(rospy.get_param(
+            "~depth_map_min_valid_fraction", 0.10))
         self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 5.0))
         self.depth_map_minimum_hold = float(rospy.get_param(
             "~depth_map_minimum_hold", 10.0))
@@ -306,6 +308,8 @@ class RoomMapper:
                 not 0 < self.depth_map_range_min < self.depth_map_range_max or
                 not 0 <= self.depth_map_height_min < self.depth_map_height_max or
                 self.depth_map_min_points < 1 or
+                not math.isfinite(self.depth_map_min_valid_fraction) or
+                not .02 <= self.depth_map_min_valid_fraction <= .50 or
                 not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0 or
                 not math.isfinite(self.depth_map_minimum_hold) or
                 not 1.0 <= self.depth_map_minimum_hold <= 120.0 or
@@ -348,10 +352,15 @@ class RoomMapper:
             "~min_depth_valid_fraction", 0.02))
         self.min_depth_valid_pixels = int(rospy.get_param(
             "~min_depth_valid_pixels", 200))
+        self.floor_obstacle_min_valid_fraction = float(rospy.get_param(
+            "~floor_obstacle_min_valid_fraction", 0.10))
         self.depth_sparse_grace = float(rospy.get_param("~depth_sparse_grace", 1.5))
         if (not math.isfinite(self.min_depth_valid_fraction) or
                 not 0.005 <= self.min_depth_valid_fraction <= 0.25 or
                 self.min_depth_valid_pixels < 30 or
+                not math.isfinite(self.floor_obstacle_min_valid_fraction) or
+                not self.min_depth_valid_fraction <=
+                    self.floor_obstacle_min_valid_fraction <= .50 or
                 not math.isfinite(self.depth_sparse_grace) or
                 not 0.2 <= self.depth_sparse_grace <= 5.0):
             raise ValueError("depth validity thresholds are outside safe bounds")
@@ -948,6 +957,16 @@ class RoomMapper:
             size = self.depth_map_info_size
         if k is None or size != depth.shape:
             self.depth_map_status = "waiting for matching registered-depth calibration"
+            return
+        valid_fraction = float(np.count_nonzero(
+            np.isfinite(depth) & (depth >= self.depth_map_range_min) &
+            (depth <= self.depth_map_range_max))) / max(1, depth.size)
+        if valid_fraction < getattr(self, 'depth_map_min_valid_fraction', .10):
+            # Sparse registered depth can turn isolated noise into retained
+            # planner obstacles. Supplying no observation preserves existing
+            # obstacles until trustworthy depth and LiDAR can clear them.
+            self.depth_map_status = ("registered depth too sparse for planner "
+                                     "update (%.1f%% valid)" % (100 * valid_fraction))
             return
         frame = getattr(getattr(msg, "header", None), "frame_id", "").lstrip('/')
         stamp = self.message_time(msg)
@@ -1993,12 +2012,27 @@ class RoomMapper:
             valid_floor = np.isfinite(floor)
             valid = (low > 0.1) & valid_floor
             floor_pixels = np.broadcast_to(valid_floor, low.shape)
-            if floor_pixels.any():
+            floor_pixel_count = np.count_nonzero(floor_pixels)
+            valid_count = np.count_nonzero(valid)
+            valid_fraction = (float(valid_count) / floor_pixel_count
+                              if floor_pixel_count else 0.0)
+            sparse_floor = (
+                not upper_sparse and
+                getattr(self, "min_depth_valid_fraction", .02) <= valid_fraction <
+                getattr(self, "floor_obstacle_min_valid_fraction", .10))
+            if sparse_floor:
+                # A small but usable set of lower-image returns is common on
+                # dark or reflective floors. It is not dense enough to infer a
+                # floor bump or dropout, so retain upper depth plus LiDAR.
+                self.depth_health = "ready (upper + LiDAR; floor too sparse)"
+                if not source:
+                    source = "upper + LiDAR (floor sparse)"
+            if floor_pixel_count and not sparse_floor:
                 zero_frac = float(np.count_nonzero(floor_pixels & ~valid)) / np.count_nonzero(floor_pixels)
                 if zero_frac - self.floor_zero_frac > 0.30:
                     nearest, source = 0.30, "depth dropout / too close"
                     sectors["center"] = min(sectors["center"], nearest)
-            if np.count_nonzero(valid) > 100:
+            if valid_count > 100 and not sparse_floor:
                 with np.errstate(invalid="ignore", divide="ignore"):
                     ratio = low / floor
                     shift = float(np.median(ratio[valid]))

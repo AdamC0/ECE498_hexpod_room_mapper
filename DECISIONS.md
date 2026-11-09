@@ -1989,3 +1989,30 @@ and ten-second stationary drift was under 1 mm / about 0.04 degrees. Exactly
 one TensorRT mapper is `AUTO PAUSED` with command `stop`, Hector is the only
 SLAM stack, and no deployment motion was commanded. Supervised large-room and
 clicked-route physical validation remain pending.
+
+## Reject sparse lower-depth obstacle inference - 2026-11-09
+
+The robot repeatedly stopped in open space with `floor-bump` at about 0.30 m
+while LiDAR reported roughly 2.5-3.0 m clearance. Direct image measurements
+showed only about 5% valid pixels in the lower native-depth band. A handful of
+near returns were therefore satisfying the old floor-bump count even though
+the frame was too sparse to support a floor-shape decision. Sparse registered
+depth could also create retained planner cells from isolated noise.
+
+Chosen behavior: when the upper band is healthy and lower-floor validity is
+between the existing 2% usable threshold and a new 10% inference threshold,
+skip only lower-floor bump/dropout inference and retain upper-depth plus LiDAR
+collision protection. Zero or below-2% lower coverage remains conservative and
+still produces the 0.30 m dropout stop. Registered-depth frames below 10% valid
+coverage provide no planner observation, so they neither add noise cells nor
+clear retained obstacles without positive evidence.
+
+All 263 native tests pass, including new regressions for 5% lower-floor noise,
+sparse registered-depth planner admission, and the unchanged complete-depth-
+loss stop. The changed deployed files were backed up under
+`backup_pre_sparse_depth_fix_20261109`. The mapper was restarted on a fresh map
+in `AUTO PAUSED`, then resumed under direct supervision. Telemetry showed a
+0.42 m autonomous translation with depth clearance above 2.6 m and LiDAR near
+3.0 m; it then stopped because the enclosed mapped room had no reachable
+frontier, not because of a depth alarm. Treat this as controller/SLAM telemetry;
+operator visual confirmation of physical travel remains separate.
