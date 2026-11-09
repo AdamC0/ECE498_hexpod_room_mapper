@@ -1,5 +1,21 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Fused-frontier resurvey candidate - 2026-11-09
+
+Live read-only diagnosis found autonomy healthy in `SEARCH/plan` but stopped on
+`No reachable frontier`. The fused layer held 218 temporary and 89 persistent
+depth cells, while a replay of the same raw Hector map found a 15-waypoint
+frontier route. The camera showed nearby furniture, so bypassing the fused
+layer would be unsafe.
+
+The 257-test candidate distinguishes this condition with a diagnostic-only
+raw-Hector probe. It never drives the probe route. When only retained depth
+occupancy disconnects the frontier, it may execute up to eight zero-stride
+turns, each requiring a clear 0.35 m rotation footprint and a settled
+depth/LiDAR observation before replanning. It holds if rotation is unsafe or
+the bounded attempts do not reopen a fused route. Deployment and supervised
+motion validation are pending.
+
 ## Repository/documentation audit - 2026-11-08
 
 The repository was clean and synchronized with `origin/main` at commit

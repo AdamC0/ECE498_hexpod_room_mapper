@@ -507,6 +507,13 @@ medium, charging, stale, and unavailable telemetry.
 ## Current deployed behavior (2026-10-19)
 
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
+- If the fused depth layer disconnects every frontier while Hector still has a
+  reachable raw-map frontier, autonomy does not drive the raw-only route.
+  Instead it performs at most eight zero-stride resurvey turns, each gated by
+  the 0.35 m rotation footprint and followed by a settled depth/LiDAR
+  observation. Positive clear evidence may reopen the fused route; otherwise
+  the robot holds position. A genuinely exhausted Hector map does not trigger
+  these turns.
 - Active paths use continuous translation and turning without timed observation
   stops. Heading progress is checked during turns. Recovery retains bounded
   motion; stationary surveys at route endpoints require three scans over two seconds.

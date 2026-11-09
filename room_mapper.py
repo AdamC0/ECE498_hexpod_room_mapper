@@ -510,6 +510,10 @@ class RoomMapper:
                 "~frontier_goal_distance", 1.50)),
             frontier_max_distance=float(rospy.get_param(
                 "~frontier_max_distance", 3.0)))
+        self.frontier_resurvey_max_turns = int(rospy.get_param(
+            "~frontier_resurvey_max_turns", 8))
+        if not 1 <= self.frontier_resurvey_max_turns <= 12:
+            raise ValueError("frontier_resurvey_max_turns must be between 1 and 12")
         if self.use_map and self.reset_map:
             try:
                 self.call_reset_service()
@@ -568,6 +572,8 @@ class RoomMapper:
         self.rejected_motion_scans = 0
         self.pending_spin_yaw = None
         self.spin_stall_count = 0
+        self.frontier_blocked_by_fused = False
+        self.frontier_resurvey_attempts = 0
         self.settle_until = time.time() + self.scan_settle
         self.survey.reset(self.settle_until)
         self.web_map_center = None
@@ -2382,13 +2388,21 @@ class RoomMapper:
     def plan(self, pose, now):
         with self.map_lock:
             path, goal = self.explorer.plan_frontier(pose)
+            raw_probe = getattr(self.explorer, "plan_frontier_slam_only", None)
+            raw_path, _ = ((None, None) if path or not callable(raw_probe)
+                           else raw_probe(pose))
+        self.frontier_blocked_by_fused = bool(raw_path)
         if path:
+            self.frontier_resurvey_attempts = 0
             self.path = path
             self.phase, self.phase_start = "go", now
             rospy.loginfo("%s goal (%.1f, %.1f), %d waypoints",
                           self.explorer.last_plan_kind or "mapping", goal[0], goal[1],
                           len(path))
             return True
+        if raw_path:
+            rospy.logwarn_throttle(
+                5, "Reachable Hector frontier is blocked by retained fused-depth occupancy")
         return False
 
     def follow_path(self, pose):
@@ -2703,8 +2717,39 @@ class RoomMapper:
         elif self.phase == "plan":
             self.send(("stop",))
             if not self.plan(pose, now):
-                self.web_msg = "No reachable frontier; holding position and surveying"
-                self.start_look(now)
+                attempts = getattr(self, "frontier_resurvey_attempts", 0)
+                max_turns = getattr(self, "frontier_resurvey_max_turns", 8)
+                if (getattr(self, "frontier_blocked_by_fused", False) and
+                        attempts < max_turns and not rotation_blocked):
+                    self.frontier_resurvey_attempts = attempts + 1
+                    self.avoid_dir = self.open_side(lidar, pose)
+                    self.phase, self.phase_start = "frontier_resurvey_turn", now
+                    self.web_msg = (
+                        "Hector frontier blocked by retained depth cells; safe depth "
+                        "resurvey turn %d/%d" %
+                        (self.frontier_resurvey_attempts, max_turns))
+                    self.send(("spin", self.avoid_dir), interrupt_object=True)
+                else:
+                    if getattr(self, "frontier_blocked_by_fused", False):
+                        reason = ("rotation footprint is not clear" if rotation_blocked else
+                                  "%d bounded resurvey turns found no safe route" % max_turns)
+                        self.web_msg = (
+                            "Hector frontiers remain blocked by fused obstacles; %s; "
+                            "holding position" % reason)
+                    else:
+                        self.web_msg = (
+                            "No reachable frontier; holding position and surveying")
+                    self.start_look(now)
+        elif self.phase == "frontier_resurvey_turn":
+            was_moving = self.commanded_moving
+            self.send(("spin", self.avoid_dir), interrupt_object=True)
+            if was_moving and not self.commanded_moving:
+                self.phase, self.phase_start = "frontier_resurvey_settle", now
+                self.web_msg = "Depth resurvey turn complete; collecting settled clear evidence"
+        elif self.phase == "frontier_resurvey_settle":
+            self.send(("stop",))
+            if self.survey.ready(now):
+                self.phase, self.phase_start = "plan", now
         elif self.phase in ("go", "user_go"):
             cmd = self.follow_path(pose)
             route_clearance = self.command_lidar_clearance(lidar, cmd)
@@ -2829,6 +2874,8 @@ class RoomMapper:
             self.automatic_map_reset_failure = ""
             self.pending_spin_yaw = None
             self.spin_stall_count = 0
+            self.frontier_blocked_by_fused = False
+            self.frontier_resurvey_attempts = 0
             # Any inference captured against the old map must fail its
             # generation check rather than repopulate cleared landmarks.
             self.motion_generation += 1

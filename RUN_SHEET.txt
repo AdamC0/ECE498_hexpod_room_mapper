@@ -17,6 +17,21 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+FUSED-FRONTIER RESURVEY (257 HOST TESTS; DEPLOYMENT/MOTION PENDING):
+  [x] Reproduce AUTO active with command stop and no fault: fused planner found
+      no frontier while the same raw Hector map produced a 15-waypoint route.
+  [x] Keep fused depth occupancy authoritative; never drive a raw-only route.
+  [x] Allow a resurvey turn only with at least 0.35 m circular rotation
+      clearance, then stop and require the normal settled depth/LiDAR survey.
+  [x] Bound resurvey to eight turns and hold if no fused route reopens.
+  [x] Preserve the 10 s depth-cell hold, positive-clear removal, 0.43 m route
+      clearance, pose/turn-progress guards, and all collision thresholds.
+  [x] Pass all 257 Windows host tests and compile production Python.
+  [ ] Pass all 257 tests natively and deploy with one mapper AUTO PAUSED/stop.
+  [ ] With direct supervision, resume in the reproduced scene and confirm
+      bounded turns collect new views, stale cells clear only with positive
+      evidence, and motion begins only after a fused-safe route exists.
+
 CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYED; MOTION CHECK PENDING):
   [x] Limit moving-detection stops to autonomous frontier phase; exclude manual
       drive and clicked/object routes.

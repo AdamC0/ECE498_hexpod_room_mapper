@@ -791,6 +791,46 @@ class MapperTests(unittest.TestCase):
         n.send.assert_called_once_with(('stop',))
         self.assertEqual(n.state, FAULT)
 
+    def test_plan_detects_frontier_blocked_only_by_fused_depth(self):
+        n = self.node
+        n.map_lock = threading.Lock()
+        n.explorer = SimpleNamespace(
+            plan_frontier=Mock(return_value=(None, None)),
+            plan_frontier_slam_only=Mock(return_value=([(1., 0.)], (1., 0.))),
+            last_plan_kind=None)
+        n.frontier_resurvey_attempts = 3
+        self.assertFalse(n.plan((0., 0., 0.), 10.))
+        self.assertTrue(n.frontier_blocked_by_fused)
+        self.assertEqual(n.frontier_resurvey_attempts, 3)
+
+    def test_fused_frontier_stall_starts_bounded_safe_resurvey_turn(self):
+        n = self.controller()
+        n.phase = 'plan'
+        n.plan = Mock(return_value=False)
+        n.frontier_blocked_by_fused = True
+        n.frontier_resurvey_attempts = 0
+        n.frontier_resurvey_max_turns = 4
+        n.open_side = Mock(return_value=-1.)
+        n.control_step()
+        self.assertEqual(n.phase, 'frontier_resurvey_turn')
+        self.assertEqual(n.frontier_resurvey_attempts, 1)
+        n.send.assert_called_with(('spin', -1.), interrupt_object=True)
+
+    def test_fused_frontier_stall_does_not_turn_inside_occupied_footprint(self):
+        n = self.controller()
+        n.phase = 'plan'
+        n.lidar['nearest'] = .20
+        n.plan = Mock(return_value=False)
+        n.frontier_blocked_by_fused = True
+        n.frontier_resurvey_attempts = 0
+        n.frontier_resurvey_max_turns = 4
+        n.start_look = Mock()
+        n.control_step()
+        n.start_look.assert_called_once()
+        self.assertIn('rotation footprint is not clear', n.web_msg)
+        self.assertNotIn(unittest.mock.call(('spin', 1.), interrupt_object=True),
+                         n.send.call_args_list)
+
     def test_settling_starts_after_slow_stop_call_returns(self):
         n = self.node
         n.drive, n.last_cmd, n.commanded_moving = True, ('forward',), True

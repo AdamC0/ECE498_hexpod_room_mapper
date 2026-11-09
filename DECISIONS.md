@@ -1917,3 +1917,29 @@ mapper is AUTO PAUSED with command `stop`, pose returned near the fresh origin,
 and Hector is the only SLAM stack. Live synchronized object processing and the
 depth planner are active. No physical motion was commanded; supervised novel,
 far, already-mapped, timeout, and active turn-loss cases remain pending.
+## Resurvey frontiers disconnected only by retained depth occupancy - 2026-11-09
+
+The live mapper remained in `SEARCH/plan` with command `stop` and no fault.
+Status reported `No reachable frontier`, 218 temporary and 89 persistent depth
+cells. Depth and LiDAR collision ranges were outside their stop envelopes,
+Hector and the stationary survey were healthy, and exactly one mapper was
+running. Replaying the current raw 512 x 512 Hector map through the planner
+produced a 15-waypoint frontier route, proving that the downstream fused depth
+layer—not frontier exhaustion—disconnected the robot's reachable region.
+
+Chosen: keep all fused occupancy authoritative for travel. When fused planning
+fails, probe `slam_state` only to classify the failure; never drive that probe's
+route. If Hector still has a reachable frontier and the 0.35 m circular
+rotation footprint is clear, perform one zero-stride turn, stop, wait for the
+normal settled survey, and replan. This presents the forward registered-depth
+camera with a new direction so positive depth/LiDAR evidence can clear stale
+cells. Stop after eight attempts, or immediately when rotation is unsafe. A
+normal fused route resets the attempt count; map reset also clears it.
+
+Considered: ignoring depth cells, expiring them by time, or clearing the layer
+wholesale. Rejected because the live camera showed nearby furniture and bags,
+and the retained cells may represent real low geometry invisible to Hector.
+The bounded resurvey preserves the 10 s minimum hold, positive-clear policy,
+0.43 m route clearance, and all collision thresholds. All 257 host tests pass;
+robot-native validation, paused deployment, and supervised resurvey motion are
+pending.

@@ -55,6 +55,22 @@ class SurveyPlannerTests(unittest.TestCase):
         self.assertEqual(grid.state[grid.to_cell(*goal)], FREE)
         self.assertEqual(grid.last_plan_kind, 'survey viewpoint')
 
+    def test_slam_only_probe_finds_frontier_without_weakening_fused_state(self):
+        grid = ExploreMap(size_m=4., cell=.1, robot_radius=.15, margin=.02)
+        grid.slam_state[8:32, 8:32] = FREE
+        grid.state = grid.slam_state.copy()
+        # A retained depth barrier boxes the robot into less than the minimum
+        # useful travel distance even though Hector still has a valid route.
+        grid.state[18:23, 18:23] = OCCUPIED
+        grid.state[20, 20] = FREE
+        grid.have_map = True
+        fused_before = grid.state.copy()
+        self.assertEqual(grid.plan_frontier((.05, .05, 0.)), (None, None))
+        path, goal = grid.plan_frontier_slam_only((.05, .05, 0.))
+        self.assertIsNotNone(path)
+        self.assertIsNotNone(goal)
+        self.assertTrue((grid.state == fused_before).all())
+
     def test_selected_goal_uses_nearest_reachable_safe_cell(self):
         grid = ExploreMap(size_m=4., cell=.1, robot_radius=.15, margin=.02)
         grid.state[8:32, 8:20] = FREE

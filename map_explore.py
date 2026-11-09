@@ -624,3 +624,21 @@ class ExploreMap:
         path = [self.to_world(r, c) for r, c in cells[::2]]
         path.append(self.to_world(*found))
         return path, self.to_world(*found)
+
+    def plan_frontier_slam_only(self, pose, max_cells=60000):
+        """Probe frontiers without the downstream depth-obstacle overlay.
+
+        This is diagnostic only: the returned route must never be driven.  It
+        lets the controller distinguish a genuinely exhausted Hector map from
+        a frontier that is currently disconnected by retained depth cells, so
+        it can collect new settled depth/LiDAR evidence instead of weakening
+        the fused planner's collision constraints.
+        """
+        fused_state = self.state
+        previous_kind = self.last_plan_kind
+        try:
+            self.state = self.slam_state
+            return self.plan_frontier(pose, max_cells=max_cells)
+        finally:
+            self.state = fused_state
+            self.last_plan_kind = previous_kind
