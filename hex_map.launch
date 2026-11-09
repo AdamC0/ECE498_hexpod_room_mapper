@@ -30,19 +30,22 @@
     <param name="map_size" value="512"/>
     <param name="map_start_x" value="0.5"/>
     <param name="map_start_y" value="0.5"/>
-    <!-- These are the values used by the independently proven Team-Red
-         mapper.  The motion thresholds avoid making a single stationary
-         viewpoint artificially overconfident. -->
-    <param name="map_multi_res_levels" value="2"/>
+    <!-- A third coarse level gives scan matching more capture range when the
+         nearest stable room structure is far away.  The controller still
+         consumes the unfiltered raw scan for the 0.45 m emergency envelope. -->
+    <param name="map_multi_res_levels" value="3"/>
     <param name="update_factor_free" value="0.4"/>
     <param name="update_factor_occupied" value="0.9"/>
     <param name="map_update_distance_thresh" value="0.2"/>
     <param name="map_update_angle_thresh" value="0.06"/>
     <param name="laser_z_min_value" value="-1.0"/>
     <param name="laser_z_max_value" value="1.0"/>
-    <param name="laser_min_dist" value="0.20"/>
+    <!-- The installed G4 sees moving leg/body returns around 0.34-0.40 m.
+         Exclude them from SLAM landmarks without changing collision sensing. -->
+    <param name="laser_min_dist" value="0.50"/>
     <param name="map_pub_period" value="1.0"/>
     <param name="advertise_map_service" value="true"/>
-    <param name="scan_subscriber_queue_size" value="5"/>
+    <!-- Never let delayed gait-distorted scans queue behind current geometry. -->
+    <param name="scan_subscriber_queue_size" value="1"/>
   </node>
 </launch>

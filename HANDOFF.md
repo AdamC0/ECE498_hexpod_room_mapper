@@ -1,5 +1,25 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Large-room Hector and clicked-route candidate - 2026-11-09
+
+Live diagnosis found `/odom/filtered` has no publisher. `/imu/raw` and
+`/imu/filtered` have registered publishers but produced no samples during a
+12-second rate check, so no unverified pose prior is enabled. The candidate
+instead applies the hardware-backed Hector tuning: exclude the verified
+0.34-0.40 m moving body/leg returns with `laser_min_dist=0.50`, use three
+multiresolution scan-matching levels, and reduce the subscriber queue to one.
+Raw `/scan` remains continuous and the controller's collision path remains
+unfiltered.
+
+The clicked-route stop was a separate state-machine bug. A fused-prefix or
+directional-LiDAR invalidation cleared the selected path and changed its phase
+to generic frontier planning. The candidate retains the requested click,
+replans around new fused occupancy, and performs bounded recovery for a
+directional LiDAR block. It pauses with an explicit no-detour message only when
+the selected goal truly has no reachable known-free route. All 261 host tests
+pass and production Python compiles. Native validation, fresh-Hector paused
+deployment, and supervised large-room/clicked-route motion remain pending.
+
 ## Fused-frontier resurvey deployed - 2026-11-09
 
 Live read-only diagnosis found autonomy healthy in `SEARCH/plan` but stopped on

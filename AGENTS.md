@@ -133,6 +133,15 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+The large-room Hector and clicked-route candidate has 261 passing Windows host
+tests. It uses a Hector-only 0.50 m minimum range, three multiresolution levels,
+and a one-scan queue; controller collision LiDAR remains raw and unchanged.
+`/odom/filtered` has no publisher and the advertised IMU topics produced no
+samples, so no unverified pose prior is enabled. Clicked/object goals now
+survive fused-path replanning and directional-LiDAR recovery instead of falling
+through to frontier exploration. Robot-native validation, fresh-map deployment,
+and supervised physical checks remain pending.
+
 The fused-frontier resurvey fix is deployed at commit `0816ea5` from
 2026-11-09. All 257 tests pass on the Windows host and natively on PT. When the
 fused depth layer disconnects all routes but raw Hector still has a reachable

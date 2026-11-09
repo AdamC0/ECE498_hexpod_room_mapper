@@ -280,7 +280,9 @@ class HectorLaunchTests(unittest.TestCase):
                   for node in hector.findall('param')}
         self.assertEqual(args['scan_topic'], 'scan')
         self.assertEqual(params['scan_topic'], '$(arg scan_topic)')
-        self.assertEqual(params['laser_min_dist'], '0.20')
+        self.assertEqual(params['laser_min_dist'], '0.50')
+        self.assertEqual(params['map_multi_res_levels'], '3')
+        self.assertEqual(params['scan_subscriber_queue_size'], '1')
         self.assertEqual(params['map_update_distance_thresh'], '0.2')
         self.assertEqual(params['map_update_angle_thresh'], '0.06')
 

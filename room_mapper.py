@@ -2358,7 +2358,8 @@ class RoomMapper:
         # A 360-degree LiDAR already surveys the room without rotating the body.
         self.phase, self.phase_start, self.turned, self.last_yaw = "survey", now, 0.0, None
 
-    def start_navigation(self, x, y, label="selected point", standoff=0.0):
+    def start_navigation(self, x, y, label="selected point", standoff=0.0,
+                         replanning=False):
         """Plan a web-requested route while preserving all control safety gates."""
         # Stop the previous autonomous burst before spending time planning.
         self.send(("stop",))
@@ -2370,7 +2371,15 @@ class RoomMapper:
         with self.map_lock:
             path, actual = self.explorer.plan_to_point(pose, (x, y), standoff)
         if not path or actual is None:
-            self.stop_manual("Navigation unavailable: no reachable known-free route")
+            self.path = []
+            self.nav_goal = None
+            if replanning:
+                self.phase = "goal_stopped"
+                self.stop_manual(
+                    "Clicked route paused: a new fused obstacle leaves no reachable "
+                    "known-free detour")
+            else:
+                self.stop_manual("Navigation unavailable: no reachable known-free route")
             return False
         self.manual_cmd, self.manual_until = None, 0.0
         self.paused = False
@@ -2380,8 +2389,9 @@ class RoomMapper:
         self.state, self.state_start = SEARCH, time.time()
         self.phase, self.phase_start = "user_go", time.time()
         adjustment = math.hypot(actual[0] - x, actual[1] - y)
-        self.web_msg = ("Navigating to %s via safe goal %.2f, %.2f m%s" %
-                        (label, actual[0], actual[1],
+        action = "Replanned route to" if replanning else "Navigating to"
+        self.web_msg = ("%s %s via safe goal %.2f, %.2f m%s" %
+                        (action, label, actual[0], actual[1],
                          " (adjusted %.2f m)" % adjustment if adjustment > .15 else ""))
         return True
 
@@ -2779,16 +2789,34 @@ class RoomMapper:
                 self.phase = "plan"
             elif not fused_path_clear:
                 self.send(("stop",))
-                self.path = []
-                self.phase = "plan"
-                self.set_state(HOLD, "planned path invalidated by fused obstacle map")
-                self.web_msg = "Route replanning: newly mapped obstacle blocks the path"
+                if self.phase == "user_go" and self.user_goal is not None:
+                    x, y, label, standoff = self.user_goal
+                    self.start_navigation(x, y, label, standoff, replanning=True)
+                else:
+                    self.path = []
+                    self.phase = "plan"
+                    self.set_state(HOLD, "planned path invalidated by fused obstacle map")
+                    self.web_msg = "Route replanning: newly mapped obstacle blocks the path"
             elif route_clearance < self.lidar_stop:
                 self.send(("stop",))
-                self.path = []
-                self.phase = "plan"
-                self.set_state(HOLD, "planned travel direction blocked by LiDAR %.2f m" %
-                               route_clearance)
+                route_reason = "planned travel direction blocked by LiDAR %.2f m" % \
+                    route_clearance
+                if self.phase == "user_go":
+                    if self.begin_recovery(lidar, rotation_blocked, rear_clear,
+                                           route_reason, now, pose):
+                        command = (("back",) if self.recovery_action == "back" else
+                                   ("spin", self.avoid_dir))
+                        self.send(command, interrupt_object=True)
+                    else:
+                        self.set_state(HOLD, route_reason +
+                                       "; no safe rotation or reverse route")
+                        self.stop_manual(
+                            "Clicked route paused: directional LiDAR blockage has no "
+                            "safe rotation or reverse recovery")
+                else:
+                    self.path = []
+                    self.phase = "plan"
+                    self.set_state(HOLD, route_reason)
             elif now - self.phase_start > 45:
                 if self.phase == "user_go":
                     self.send(("stop",))

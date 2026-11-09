@@ -507,6 +507,13 @@ medium, charging, stale, and unavailable telemetry.
 ## Current deployed behavior (2026-10-19)
 
 - Hector consumes raw `/scan` continuously. `/scan_stable` is diagnostic only.
+- Large-room scan matching uses three multiresolution levels, a one-scan
+  subscriber queue, and a 0.50 m Hector-only minimum range that excludes the
+  installed robot's verified 0.34-0.40 m moving leg/body returns. The
+  controller still consumes the unfiltered raw scan for its 0.45 m emergency
+  envelope. `/odom/filtered` currently has no publisher and the advertised IMU
+  streams produced no samples during validation, so neither is used as an
+  unverified Hector pose prior.
 - If the fused depth layer disconnects every frontier while Hector still has a
   reachable raw-map frontier, autonomy does not drive the raw-only route.
   Instead it performs at most eight zero-stride resurvey turns, each gated by
@@ -529,6 +536,11 @@ medium, charging, stale, and unavailable telemetry.
   clearance scales with translation speed while retaining the 0.45 m circular
   LiDAR envelope and a 0.02 m margin. This applies to mapping and clicked/object
   routes. Cancel Route stops and pauses a route.
+- Clicked/object routes retain their requested target when a newly fused depth
+  obstacle invalidates the current path or directional LiDAR blocks travel.
+  They replan or perform bounded recovery toward the same goal; only a genuine
+  lack of a reachable known-free detour pauses the selected route. They never
+  fall through into ordinary frontier exploration.
 - If the front remains blocked after 2.5 seconds of turning, corner recovery
   escalates to the same guarded reverse escape when rear LiDAR is clear.
 - One weak turn no longer invalidates SLAM. Three consecutive turn bursts with

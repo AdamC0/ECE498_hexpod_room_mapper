@@ -1955,3 +1955,30 @@ with the existing collision gates active. The supervising operator physically
 observed the robot, reported that it worked properly, and explicitly marked the
 test successful. Treat this as operator-confirmed physical validation, distinct
 from unit-test success and SLAM telemetry.
+
+## Improve large-room scan matching and preserve clicked goals - 2026-11-09
+
+The operator reported two issues: localization is less reliable in large open
+rooms, and map-click routes stop shortly after starting. Live inspection found
+that `/odom/filtered` has no publisher. The IMU nodes advertise `/imu/raw` and
+`/imu/filtered`, but neither topic produced a sample during a 12-second rate
+check. Enabling either as a Hector prior without valid frames would create a
+false or conflicting transform source.
+
+Chosen large-room changes: keep continuous raw scans so Hector can estimate
+translation, but set Hector's own minimum range to 0.50 m to reject the
+installed robot's measured 0.34-0.40 m moving leg/body returns. Increase scan
+matching from two to three multiresolution levels for more coarse capture range
+when stable structure is distant, and reduce the scan subscriber queue from
+five to one so a delayed gait-distorted scan cannot backlog behind current
+geometry. These settings do not alter the controller's raw-scan 0.45 m
+emergency stop or planner inflation.
+
+The clicked-route cause was deterministic: when `path_prefix_clear()` failed
+or directional LiDAR clearance fell below the stop envelope, `user_go` cleared
+its path and changed to generic `plan`, abandoning the click. Chosen: replan a
+fused-path invalidation to the same requested point, preserve `user_go` through
+bounded directional-LiDAR recovery, and pause with an explicit no-known-free-
+detour message only if replanning actually fails. Unknown or occupied cells
+remain forbidden. All 261 host tests pass; robot-native validation, deployment
+on a fresh Hector frame, and supervised physical checks are pending.

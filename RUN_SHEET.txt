@@ -17,6 +17,20 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+LARGE-ROOM HECTOR + CLICKED-ROUTE FIX (261 HOST TESTS; DEPLOYMENT PENDING):
+  [x] Confirm `/odom/filtered` has no publisher and advertised raw/filtered IMU
+      topics produce no samples; do not enable an invalid pose prior.
+  [x] Set Hector-only minimum range to 0.50 m, three multiresolution levels,
+      and one queued scan while retaining raw controller collision sensing.
+  [x] Replan fused-path invalidation to the original clicked/object goal.
+  [x] Preserve the selected goal through directional-LiDAR recovery and pause
+      explicitly only when no reachable known-free detour exists.
+  [x] Pass all 261 Windows host tests and compile production Python.
+  [ ] Pass all 261 tests natively and deploy paused on a fresh Hector frame.
+  [ ] Under direct supervision, validate stationary/open-room pose stability,
+      a clicked route with a fused replan, directional blockage recovery, goal
+      arrival, and the explicit no-detour pause.
+
 FUSED-FRONTIER RESURVEY (DEPLOYED; SUPERVISED MOTION PENDING):
   [x] Reproduce AUTO active with command stop and no fault: fused planner found
       no frontier while the same raw Hector map produced a 15-waypoint route.

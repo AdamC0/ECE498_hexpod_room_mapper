@@ -284,6 +284,74 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.path, [])
         self.assertIn('newly mapped obstacle', n.web_msg)
 
+    def test_new_fused_obstacle_replans_clicked_route_without_losing_goal(self):
+        n = self.controller()
+        n.phase = 'user_go'
+        n.user_goal = (2., 0., 'selected point', 0.)
+        n.nav_goal = (2., 0.)
+        n.map_lock = threading.Lock()
+        n.explorer.path_prefix_clear = Mock(return_value=False)
+        n.explorer.plan_to_point = Mock(return_value=(
+            [(.2, .2), (.4, .2), (.6, .2)], (.6, .2)))
+        n.follow_path = Mock(return_value=('forward',))
+        n.control_step()
+        self.assertFalse(n.paused)
+        self.assertEqual(n.phase, 'user_go')
+        self.assertEqual(n.user_goal, (2., 0., 'selected point', 0.))
+        self.assertEqual(n.nav_goal, (.6, .2))
+        self.assertEqual(n.path[-1], (.6, .2))
+        self.assertIn('Replanned route to selected point', n.web_msg)
+
+    def test_clicked_route_pauses_only_when_fused_replan_has_no_detour(self):
+        n = self.controller()
+        n.phase = 'user_go'
+        n.user_goal = (2., 0., 'selected point', 0.)
+        n.nav_goal = (2., 0.)
+        n.map_lock = threading.Lock()
+        n.explorer.path_prefix_clear = Mock(return_value=False)
+        n.explorer.plan_to_point = Mock(return_value=(None, None))
+        n.follow_path = Mock(return_value=('forward',))
+        n.control_step()
+        self.assertTrue(n.paused)
+        self.assertEqual(n.phase, 'goal_stopped')
+        self.assertEqual(n.user_goal, (2., 0., 'selected point', 0.))
+        self.assertIsNone(n.nav_goal)
+        self.assertIn('no reachable known-free detour', n.web_msg)
+
+    def test_directional_lidar_block_keeps_clicked_goal_during_recovery(self):
+        n = self.controller()
+        n.phase = 'user_go'
+        n.user_goal = (2., 0., 'selected point', 0.)
+        n.nav_goal = (2., 0.)
+        n.explorer.path_prefix_clear = Mock(return_value=True)
+        n.follow_path = Mock(return_value=('translate', np.radians(30.)))
+        n.command_lidar_clearance = Mock(return_value=.30)
+        n.control_step()
+        self.assertEqual(n.state, AVOID)
+        self.assertEqual(n.phase, 'user_go')
+        self.assertEqual(n.user_goal, (2., 0., 'selected point', 0.))
+        self.assertIsNotNone(n.recovery_action)
+        self.assertIn(n.send.call_args_list[-1], (
+            unittest.mock.call(('spin', n.avoid_dir), interrupt_object=True),
+            unittest.mock.call(('back',), interrupt_object=True)))
+
+    def test_directional_lidar_block_pauses_clicked_route_without_safe_recovery(self):
+        n = self.controller()
+        n.phase = 'user_go'
+        n.user_goal = (2., 0., 'selected point', 0.)
+        n.nav_goal = (2., 0.)
+        n.explorer.path_prefix_clear = Mock(return_value=True)
+        n.follow_path = Mock(return_value=('translate', np.radians(30.)))
+        n.command_lidar_clearance = Mock(return_value=.30)
+        n.lidar['nearest'] = .20
+        n.lidar['rear_path_clearance'] = 0.
+        n.control_step()
+        self.assertTrue(n.paused)
+        self.assertEqual(n.state, HOLD)
+        self.assertEqual(n.phase, 'user_go')
+        self.assertEqual(n.user_goal, (2., 0., 'selected point', 0.))
+        self.assertIn('no safe rotation or reverse recovery', n.web_msg)
+
     def test_manual_forward_bypasses_autonomous_pipeline_and_keeps_auto_paused(self):
         n = self.controller()
         n.manual_cmd, n.manual_until, n.paused = 'forward', time.time() + .5, True
