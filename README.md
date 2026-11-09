@@ -513,7 +513,9 @@ medium, charging, stale, and unavailable telemetry.
   the 0.35 m rotation footprint and followed by a settled depth/LiDAR
   observation. Positive clear evidence may reopen the fused route; otherwise
   the robot holds position. A genuinely exhausted Hector map does not trigger
-  these turns.
+  these turns. The reproduced fused-frontier stall, bounded recovery, route
+  reopening, and subsequent physical behavior were validated under direct
+  operator supervision on 2026-11-09.
 - Active paths use continuous translation and turning without timed observation
   stops. Heading progress is checked during turns. Recovery retains bounded
   motion; stationary surveys at route endpoints require three scans over two seconds.

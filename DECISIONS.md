@@ -1947,4 +1947,11 @@ the live Hector frame. Exactly one TensorRT mapper is `AUTO PAUSED` with
 command `stop`, and Hector is the only SLAM stack. Scan/pose measured about
 12.1/10.2 Hz, all camera streams remained around 28-33 Hz, and voltage was live
 near 1 Hz. No deployment motion was commanded; supervised resurvey turning,
-positive clearing, and fused-route reopening remain pending.
+positive clearing, and fused-route reopening initially remained pending.
+
+Supervised follow-up on 2026-11-09: the controller reopened a fused route in
+the reproduced scene, entered `SEARCH/go`, and issued spin and forward commands
+with the existing collision gates active. The supervising operator physically
+observed the robot, reported that it worked properly, and explicitly marked the
+test successful. Treat this as operator-confirmed physical validation, distinct
+from unit-test success and SLAM telemetry.

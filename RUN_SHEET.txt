@@ -30,9 +30,12 @@ FUSED-FRONTIER RESURVEY (DEPLOYED; SUPERVISED MOTION PENDING):
   [x] Pass all 257 tests natively and deploy commit 0816ea5 with matching
       hashes, one TensorRT mapper AUTO PAUSED/stop, and Hector only. Preserve
       the existing Hector frame; no motion was commanded.
-  [ ] With direct supervision, resume in the reproduced scene and confirm
+  [x] With direct supervision, resume in the reproduced scene and confirm
       bounded turns collect new views, stale cells clear only with positive
       evidence, and motion begins only after a fused-safe route exists.
+      2026-11-09: the controller reopened a fused route, entered SEARCH/go,
+      and issued spin/forward commands; the supervising operator confirmed
+      that the robot worked properly and marked the test successful.
 
 CLOSE-OBJECT VERIFICATION / TURN-LOSS RESET (DEPLOYED; MOTION CHECK PENDING):
   [x] Limit moving-detection stops to autonomous frontier phase; exclude manual

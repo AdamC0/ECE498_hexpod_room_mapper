@@ -22,8 +22,15 @@ TensorRT mapper is `AUTO PAUSED` with command `stop`; Hector is the only SLAM
 stack. Scan/pose measured about 12.1/10.2 Hz, RGB 30-32 Hz, native depth
 28-31 Hz, and registered depth 29-33 Hz. Voltage recovered near 1 Hz and last
 reported 11.68 V (about 67%). No motion was commanded during deployment, so
-the bounded live resurvey and subsequent route reopening remain pending direct
-supervision.
+the bounded live resurvey and subsequent route reopening initially remained
+pending direct supervision.
+
+Supervised follow-up: the operator resumed autonomy in the reproduced scene.
+The controller reopened a fused route, entered `SEARCH/go`, and issued spin and
+forward commands while the normal depth/LiDAR gates remained active. The
+operator physically observed the behavior, reported that it worked properly,
+and explicitly marked the test successful. This is direct supervised physical
+validation, separate from the 257-test results and SLAM-reported pose changes.
 
 ## Repository/documentation audit - 2026-11-08
 

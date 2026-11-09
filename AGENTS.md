@@ -142,7 +142,10 @@ depth/LiDAR evidence; the raw-only route is never driven. The robot holds if
 the footprint is unsafe or the bounded attempts do not reopen a fused route.
 Exactly one TensorRT mapper is `AUTO PAUSED` with command `stop`, Hector is the
 only SLAM stack, and no deployment motion was commanded. Supervised live
-resurvey and route-reopening validation remain pending.
+follow-up then reopened a fused route and issued spin/forward commands; the
+operator physically observed the robot, reported proper behavior, and marked
+the test successful. Keep that physical confirmation separate from unit-test
+and SLAM-telemetry evidence.
 
 The deployed baseline is commit `3e4c185` (documented by `3ec1299`) from
 2026-11-02. All 253 tests passed on the Windows host and natively on PT; the
