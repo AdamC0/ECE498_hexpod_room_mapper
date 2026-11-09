@@ -1940,6 +1940,11 @@ Considered: ignoring depth cells, expiring them by time, or clearing the layer
 wholesale. Rejected because the live camera showed nearby furniture and bags,
 and the retained cells may represent real low geometry invisible to Hector.
 The bounded resurvey preserves the 10 s minimum hold, positive-clear policy,
-0.43 m route clearance, and all collision thresholds. All 257 host tests pass;
-robot-native validation, paused deployment, and supervised resurvey motion are
-pending.
+0.43 m route clearance, and all collision thresholds. Commit `0816ea5` passes
+all 257 tests on the host and natively on PT. The changed files were backed up
+under `backup_pre_0816ea5` and deployed with matching hashes while preserving
+the live Hector frame. Exactly one TensorRT mapper is `AUTO PAUSED` with
+command `stop`, and Hector is the only SLAM stack. Scan/pose measured about
+12.1/10.2 Hz, all camera streams remained around 28-33 Hz, and voltage was live
+near 1 Hz. No deployment motion was commanded; supervised resurvey turning,
+positive clearing, and fused-route reopening remain pending.

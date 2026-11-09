@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-FUSED-FRONTIER RESURVEY (257 HOST TESTS; DEPLOYMENT/MOTION PENDING):
+FUSED-FRONTIER RESURVEY (DEPLOYED; SUPERVISED MOTION PENDING):
   [x] Reproduce AUTO active with command stop and no fault: fused planner found
       no frontier while the same raw Hector map produced a 15-waypoint route.
   [x] Keep fused depth occupancy authoritative; never drive a raw-only route.
@@ -27,7 +27,9 @@ FUSED-FRONTIER RESURVEY (257 HOST TESTS; DEPLOYMENT/MOTION PENDING):
   [x] Preserve the 10 s depth-cell hold, positive-clear removal, 0.43 m route
       clearance, pose/turn-progress guards, and all collision thresholds.
   [x] Pass all 257 Windows host tests and compile production Python.
-  [ ] Pass all 257 tests natively and deploy with one mapper AUTO PAUSED/stop.
+  [x] Pass all 257 tests natively and deploy commit 0816ea5 with matching
+      hashes, one TensorRT mapper AUTO PAUSED/stop, and Hector only. Preserve
+      the existing Hector frame; no motion was commanded.
   [ ] With direct supervision, resume in the reproduced scene and confirm
       bounded turns collect new views, stale cells clear only with positive
       evidence, and motion begins only after a fused-safe route exists.

@@ -133,6 +133,17 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+The fused-frontier resurvey fix is deployed at commit `0816ea5` from
+2026-11-09. All 257 tests pass on the Windows host and natively on PT. When the
+fused depth layer disconnects all routes but raw Hector still has a reachable
+frontier, the mapper may perform up to eight zero-stride resurvey turns. Each
+turn requires a clear 0.35 m rotation footprint and is followed by settled
+depth/LiDAR evidence; the raw-only route is never driven. The robot holds if
+the footprint is unsafe or the bounded attempts do not reopen a fused route.
+Exactly one TensorRT mapper is `AUTO PAUSED` with command `stop`, Hector is the
+only SLAM stack, and no deployment motion was commanded. Supervised live
+resurvey and route-reopening validation remain pending.
+
 The deployed baseline is commit `3e4c185` (documented by `3ec1299`) from
 2026-11-02. All 253 tests passed on the Windows host and natively on PT; the
 same 253-test host suite passed again during the 2026-11-08 documentation

@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Fused-frontier resurvey candidate - 2026-11-09
+## Fused-frontier resurvey deployed - 2026-11-09
 
 Live read-only diagnosis found autonomy healthy in `SEARCH/plan` but stopped on
 `No reachable frontier`. The fused layer held 218 temporary and 89 persistent
@@ -8,13 +8,22 @@ depth cells, while a replay of the same raw Hector map found a 15-waypoint
 frontier route. The camera showed nearby furniture, so bypassing the fused
 layer would be unsafe.
 
-The 257-test candidate distinguishes this condition with a diagnostic-only
+The deployed revision distinguishes this condition with a diagnostic-only
 raw-Hector probe. It never drives the probe route. When only retained depth
 occupancy disconnects the frontier, it may execute up to eight zero-stride
 turns, each requiring a clear 0.35 m rotation footprint and a settled
 depth/LiDAR observation before replanning. It holds if rotation is unsafe or
-the bounded attempts do not reopen a fused route. Deployment and supervised
-motion validation are pending.
+the bounded attempts do not reopen a fused route.
+
+Commit `0816ea5` passes all 257 tests on the Windows host and natively on PT.
+The eight changed files were backed up under `backup_pre_0816ea5`, copied with
+matching hashes, and the existing Hector frame was preserved. Exactly one
+TensorRT mapper is `AUTO PAUSED` with command `stop`; Hector is the only SLAM
+stack. Scan/pose measured about 12.1/10.2 Hz, RGB 30-32 Hz, native depth
+28-31 Hz, and registered depth 29-33 Hz. Voltage recovered near 1 Hz and last
+reported 11.68 V (about 67%). No motion was commanded during deployment, so
+the bounded live resurvey and subsequent route reopening remain pending direct
+supervision.
 
 ## Repository/documentation audit - 2026-11-08
 
