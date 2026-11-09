@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Large-room Hector and clicked-route candidate - 2026-11-09
+## Large-room Hector and clicked-route fix deployed - 2026-11-09
 
 Live diagnosis found `/odom/filtered` has no publisher. `/imu/raw` and
 `/imu/filtered` have registered publishers but produced no samples during a
@@ -16,9 +16,18 @@ directional-LiDAR invalidation cleared the selected path and changed its phase
 to generic frontier planning. The candidate retains the requested click,
 replans around new fused occupancy, and performs bounded recovery for a
 directional LiDAR block. It pauses with an explicit no-detour message only when
-the selected goal truly has no reachable known-free route. All 261 host tests
-pass and production Python compiles. Native validation, fresh-Hector paused
-deployment, and supervised large-room/clicked-route motion remain pending.
+the selected goal truly has no reachable known-free route.
+
+Commit `c2f45df` passes all 261 tests on the Windows host and natively on PT.
+The nine changed files were backed up under `backup_pre_c2f45df` and copied
+with matching hashes. Hector was deliberately restarted on a fresh frame so
+the new parameters took effect; live ROS parameters verified `0.5 / 3 / 1` for
+minimum range, multiresolution levels, and scan queue. Scan/pose were about
+12.1/12.3 Hz and all camera streams about 29-31 Hz. Stationary ten-second drift
+was under 1 mm and about 0.04 degrees. Exactly one TensorRT mapper is
+`AUTO PAUSED` with command `stop`, Hector is the only SLAM stack, and no
+deployment motion was commanded. Supervised open-room and clicked-route motion
+remain pending.
 
 ## Fused-frontier resurvey deployed - 2026-11-09
 

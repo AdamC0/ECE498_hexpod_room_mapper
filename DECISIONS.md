@@ -1980,5 +1980,12 @@ its path and changed to generic `plan`, abandoning the click. Chosen: replan a
 fused-path invalidation to the same requested point, preserve `user_go` through
 bounded directional-LiDAR recovery, and pause with an explicit no-known-free-
 detour message only if replanning actually fails. Unknown or occupied cells
-remain forbidden. All 261 host tests pass; robot-native validation, deployment
-on a fresh Hector frame, and supervised physical checks are pending.
+remain forbidden. Commit `c2f45df` passes all 261 tests on the host and
+natively on PT. The changed files were backed up under `backup_pre_c2f45df`
+and deployed with matching hashes. Hector was restarted on a fresh frame; live
+parameters verified minimum range 0.5 m, three multiresolution levels, and one
+queued scan. Scan/pose were about 12.1/12.3 Hz, camera streams about 29-31 Hz,
+and ten-second stationary drift was under 1 mm / about 0.04 degrees. Exactly
+one TensorRT mapper is `AUTO PAUSED` with command `stop`, Hector is the only
+SLAM stack, and no deployment motion was commanded. Supervised large-room and
+clicked-route physical validation remain pending.
