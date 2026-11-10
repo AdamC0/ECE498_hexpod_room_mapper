@@ -1132,3 +1132,6 @@ Only one mapper process should exist. Tests do not command the physical robot.
   frames below 10% valid coverage do not add or clear planner obstacles.
 - Rebooting or resetting Hector loses the in-memory map. Object landmarks are
   cleared when map trust is lost or the map is reset.
+- Map taps capture the displayed image's exact center/scale on pointer-down and
+  submit navigation on pointer-up. Map refreshes preload and swap atomically, so
+  the 800 ms refresh cycle cannot temporarily remove or mismatch click metadata.

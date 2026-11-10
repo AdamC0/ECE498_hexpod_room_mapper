@@ -2016,3 +2016,22 @@ in `AUTO PAUSED`, then resumed under direct supervision. Telemetry showed a
 3.0 m; it then stopped because the enclosed mapped room had no reachable
 frontier, not because of a depth alarm. Treat this as controller/SLAM telemetry;
 operator visual confirmation of physical travel remains separate.
+
+## Make live-map taps independent of image refresh timing - 2026-11-09
+
+The map-click HTTP endpoint and point planner were verified live: a direct
+request entered `SEARCH/user_go`, selected a reachable adjusted goal, and issued
+a motion command with the normal collision gates active. The remaining failure
+was in the browser gesture path. The map JPEG refreshes every 800 ms; the old UI
+cleared `mapView.rendered` during every load and depended on a later synthesized
+`click` event. A press coinciding with a refresh could therefore be discarded as
+having no coordinates, or a touch/pointer sequence could fail to synthesize the
+expected click.
+
+Chosen behavior: preload each refreshed image and atomically swap the image and
+its coordinate transform. Capture the displayed transform and image point on
+pointer-down, distinguish a drag using the existing five-pixel threshold, and
+submit navigation directly on pointer-up. Pointer cancellation never navigates.
+This preserves pan/zoom behavior and ensures a tap is interpreted against the
+exact image the operator pressed. All 17 web tests and all 263 native tests pass.
+The deployed files were backed up under `backup_pre_map_click_fix_20261109`.
