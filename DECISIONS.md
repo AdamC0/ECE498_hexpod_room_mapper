@@ -2070,3 +2070,21 @@ track stealing, suppression radius, label aliases, and rejection reporting.
 Production Python compiles. PT was unavailable, so robot-native, labeled-scene,
 and deployment validation remain pending; no motion or external state change
 occurred.
+
+Deployment follow-up: all 269 tests passed natively under Python 3 with
+warnings treated as errors. The initial `python` invocation selected Python 2
+and failed before collection on `types.SimpleNamespace`; the production
+launcher and successful validation both use `/usr/bin/python3`. The previous
+eight files were backed up under `backup_pre_f15327d`, and deployed hashes
+match commit `f15327d`. After the documented post-reboot `/start_scan` recovery,
+LiDAR returned near 12 Hz. The safe launcher started a fresh Hector frame and
+exactly one TensorRT mapper `AUTO PAUSED` with command `stop`; RTAB-Map is not
+running and no motion was commanded. Scan/pose measured about 12.0/10.9-12.0
+Hz, RGB/native/registered depth about 27-31 Hz, and battery telemetry reported
+12.62 V / 100%.
+
+The stationary live pipeline processed 32 of 33 snapshots with no replacements
+and reported two detections, zero mapped, with the explicit new reason `2
+insufficient registered depth`. Treat this as deployment and diagnostic-path
+evidence only. A labeled depth-offset object, two nearby same-class objects,
+and preferred/fallback alias continuity remain pending controlled scene checks.

@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Object landmark association and depth-ray correction (offline candidate)
+## Object landmark association and depth-ray correction (deployed; scene check pending)
 
 The object mapper now limits same-class track association to the same
 class-specific position tolerance required for confirmation. The former 0.65 m
@@ -17,9 +17,15 @@ labels for TVs, boards, shelves/cabinets, trash bins, and luggage share one
 canonical map class. Status now distinguishes insufficient depth, unreliable
 depth, and missing image-time TF when a visible box cannot be mapped. No
 confidence, repeated-observation, synchronization, TF, or settled-motion gate
-was relaxed. All 269 host tests pass with warnings enabled as errors, and
-production Python compiles. The robot was unavailable, so native and labeled-
-scene validation remain pending and this candidate is not deployed.
+was relaxed. All 269 host and robot-native tests pass with warnings enabled as
+errors, and production Python compiles. Commit `f15327d` is deployed with
+matching file hashes after backup to `backup_pre_f15327d`. A fresh Hector frame
+and exactly one TensorRT mapper are live `AUTO PAUSED` on command `stop`; no
+motion was commanded. Live inference reported two visible detections and
+explicitly classified both as unmapped because registered depth was
+insufficient. This validates the diagnostic path, not detector or placement
+quality; the labeled depth-offset and nearby-same-class scene checks remain
+pending.
 
 ## Close-object verification and turn-loss recovery (deployed; motion check pending)
 

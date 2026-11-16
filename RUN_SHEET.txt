@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-OBJECT LANDMARK RELIABILITY CANDIDATE (OFFLINE; NOT DEPLOYED):
+OBJECT LANDMARK RELIABILITY (DEPLOYED; LABELED SCENE CHECKS PENDING):
   [x] Limit same-class association and manual-removal suppression to the
       applicable confirmation-position tolerance instead of the full 0.65 m
       search radius.
@@ -28,9 +28,15 @@ OBJECT LANDMARK RELIABILITY CANDIDATE (OFFLINE; NOT DEPLOYED):
   [x] Report counts for insufficient depth, unreliable depth, and unavailable
       image-time map TF when detections are visible but cannot be mapped.
   [x] Pass all 269 Windows host tests under warnings-as-errors and compile
-      production Python. No robot connection or deployment was attempted.
-  [ ] Pass all tests natively on PT while AUTO PAUSED with Hector as the only
-      SLAM stack; do not deploy or move the robot during this check.
+      production Python.
+  [x] Pass all 269 tests natively on PT, deploy commit f15327d with matching
+      hashes after backup_pre_f15327d, and start one TensorRT mapper AUTO
+      PAUSED/stop on a fresh Hector frame. Verify scan/pose around 12/11-12 Hz,
+      camera streams around 27-31 Hz, battery 12.62 V / 100%, and no RTAB-Map.
+      No motion was commanded.
+  [x] Confirm the live diagnostic distinguishes unmapped detections: the first
+      stopped view reported 2 detections / 0 mapped with `2 insufficient
+      registered depth`, 32/33 snapshots processed, and zero replacements.
   [ ] In a labeled stationary scene, verify a depth-hole/offset-surface object
       gets a stable map point and the status explains every unmapped box.
   [ ] Place two same-class objects about 0.30-0.60 m apart and verify they form

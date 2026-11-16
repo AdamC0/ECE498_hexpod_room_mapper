@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Object landmark reliability candidate - 2026-11-16
+## Object landmark reliability deployed - 2026-11-16
 
 Offline review found that `_object_merge_distance:=0.65` was also used for
 track association even though confirmation accepts only 0.25 m expected-class
@@ -20,10 +20,20 @@ image-time map TF. Confidence thresholds, three-hit/eight-frame validation,
 box overlap, settled capture, synchronization, and map-trust gates are
 unchanged.
 
-All 269 Windows-host tests pass under `-W error`; production Python compiles.
-The robot was unavailable. No robot-native test, deployment, sensor check, or
-motion occurred. Run the new labeled-scene checks in `RUN_SHEET.txt` before
-calling the behavior validated or deployed.
+All 269 Windows-host and robot-native tests pass under `-W error`; production
+Python compiles. Commit `f15327d` was deployed with byte-matching hashes after
+the eight previous files were backed up under `backup_pre_f15327d`. Post-reboot
+LiDAR required the documented `/start_scan` service. A fresh Hector frame and
+exactly one TensorRT mapper are live `AUTO PAUSED` with command `stop`; no
+RTAB-Map process exists and no motion was commanded. Scan/pose measured about
+12.0/10.9-12.0 Hz, RGB/native/registered depth about 27-31 Hz, and `/voltage`
+reported 12.62 V / 100%.
+
+The stopped live view processed 32 of 33 snapshots with no replacements. It
+reported two detections, zero mapped, and the new explicit reason `2
+insufficient registered depth`. This is deployment and diagnostic-path
+evidence, not a labeled detector/placement validation. Run the remaining scene
+checks in `RUN_SHEET.txt` before claiming improved real-object accuracy.
 
 ## Large-room Hector and clicked-route fix deployed - 2026-11-09
 
