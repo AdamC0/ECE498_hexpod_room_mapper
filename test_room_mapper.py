@@ -1107,10 +1107,11 @@ class MapperTests(unittest.TestCase):
         project.assert_called_once()
         n.explorer.update_depth_obstacles.assert_called_once_with(
             [(0, 1)], 100., 30., observed_free_cells=[(0, 2)],
-            clear_confirmations=2, minimum_hold=10.)
+            clear_confirmations=2, minimum_hold=10.,
+            unconfirmed_max_age=60.)
         self.assertEqual(n.depth_map_last_cleared, 3)
         self.assertIn('5 temporary obstacle cells', n.depth_map_status)
-        self.assertIn('cleared 3 this update', n.depth_map_status)
+        self.assertIn('cleared 3, expired 0 this update', n.depth_map_status)
         loginfo.assert_called_once()
 
     def test_sparse_registered_depth_does_not_add_planner_obstacles(self):
@@ -1183,7 +1184,8 @@ class MapperTests(unittest.TestCase):
             [(0, 1)], [(0, 2)], [(1, 1)], [(1, 2)],
             now=100., ttl=30., temporary_clear_confirmations=2,
             promotion_confirmations=3, joint_clear_confirmations=4,
-            joint_clear_evidence_ttl=5., minimum_hold=10.)
+            joint_clear_evidence_ttl=5., minimum_hold=10.,
+            unconfirmed_max_age=60.)
         n.tf_buffer.lookup.assert_called_once_with(
             'map', 'camera', 99., max_age=1.)
         n.explorer.update_depth_obstacles.assert_not_called()

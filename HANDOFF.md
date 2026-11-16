@@ -1,5 +1,24 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Bounded unconfirmed depth cells - 2026-11-16
+
+Live paused diagnosis found 96 temporary and 73 persistent depth cells. The
+registered-depth layer admitted a brief clustered hit immediately, but the
+positive production minimum hold disabled its legacy TTL forever. A cell that
+never repeated enough to promote could therefore accumulate for the entire
+session even when it was only transient depth noise. The live camera/map also
+showed real chair casters and people mixed into the magenta layer, so clearing
+the layer wholesale or weakening persistent clearing was rejected.
+
+The candidate retains immediate blocking and the 10 s minimum hold. A cell
+that remains unconfirmed now expires 60 s after its latest occupied hit;
+another hit restarts the limit, and promotion still makes it session-persistent
+until four synchronized depth/LiDAR free observations clear it. Valid measured
+surfaces beyond the 2.0 m occupied radius may prove only the nearer ray free and
+never create a farther obstacle endpoint. `diagnose_depth_projection.py`
+provides a read-only live comparison. All 272 host tests pass under `-W error`;
+robot-native validation and paused deployment remain pending.
+
 ## Object landmark reliability deployed - 2026-11-16
 
 Offline review found that `_object_merge_distance:=0.65` was also used for
@@ -170,6 +189,8 @@ Temporary clear observations and joint depth/LiDAR clear evidence are ignored
 during that interval and cannot pre-accumulate. Afterward, the normal two-clear
 temporary or four-clear joint policy must complete; time alone does not remove
 an out-of-view cell. This is configured by `_depth_map_minimum_hold:=10`.
+The 2026-11-16 bounded-unconfirmed policy above supersedes that rule for cells
+that never promote; the positive-clear-only rule still applies to promoted cells.
 
 Planner/Hector reset, mapper restart, and automatic pose-jump recovery still
 clear the state immediately. The legacy TTL path remains only for direct
@@ -1041,8 +1062,9 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - close-depth exclusion is disabled (`0.00 m`)
 - upper-band depth validity: at least 200 pixels and 2% of the band
 - transient sparse-depth grace: recent result for at most 1.5 s
-- depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height, 10 s minimum
-  hold from the latest hit, then positive-clear removal only
+- depth planner layer: 0.15-2.0 m occupied range, 0.025-0.50 m height, 10 s
+  minimum hold; unconfirmed cells age out after 60 s, while promoted cells
+  require positive joint-clear evidence
 - object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
   depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses

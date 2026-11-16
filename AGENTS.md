@@ -62,11 +62,11 @@ one mapper process exists.
 - Depth stop: 0.60 m.
 - Close-depth exclusion: disabled (0.00 m); close/dropout returns remain stops.
 - Depth validity: 200 pixels and 2% upper-band coverage.
-- Depth planner layer: 0.15-2.0 m range, 0.025-0.50 m height. Every temporary
-  or promoted cell has a 10 s minimum hold from its latest occupied hit, then
-  remains until the required positive clear evidence arrives. Time alone does
-  not remove production cells; promoted cells otherwise persist for the
-  mapping session.
+- Depth planner layer: 0.15-2.0 m occupied range, 0.025-0.50 m height. Every
+  cell has a 10 s minimum hold from its latest occupied hit. A temporary cell
+  that never earns promotion ages out 60 s after its latest hit; repeated hits
+  restart the limit. Promoted cells still require positive joint clear evidence
+  and otherwise persist for the mapping session.
 - Brief upper-depth sparsity reuses the last valid result for at most 1.5 s. A
   calibrated current lower-floor region can then provide bump/dropout sensing
   with LiDAR and the fused planner; without usable upper or lower-floor depth,

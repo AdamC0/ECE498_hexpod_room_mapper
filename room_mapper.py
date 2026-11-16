@@ -277,6 +277,8 @@ class RoomMapper:
         self.depth_map_decimation = int(rospy.get_param("~depth_map_decimation", 4))
         self.depth_map_range_min = float(rospy.get_param("~depth_map_range_min", 0.15))
         self.depth_map_range_max = float(rospy.get_param("~depth_map_range_max", 2.0))
+        self.depth_map_free_surface_max = float(rospy.get_param(
+            "~depth_map_free_surface_max", 8.0))
         self.depth_map_height_min = float(rospy.get_param("~depth_map_height_min", 0.025))
         self.depth_map_height_max = float(rospy.get_param("~depth_map_height_max", 0.50))
         self.depth_map_min_points = int(rospy.get_param("~depth_map_min_points", 3))
@@ -285,6 +287,8 @@ class RoomMapper:
         self.depth_map_ttl = float(rospy.get_param("~depth_map_ttl", 5.0))
         self.depth_map_minimum_hold = float(rospy.get_param(
             "~depth_map_minimum_hold", 10.0))
+        self.depth_map_unconfirmed_max_age = float(rospy.get_param(
+            "~depth_map_unconfirmed_max_age", 60.0))
         self.depth_map_clear_observations = int(rospy.get_param(
             "~depth_map_clear_observations", 2))
         self.depth_map_promotion_observations = int(rospy.get_param(
@@ -306,6 +310,7 @@ class RoomMapper:
         if (not math.isfinite(self.depth_map_hz) or self.depth_map_hz <= 0 or
                 not 1 <= self.depth_map_decimation <= 32 or
                 not 0 < self.depth_map_range_min < self.depth_map_range_max or
+                not self.depth_map_range_max <= self.depth_map_free_surface_max <= 20.0 or
                 not 0 <= self.depth_map_height_min < self.depth_map_height_max or
                 self.depth_map_min_points < 1 or
                 not math.isfinite(self.depth_map_min_valid_fraction) or
@@ -313,6 +318,8 @@ class RoomMapper:
                 not math.isfinite(self.depth_map_ttl) or self.depth_map_ttl <= 0 or
                 not math.isfinite(self.depth_map_minimum_hold) or
                 not 1.0 <= self.depth_map_minimum_hold <= 120.0 or
+                not self.depth_map_minimum_hold <=
+                    self.depth_map_unconfirmed_max_age <= 600.0 or
                 not 1 <= self.depth_map_clear_observations <= 10 or
                 not 2 <= self.depth_map_promotion_observations <= 100 or
                 not 2 <= self.depth_map_joint_clear_observations <= 100 or
@@ -958,9 +965,11 @@ class RoomMapper:
         if k is None or size != depth.shape:
             self.depth_map_status = "waiting for matching registered-depth calibration"
             return
+        free_surface_max = getattr(
+            self, 'depth_map_free_surface_max', self.depth_map_range_max)
         valid_fraction = float(np.count_nonzero(
             np.isfinite(depth) & (depth >= self.depth_map_range_min) &
-            (depth <= self.depth_map_range_max))) / max(1, depth.size)
+            (depth <= free_surface_max))) / max(1, depth.size)
         if valid_fraction < getattr(self, 'depth_map_min_valid_fraction', .10):
             # Sparse registered depth can turn isolated noise into retained
             # planner obstacles. Supplying no observation preserves existing
@@ -987,7 +996,8 @@ class RoomMapper:
                 range_min=self.depth_map_range_min, range_max=self.depth_map_range_max,
                 height_min=self.depth_map_height_min, height_max=self.depth_map_height_max,
                 min_points=self.depth_map_min_points,
-                protected_range=self.depth_map_protected_range)
+                protected_range=self.depth_map_protected_range,
+                free_surface_max=free_surface_max)
             with self.map_lock:
                 lidar_stamp = getattr(self, 'lidar_fusion_stamp', 0.0)
                 lidar_age = abs(stamp - lidar_stamp)
@@ -1009,7 +1019,9 @@ class RoomMapper:
                         joint_clear_evidence_ttl=getattr(
                             self, 'depth_map_joint_clear_evidence_ttl', 5.0),
                         minimum_hold=getattr(
-                            self, 'depth_map_minimum_hold', 10.0))
+                            self, 'depth_map_minimum_hold', 10.0),
+                        unconfirmed_max_age=getattr(
+                            self, 'depth_map_unconfirmed_max_age', 60.0))
                     cleared = (result['cleared_temporary'] +
                                result['cleared_persistent'] +
                                result['suppressed_slam'])
@@ -1023,13 +1035,18 @@ class RoomMapper:
                               'persistent_lidar_free': 0,
                               'persistent_joint_exact': 0,
                               'persistent_joint_agreement': 0,
-                              'persistent_occupied_guard': 0}
+                              'persistent_occupied_guard': 0,
+                              'expired_temporary': 0}
                     cleared = self.explorer.update_depth_obstacles(
                         occupied_cells, now, self.depth_map_ttl,
                         observed_free_cells=observed_free_cells,
                         clear_confirmations=self.depth_map_clear_observations,
                         minimum_hold=getattr(
-                            self, 'depth_map_minimum_hold', 10.0))
+                            self, 'depth_map_minimum_hold', 10.0),
+                        unconfirmed_max_age=getattr(
+                            self, 'depth_map_unconfirmed_max_age', 60.0))
+                    result['expired_temporary'] = getattr(
+                        self.explorer, 'depth_obstacle_last_expired', 0)
                 count = self.explorer.depth_obstacle_count(now)
                 persistent = (self.explorer.persistent_obstacle_count()
                               if isinstance(self.explorer, ExploreMap) else 0)
@@ -1039,13 +1056,18 @@ class RoomMapper:
             self.depth_map_frame = frame
             self.depth_map_last_cleared = cleared
             self.depth_map_status = (
-                "%d temporary obstacle cells (%.0f s minimum hold; clear evidence required); "
-                "cleared %d this update; "
+                "%d temporary obstacle cells (%.0f s hold, %.0f s unconfirmed limit); "
+                "cleared %d, expired %d this update; "
                 "%d persistent depth, %d joint-cleared Hector cells; promoted %d; "
                 "joint free %d, clear evidence %d cells/max %d; "
                 "free D/L %d/%d, persistent D/L/exact/paired/guarded "
                 "%d/%d/%d/%d/%d%s" %
-                (count, self.depth_map_minimum_hold, cleared, persistent, suppressed,
+                (count, self.depth_map_minimum_hold,
+                  getattr(self, 'depth_map_unconfirmed_max_age', 60.0),
+                  cleared, (result.get('expired_temporary', 0)
+                            if isinstance(result.get('expired_temporary', 0),
+                                          (int, float)) else 0),
+                  persistent, suppressed,
                   result['promoted'], result['joint_free'],
                   result['joint_clear_candidates'], result['joint_clear_max_evidence'],
                   result['depth_free'], result['lidar_free'],

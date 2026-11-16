@@ -113,13 +113,24 @@ SPARSE-UPPER LOWER-FLOOR FALLBACK (DEPLOYED; MOTION CHECK PENDING):
   [ ] Under supervision, confirm upper-sparse travel, floor-bump stop, complete
       dropout stop, and the limitations of elevated/dark/reflective geometry.
 
-DEPTH-CELL MINIMUM HOLD (DEPLOYED; MEASURED CHECK PENDING):
+UNCONFIRMED DEPTH-CELL BOUND (CANDIDATE; LIVE CHECK PENDING):
+  [x] Retain the 10 s hard hold and immediate blocking for every depth cell.
+  [x] Expire only never-promoted cells after 60 s without another hit; repeated
+      hits restart the limit and promoted cells remain positive-clear-only.
+  [x] Treat valid depth surfaces beyond the 2.0 m occupied radius as free-ray
+      evidence only for nearer cells; never add their endpoints as obstacles.
+  [x] Pass all 272 host tests under warnings-as-errors and compile production
+      Python.
+  [ ] Pass all tests natively, deploy paused, and verify temporary cells remain
+      bounded while persistent cells and current real obstacles are retained.
+
+DEPTH-CELL MINIMUM HOLD (SUPERSEDED BY BOUNDED UNCONFIRMED POLICY):
   [x] Apply a 10 s hard hold to temporary and promoted depth cells starting at
       the latest occupied observation; every repeated hit restarts it.
   [x] Ignore temporary and joint clear evidence during the hold so it cannot
       pre-accumulate toward removal.
-  [x] After the hold, require the existing consecutive positive-clear policy;
-      never remove an out-of-view cell because time alone elapsed.
+  [x] Originally required positive clear for every cell after the hold; the
+      current policy retains that rule only for promoted cells.
   [x] Keep Clear Map, restart, and pose-jump reset as immediate exceptions.
   [x] Pass all 247 host tests and compile production Python.
   [x] Pass all 247 tests natively and deploy commit 81a3c28 with one paused
@@ -526,7 +537,7 @@ CURRENT SAFETY CALIBRATION:
   Sparse-depth minimum:                200 pixels and 2% upper-band coverage
   Sparse-depth grace:                  1.5 s using last valid decision
   Depth planner range / height:        0.15-2.0 m / 0.025-0.50 m
-  Depth obstacle minimum hold:          10 s from latest hit; clear evidence after
+  Depth obstacle hold / temp limit:     10 s / 60 s since latest hit
   Manual dead-man:                     0.55 s
 
   Close depth is no longer excluded; invalid/dropout regions remain stop inputs.

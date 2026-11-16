@@ -68,7 +68,7 @@ The live scene learned 38-41 usable floor rows and a read-only evaluation
 reported `ready (lower-floor + LiDAR; upper sparse)` with no fault. Physical
 motion and obstacle/dropout checks remain pending direct supervision.
 
-## Ten-second depth-obstacle retention (deployed)
+## Bounded unconfirmed depth obstacles
 
 Every registered-depth obstacle cell now receives a hard 10-second minimum
 hold beginning at its most recent occupied observation. A repeated hit restarts
@@ -76,15 +76,13 @@ the timer. Neither temporary depth-only clearing nor joint depth/LiDAR clearing
 may remove a temporary or promoted cell during the hold, and free observations
 inside the hold do not pre-accumulate toward later removal.
 
-After the hold, time alone never deletes the cell: the existing consecutive
-positive-clear policy must complete. This keeps an out-of-view obstacle in the
-planner instead of forgetting it on a timer. `CLEAR MAP`, mapper restart, and
-automatic pose-jump reset still discard all cells immediately because their
-coordinate frame is being replaced. The default is configurable with
-`_depth_map_minimum_hold:=10`. All 247 tests pass on the host and robot. Commit
-`81a3c28` is deployed with one paused TensorRT mapper; live status reports the
-10 s minimum hold and clear-evidence requirement. A measured-object timing
-check remains pending.
+After the hold, confirmed/promoted cells still require the consecutive
+positive-clear policy. A cell that never repeats enough to earn promotion may
+age out 60 seconds after its latest hit, preventing one-frame depth noise from
+accumulating forever. Repeated hits restart both timers, and promotion makes the
+cell session-persistent. `CLEAR MAP`, mapper restart, and automatic pose-jump
+reset remain immediate exceptions. Defaults are `_depth_map_minimum_hold:=10`
+and `_depth_map_unconfirmed_max_age:=60`.
 
 ## Automatic pose-jump map recovery (deployed)
 
@@ -496,8 +494,9 @@ reachable frontiers and known-free space directly.
 Hector is again authoritative for robot pose and the persistent LiDAR room map.
 Registered depth is projected through timestamped TF into a temporary planner
 layer for geometry 0.025-0.50 m above the floor and 0.15-2.0 m from the camera.
-Depth cells have a 10 s minimum hold from their latest hit and then require
-positive clear evidence; time alone no longer removes an out-of-view obstacle.
+Depth cells have a 10 s minimum hold from their latest hit. Never-confirmed
+cells have a 60 s maximum age from the latest hit; promoted cells still require
+positive synchronized depth/LiDAR clear evidence.
 The depth layer does not feed Hector and therefore cannot move the robot marker
 or distort the LiDAR map.
 
@@ -632,8 +631,8 @@ cells and also projects YOLO detections into the map.
 - The registered-depth planner layer is independent of that per-row floor
   calibration. It rejects points below 0.025 m as floor and above 0.50 m and
   keeps only clustered cells. Unconfirmed observations render magenta and use
-  a 10 s minimum hold from the latest hit, after which consecutive positive
-  clear observations are still required. Repeated settled observations with
+  a 10 s minimum hold from the latest hit. Cells that never earn promotion
+  age out after 60 s without another hit. Repeated settled observations with
   synchronized LiDAR promote them to session-persistent black cells. Only
   repeated positive free rays from both sensors can clear persistent fused occupancy. This can
   render stale Hector occupancy white downstream without changing `/map`.

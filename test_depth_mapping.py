@@ -63,6 +63,18 @@ class DepthProjectionTests(unittest.TestCase):
         self.assertIn((0, 10), observed_free)
         self.assertNotIn((0, 15), observed_free)
 
+    def test_surface_beyond_obstacle_range_clears_only_nearer_cells(self):
+        occupied, observed_free = project_depth_cells(
+            np.array([[3.0]], np.float32), self.single_pixel_k,
+            self.optical_to_map, cell=.1, decimation=1,
+            range_min=.1, range_max=2., free_surface_max=8.,
+            height_min=.025, height_max=.5, min_points=1,
+            protected_range=.6)
+        self.assertEqual(occupied, [])
+        self.assertIn((0, 10), observed_free)
+        self.assertIn((0, 19), observed_free)
+        self.assertNotIn((0, 20), observed_free)
+
     def test_nearer_invalid_and_protected_rays_do_not_clear_old_cells(self):
         _, occluded_free = self.project_single(.8)
         self.assertNotIn((0, 10), occluded_free)
@@ -75,7 +87,6 @@ class DepthProjectionTests(unittest.TestCase):
         _, farther_free = self.project_single(1.0)
         self.assertIn((0, 5), near_occupied)
         self.assertNotIn((0, 5), farther_free)
-
 
 class LidarProjectionTests(unittest.TestCase):
     identity = ((0., 0., 0.), (0., 0., 0., 1.))
@@ -175,6 +186,29 @@ class DepthOverlayTests(unittest.TestCase):
             clear_confirmations=2, minimum_hold=10.)
         self.assertEqual(cleared, 1)
         self.assertEqual(explorer.depth_obstacle_count(now=30.), 0)
+
+    def test_unconfirmed_cell_expires_only_after_hold_and_age_limit(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        explorer.update_depth_obstacles(
+            [cell], now=10., minimum_hold=10., unconfirmed_max_age=60.)
+        self.assertEqual(explorer.depth_obstacle_count(now=69.9), 1)
+        self.assertEqual(explorer.depth_obstacle_count(now=70.1), 0)
+
+    def test_persistent_cell_does_not_expire_with_unconfirmed_limit(self):
+        explorer = ExploreMap(size_m=4., cell=.1)
+        raw = np.zeros((80, 80), np.int16)
+        explorer.update_from_slam(raw.ravel(), 80, 80, .05, -2., -2.)
+        cell = (0, 10)
+        for now in (10., 11.):
+            explorer.update_fused_observations(
+                [cell], [], [], [], now=now,
+                promotion_confirmations=2, joint_clear_confirmations=2,
+                minimum_hold=10., unconfirmed_max_age=60.)
+        self.assertEqual(explorer.depth_obstacle_count(now=100.), 0)
+        self.assertEqual(explorer.persistent_obstacle_count(), 1)
 
     def test_persistent_depth_cell_cannot_clear_during_minimum_hold(self):
         explorer = ExploreMap(size_m=4., cell=.1)

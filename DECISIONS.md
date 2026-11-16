@@ -2088,3 +2088,27 @@ and reported two detections, zero mapped, with the explicit new reason `2
 insufficient registered depth`. Treat this as deployment and diagnostic-path
 evidence only. A labeled depth-offset object, two nearby same-class objects,
 and preferred/fallback alias continuity remain pending controlled scene checks.
+
+## Bound never-confirmed depth noise without weakening promoted cells - 2026-11-16
+
+The operator reported many depth cells that no longer matched the visible
+scene. Read-only live inspection while paused found 96 temporary and 73
+persistent cells. The depth-free/LiDAR-free counters were 38/305, but only one
+persistent cell overlapped depth-free evidence and 29 were guarded by current
+endpoints. Live RGB and the rendered map showed genuine chair casters and
+people mixed with the magenta layer, so wholesale clearing was unsafe.
+
+Root cause for the growing temporary tier: a single clustered frame adds a
+cell immediately, while the positive production minimum hold disabled all time
+expiry. If that hit never repeats enough to promote and the exact low-height
+column is not later ray-cleared, the noise cell survives for the mapping
+session. Chosen: preserve immediate blocking and the 10 s hold, but expire only
+never-promoted cells 60 s after their latest hit. Every hit restarts the limit;
+promotion remains three settled LiDAR-paired observations and promoted cells
+still require four positive joint-free observations. Also separate occupied
+endpoint range from free-ray surface range: a valid farther measured surface
+may prove the nearer 2.0 m ray free but cannot create occupancy beyond 2.0 m.
+
+All 272 Windows-host tests pass with warnings treated as errors. Robot-native
+validation, paused deployment, and live bounded-cell observation remain
+pending. No motion was commanded during diagnosis.

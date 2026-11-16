@@ -47,6 +47,8 @@ class ExploreMap:
         self.joint_clear_last_observed = {}
         self.depth_obstacle_ttl = 5.0
         self.depth_obstacle_minimum_hold = 0.0
+        self.depth_obstacle_unconfirmed_max_age = 0.0
+        self.depth_obstacle_last_expired = 0
         self._depth_overlay_active = False
         self.have_map = False
         self.last_plan_kind = None
@@ -102,7 +104,7 @@ class ExploreMap:
 
     def update_depth_obstacles(self, world_cells, now=None, ttl=5.0,
                                observed_free_cells=None, clear_confirmations=2,
-                               minimum_hold=0.0):
+                               minimum_hold=0.0, unconfirmed_max_age=0.0):
         """Overlay temporary depth obstacles without changing the LiDAR map.
 
         Cells are expressed in the same world-aligned grid as ``self.cell``.
@@ -111,12 +113,14 @@ class ExploreMap:
         positively traversed by valid depth rays. A live overlay cell is removed after the
         configured number of consecutive clear observations. A positive
         ``minimum_hold`` makes every occupied hit restart a hard lockout. Free
-        observations during that lockout do not accumulate, and time alone no
-        longer expires the cell; it must be positively cleared afterward.
+        observations during that lockout do not accumulate. A positive
+        ``unconfirmed_max_age`` bounds single-frame/noisy cells that never earn
+        promotion; persistent cells still require positive joint clearing.
         """
         now = time.time() if now is None else float(now)
         ttl = float(ttl)
         minimum_hold = float(minimum_hold)
+        unconfirmed_max_age = float(unconfirmed_max_age)
         clear_confirmations = int(clear_confirmations)
         if not math.isfinite(now) or not math.isfinite(ttl) or ttl <= 0:
             raise ValueError('Depth obstacle time and TTL must be valid')
@@ -124,8 +128,12 @@ class ExploreMap:
             raise ValueError('Depth clear confirmations must be between 1 and 10')
         if not math.isfinite(minimum_hold) or not 0.0 <= minimum_hold <= 120.0:
             raise ValueError('Depth obstacle minimum hold must be between 0 and 120 seconds')
+        if (not math.isfinite(unconfirmed_max_age) or unconfirmed_max_age < 0.0 or
+                (unconfirmed_max_age and unconfirmed_max_age < minimum_hold)):
+            raise ValueError('Unconfirmed depth age must be zero or at least the minimum hold')
         self.depth_obstacle_ttl = ttl
         self.depth_obstacle_minimum_hold = minimum_hold
+        self.depth_obstacle_unconfirmed_max_age = unconfirmed_max_age
         occupied = set()
         for world_r, world_c in world_cells:
             r = int(world_r + self.half / self.cell)
@@ -163,7 +171,10 @@ class ExploreMap:
                 cleared += 1
             else:
                 self.depth_obstacle_clear_counts[cell] = count
+        before_expiry = len(self.depth_obstacles)
         self._apply_depth_obstacles(now)
+        self.depth_obstacle_last_expired = max(
+            0, before_expiry - len(self.depth_obstacles))
         return cleared
 
     def update_fused_observations(self, depth_occupied_cells,
@@ -173,7 +184,8 @@ class ExploreMap:
                                   promotion_confirmations=3,
                                   joint_clear_confirmations=4,
                                   joint_clear_evidence_ttl=5.0,
-                                  minimum_hold=0.0):
+                                  minimum_hold=0.0,
+                                  unconfirmed_max_age=0.0):
         """Fuse depth occupancy with live LiDAR without altering ``slam_state``.
 
         Repeated depth hits promote a temporary obstacle to session-persistent
@@ -215,7 +227,9 @@ class ExploreMap:
             depth_occupied_cells, now, ttl,
             observed_free_cells=depth_free_cells,
             clear_confirmations=temporary_clear_confirmations,
-            minimum_hold=minimum_hold)
+            minimum_hold=minimum_hold,
+            unconfirmed_max_age=unconfirmed_max_age)
+        expired_temporary = self.depth_obstacle_last_expired
 
         for cell in list(self.depth_obstacle_hit_counts):
             if cell not in depth_occupied:
@@ -323,6 +337,7 @@ class ExploreMap:
         return {
             'promoted': promoted,
             'cleared_temporary': cleared_temporary,
+            'expired_temporary': expired_temporary,
             'cleared_persistent': cleared_persistent,
             'suppressed_slam': suppressed_slam,
             'joint_free': len(joint_free),
@@ -346,16 +361,21 @@ class ExploreMap:
                 not self.suppressed_slam_obstacles):
             return
         now = time.time() if now is None else float(now)
+        if self.depth_obstacle_unconfirmed_max_age > 0.0:
+            cutoff = now - self.depth_obstacle_unconfirmed_max_age
+            self.depth_obstacles = {
+                cell: stamp for cell, stamp in self.depth_obstacles.items()
+                if self.depth_obstacle_last_hits.get(cell, stamp) >= cutoff}
         if self.depth_obstacle_minimum_hold <= 0.0:
             cutoff = now - self.depth_obstacle_ttl
             self.depth_obstacles = {
                 cell: stamp for cell, stamp in self.depth_obstacles.items()
                 if stamp >= cutoff}
-            live_depth_cells = (set(self.depth_obstacles) |
-                                self.persistent_depth_obstacles)
-            self.depth_obstacle_last_hits = {
-                cell: stamp for cell, stamp in self.depth_obstacle_last_hits.items()
-                if cell in live_depth_cells}
+        live_depth_cells = (set(self.depth_obstacles) |
+                            self.persistent_depth_obstacles)
+        self.depth_obstacle_last_hits = {
+            cell: stamp for cell, stamp in self.depth_obstacle_last_hits.items()
+            if cell in live_depth_cells}
         self.depth_obstacle_clear_counts = {
             cell: count for cell, count in self.depth_obstacle_clear_counts.items()
             if cell in self.depth_obstacles}

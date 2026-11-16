@@ -59,7 +59,7 @@ def project_depth_cells(depth, k, transform, cell=0.10, decimation=4,
                         range_min=0.15, range_max=2.0,
                         height_min=0.025, height_max=0.50,
                         min_points=3, protected_range=0.60,
-                        free_margin=0.05):
+                        free_margin=0.05, free_surface_max=8.0):
     """Return ``(occupied_cells, observed_free_cells)`` in the world grid.
 
     ``transform`` is ``map_T_depth_optical`` as ``(translation, quaternion)``.
@@ -76,11 +76,12 @@ def project_depth_cells(depth, k, transform, cell=0.10, decimation=4,
     if len(k) < 9:
         raise ValueError("Camera intrinsics must contain nine values")
     fx, fy, cx, cy = float(k[0]), float(k[4]), float(k[2]), float(k[5])
-    values = (fx, fy, cx, cy, cell, range_min, range_max,
+    values = (fx, fy, cx, cy, cell, range_min, range_max, free_surface_max,
               height_min, height_max, protected_range, free_margin)
     if (not all(math.isfinite(value) for value in values) or fx <= 0 or fy <= 0 or
             cell <= 0 or not 1 <= int(decimation) <= 32 or
             not 0 < range_min < range_max or not 0 <= height_min < height_max or
+            not range_max <= free_surface_max <= 20.0 or
             not 0 <= protected_range <= range_max or
             not 0 < free_margin < range_max or
             int(min_points) < 1):
@@ -91,8 +92,11 @@ def project_depth_cells(depth, k, transform, cell=0.10, decimation=4,
     vv, uu = np.indices(sampled.shape, dtype=np.float32)
     uu *= step
     vv *= step
+    # A surface beyond the obstacle-layer range is still positive evidence
+    # that the nearer part of its ray is empty. Keep it for free-space
+    # marching, while admitting occupied endpoints only through range_max.
     valid = (np.isfinite(sampled) & (sampled >= range_min) &
-             (sampled <= range_max))
+             (sampled <= free_surface_max))
     if not valid.any():
         return [], []
     valid_u = uu[valid].astype(np.float64)
@@ -107,7 +111,8 @@ def project_depth_cells(depth, k, transform, cell=0.10, decimation=4,
         raise ValueError("Invalid transform translation")
     rotation = quaternion_matrix(quaternion)
     world = rotation.dot(points) + translation[:, None]
-    obstacle = ((world[2] >= height_min) & (world[2] <= height_max))
+    obstacle = ((z <= range_max) & (world[2] >= height_min) &
+                (world[2] <= height_max))
     obstacle_cols = np.floor(world[0, obstacle] / cell).astype(np.int64)
     obstacle_rows = np.floor(world[1, obstacle] / cell).astype(np.int64)
     occupied_evidence = _clustered_cells(obstacle_rows, obstacle_cols, 1)
