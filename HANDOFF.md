@@ -16,8 +16,19 @@ another hit restarts the limit, and promotion still makes it session-persistent
 until four synchronized depth/LiDAR free observations clear it. Valid measured
 surfaces beyond the 2.0 m occupied radius may prove only the nearer ray free and
 never create a farther obstacle endpoint. `diagnose_depth_projection.py`
-provides a read-only live comparison. All 272 host tests pass under `-W error`;
-robot-native validation and paused deployment remain pending.
+provides a read-only live comparison. All 272 host and robot-native tests pass
+under `-W error`. Commit `6f07812` is deployed with matching runtime hashes and
+an exact pre-change backup under `backup_pre_6f07812`.
+
+The first preserved Hector frame drifted 0.065 m / 3.69 degrees in a 15 s
+stationary check and changed 43 raw map cells, independently explaining visual
+depth/map misalignment. It was discarded per the safety rule. The fresh frame
+varied 0.018 m / 0.61 degrees and changed zero raw cells over 15 s. Exactly one
+TensorRT mapper remains `AUTO PAUSED` with command `stop`, Hector is the only
+SLAM stack, and no motion was commanded. After the fresh reset, temporary cells
+fell from 4 to 2 in the final delayed sample while repeated current chair/person
+geometry promoted from 15 to 19 persistent cells. A controlled 60 s transient
+and promoted-cell retention scene check remains pending.
 
 ## Object landmark reliability deployed - 2026-11-16
 

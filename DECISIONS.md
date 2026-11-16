@@ -2109,6 +2109,13 @@ still require four positive joint-free observations. Also separate occupied
 endpoint range from free-ray surface range: a valid farther measured surface
 may prove the nearer 2.0 m ray free but cannot create occupancy beyond 2.0 m.
 
-All 272 Windows-host tests pass with warnings treated as errors. Robot-native
-validation, paused deployment, and live bounded-cell observation remain
-pending. No motion was commanded during diagnosis.
+All 272 Windows-host and robot-native tests pass with warnings treated as
+errors. Commit `6f07812` is deployed with matching runtime hashes and an exact
+pre-change backup at `backup_pre_6f07812`. The initially preserved Hector frame
+drifted 0.065 m / 3.69 degrees and changed 43 raw cells during a stationary
+15-second check, so it was discarded under the existing invalid-map rule. The
+fresh frame varied 0.018 m / 0.61 degrees and changed zero raw cells over the
+same interval. One TensorRT mapper remains `AUTO PAUSED`/stop with Hector only.
+The temporary tier fell from 4 to 2 cells in the final delayed sample while
+current repeated geometry promoted normally. No motion was commanded. A
+controlled 60-second transient and promoted-retention check remains pending.

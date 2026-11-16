@@ -113,7 +113,7 @@ SPARSE-UPPER LOWER-FLOOR FALLBACK (DEPLOYED; MOTION CHECK PENDING):
   [ ] Under supervision, confirm upper-sparse travel, floor-bump stop, complete
       dropout stop, and the limitations of elevated/dark/reflective geometry.
 
-UNCONFIRMED DEPTH-CELL BOUND (CANDIDATE; LIVE CHECK PENDING):
+UNCONFIRMED DEPTH-CELL BOUND (DEPLOYED; CONTROLLED SCENE CHECK PENDING):
   [x] Retain the 10 s hard hold and immediate blocking for every depth cell.
   [x] Expire only never-promoted cells after 60 s without another hit; repeated
       hits restart the limit and promoted cells remain positive-clear-only.
@@ -121,8 +121,13 @@ UNCONFIRMED DEPTH-CELL BOUND (CANDIDATE; LIVE CHECK PENDING):
       evidence only for nearer cells; never add their endpoints as obstacles.
   [x] Pass all 272 host tests under warnings-as-errors and compile production
       Python.
-  [ ] Pass all tests natively, deploy paused, and verify temporary cells remain
-      bounded while persistent cells and current real obstacles are retained.
+  [x] Pass all 272 tests natively, deploy commit 6f07812 paused with matching
+      runtime hashes, and preserve Hector until a stationary check proves it
+      is drifting. Clear that invalid frame and verify the fresh frame changes
+      zero raw map cells over 15 s. Temporary cells fell from 4 to 2 in the
+      final paused sample while repeated current geometry promoted normally.
+  [ ] In a controlled scene, create an unconfirmed transient cell and verify it
+      remains through 10 s, expires at 60 s, and a promoted cell does not age out.
 
 DEPTH-CELL MINIMUM HOLD (SUPERSEDED BY BOUNDED UNCONFIRMED POLICY):
   [x] Apply a 10 s hard hold to temporary and promoted depth cells starting at

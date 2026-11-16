@@ -68,7 +68,7 @@ The live scene learned 38-41 usable floor rows and a read-only evaluation
 reported `ready (lower-floor + LiDAR; upper sparse)` with no fault. Physical
 motion and obstacle/dropout checks remain pending direct supervision.
 
-## Bounded unconfirmed depth obstacles
+## Bounded unconfirmed depth obstacles (deployed)
 
 Every registered-depth obstacle cell now receives a hard 10-second minimum
 hold beginning at its most recent occupied observation. A repeated hit restarts
@@ -83,6 +83,13 @@ accumulating forever. Repeated hits restart both timers, and promotion makes the
 cell session-persistent. `CLEAR MAP`, mapper restart, and automatic pose-jump
 reset remain immediate exceptions. Defaults are `_depth_map_minimum_hold:=10`
 and `_depth_map_unconfirmed_max_age:=60`.
+
+Commit `6f07812` passes all 272 host and robot-native tests under warnings as
+errors. It is deployed with one TensorRT mapper `AUTO PAUSED` and Hector only.
+A drifting predeployment Hector frame was cleared; the fresh frame changed zero
+raw map cells during a 15 s stationary check. The paused temporary tier fell
+from 4 to 2 cells in the final sample while current repeated scene geometry
+promoted normally. No motion was commanded.
 
 ## Automatic pose-jump map recovery (deployed)
 
