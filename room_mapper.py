@@ -1575,25 +1575,32 @@ class RoomMapper:
         inference_seconds = time.time() - inference_started
         for detection in detections:
             detection["map_point"] = None
+            detection["map_rejection"] = None
             if display_only:
                 continue
             depth_min_pixels = getattr(self, "object_depth_min_pixels", 24)
             sample = sample_box_depth(depth, detection["box"],
                                       min_pixels=depth_min_pixels,
                                       return_quality=True)
-            if sample is not None:
-                distance, u, v, quality = sample
-                detection["depth"] = distance
-                detection["depth_quality"] = quality
-                quality_ok = (
-                    quality["valid_pixels"] >= depth_min_pixels and
-                    quality["coverage"] >= getattr(self, "object_depth_min_coverage", .15) and
-                    quality["mad"] <= getattr(self, "object_depth_max_mad", .12) and
-                    quality["inlier_ratio"] >= getattr(
-                        self, "object_depth_min_inlier_ratio", .60))
-                if transform is not None and quality_ok:
-                    detection["map_point"] = transform_point(backproject(u, v, distance, k),
-                                                              *transform)
+            if sample is None:
+                detection["map_rejection"] = "insufficient registered depth"
+                continue
+            distance, u, v, quality = sample
+            detection["depth"] = distance
+            detection["depth_quality"] = quality
+            quality_ok = (
+                quality["valid_pixels"] >= depth_min_pixels and
+                quality["coverage"] >= getattr(self, "object_depth_min_coverage", .15) and
+                quality["mad"] <= getattr(self, "object_depth_max_mad", .12) and
+                quality["inlier_ratio"] >= getattr(
+                    self, "object_depth_min_inlier_ratio", .60))
+            if not quality_ok:
+                detection["map_rejection"] = "unreliable registered depth"
+            elif transform is None:
+                detection["map_rejection"] = "image-time map transform unavailable"
+            else:
+                detection["map_point"] = transform_point(backproject(u, v, distance, k),
+                                                          *transform)
         # Serialize commit with motion, shutdown, and pose-loss track clearing.
         with self.control_lock, self.data_lock, self.object_lock:
             self.object_processing = False
@@ -1690,10 +1697,19 @@ class RoomMapper:
             confirmed = len(self.object_tracker.snapshot(True, now))
             removal_text = (", %d stale removed" % len(removed_tracks)
                             if removed_tracks else "")
+            rejection_counts = {}
+            for detection in detections:
+                rejection = detection.get("map_rejection")
+                if rejection:
+                    rejection_counts[rejection] = rejection_counts.get(rejection, 0) + 1
+            rejection_text = ("; not mapped: " + ", ".join(
+                "%d %s" % (count, reason)
+                for reason, count in sorted(rejection_counts.items()))
+                if rejection_counts else "")
             self.object_status = ("%d detections, %d mapped, %d confirmed%s; "
-                                  "%.2f s inference" %
+                                  "%.2f s inference%s" %
                                   (len(detections), mapped, confirmed, removal_text,
-                                   inference_seconds))
+                                   inference_seconds, rejection_text))
             self.update_object_focus_locked(updated_tracks, now)
 
     def update_object_focus_locked(self, updated_tracks, now):

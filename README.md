@@ -1,5 +1,26 @@
 # JetHexa Room Mapper
 
+## Object landmark association and depth-ray correction (offline candidate)
+
+The object mapper now limits same-class track association to the same
+class-specific position tolerance required for confirmation. The former 0.65 m
+merge radius could combine two nearby chairs or other same-class objects even
+though observations 0.20-0.25 m apart could not confirm as one landmark. A
+confirmed landmark could likewise absorb a later neighbor, and manual removal
+could suppress that neighbor. Large-object tolerances remain class-specific.
+
+Depth placement now back-projects through the representative pixels of the
+coherent registered-depth surface instead of assigning that depth to the
+geometric center of the YOLO box. This reduces lateral placement error when
+the box center is a depth hole or background. Equivalent preferred/fallback
+labels for TVs, boards, shelves/cabinets, trash bins, and luggage share one
+canonical map class. Status now distinguishes insufficient depth, unreliable
+depth, and missing image-time TF when a visible box cannot be mapped. No
+confidence, repeated-observation, synchronization, TF, or settled-motion gate
+was relaxed. All 269 host tests pass with warnings enabled as errors, and
+production Python compiles. The robot was unavailable, so native and labeled-
+scene validation remain pending and this candidate is not deployed.
+
 ## Close-object verification and turn-loss recovery (deployed; motion check pending)
 
 During autonomous frontier travel only, a moving YOLO detection can request a

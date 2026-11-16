@@ -29,6 +29,19 @@ OBJECT_LABEL_ALIASES = {
     "backpack": "luggage",
     "luggage": "luggage",
     "suitcase": "luggage",
+    # Keep equivalent labels from the preferred Objects365 model and retained
+    # COCO fallback in one semantic track and one confirmation tier.
+    "tv": "monitor/tv",
+    "monitor": "monitor/tv",
+    "television": "monitor/tv",
+    "whiteboard": "blackboard/whiteboard",
+    "blackboard": "blackboard/whiteboard",
+    "bookshelf": "cabinet/shelf",
+    "cabinet": "cabinet/shelf",
+    "shelf": "cabinet/shelf",
+    "trash can": "trash bin can",
+    "garbage bin": "trash bin can",
+    "waste bin": "trash bin can",
 }
 
 
@@ -110,18 +123,28 @@ def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0, return_quality=Fa
     if ix2 <= ix1 or iy2 <= iy1:
         return None
     roi = depth[iy1:iy2, ix1:ix2]
-    valid = roi[(roi > 0.10) & (roi < max_depth) & np.isfinite(roi)]
+    valid_mask = (roi > 0.10) & (roi < max_depth) & np.isfinite(roi)
+    valid = roi[valid_mask]
     if valid.size >= min_pixels:
         median = float(np.median(valid))
+        tolerance = max(.08, .08 * median)
+        inlier_mask = valid_mask & (np.abs(roi - median) <= tolerance)
+        inlier_y, inlier_x = np.nonzero(inlier_mask)
+        # Back-project through the measured coherent surface rather than the
+        # geometric box center. The latter can be a depth hole or background
+        # for chairs, shelves, and partly occluded objects.
+        sample_u = (float(ix1) + float(np.mean(inlier_x)) + .5
+                    if inlier_x.size else .5 * (x1 + x2))
+        sample_v = (float(iy1) + float(np.mean(inlier_y)) + .5
+                    if inlier_y.size else .5 * (y1 + y2))
         quality = {
             "valid_pixels": int(valid.size),
             "coverage": float(valid.size) / max(1, roi.size),
             "mad": float(np.median(np.abs(valid - median))),
-            "inlier_ratio": float(np.mean(
-                np.abs(valid - median) <= max(.08, .08 * median))),
+            "inlier_ratio": float(np.mean(np.abs(valid - median) <= tolerance)),
             "fallback": False,
         }
-        result = (median, .5 * (x1 + x2), .5 * (y1 + y2))
+        result = (median, sample_u, sample_v)
         return result + (quality,) if return_quality else result
 
     # Dark/reflective objects can have a depth hole at the exact box center.
@@ -141,15 +164,22 @@ def sample_box_depth(depth, box, min_pixels=12, max_depth=8.0, return_quality=Fa
     take = order[:max(min_pixels, int(math.ceil(.20*order.size)))]
     values = broad[yy[take], xx[take]]
     median = float(np.median(values))
+    tolerance = max(.08, .08 * median)
+    selected_inliers = np.abs(values - median) <= tolerance
+    selected_x = xx[take][selected_inliers]
+    selected_y = yy[take][selected_inliers]
+    sample_u = (float(bx1) + float(np.mean(selected_x)) + .5
+                if selected_x.size else .5 * (box[0] + box[2]))
+    sample_v = (float(by1) + float(np.mean(selected_y)) + .5
+                if selected_y.size else .5 * (box[1] + box[3]))
     quality = {
         "valid_pixels": int(values.size),
         "coverage": float(yy.size) / max(1, broad.size),
         "mad": float(np.median(np.abs(values - median))),
-        "inlier_ratio": float(np.mean(
-            np.abs(values - median) <= max(.08, .08 * median))),
+        "inlier_ratio": float(np.mean(np.abs(values - median) <= tolerance)),
         "fallback": True,
     }
-    result = (median, .5 * (box[0] + box[2]), .5 * (box[1] + box[3]))
+    result = (median, sample_u, sample_v)
     return result + (quality,) if return_quality else result
 
 
@@ -679,6 +709,19 @@ class ObjectTracker:
         policy.update(self.class_policies.get(normalized, {}))
         return policy
 
+    def _association_distance(self, label):
+        """Return the largest distance that can form one confirmable track."""
+        if not self.validation_enabled:
+            return self.merge_distance
+        policy = self._policy(label)
+        tolerance_key = ("large_position_tolerance"
+                         if str(label).lower() in self.large_labels
+                         else "position_tolerance")
+        # Observations farther apart than confirmation permits can never make
+        # one valid landmark. Merging them only lets nearby same-class objects
+        # steal evidence from each other and leaves the combined track pending.
+        return min(self.merge_distance, float(policy[tolerance_key]))
+
     def _confirmation_evaluation(self, track):
         policy = self._policy(track["label"])
         evidence = track.get("_evidence", [])[-int(policy["window"]):]
@@ -752,8 +795,9 @@ class ObjectTracker:
                validation_group=None, box=None, z=None):
         now = time.time() if now is None else float(now)
         self.prune(now)
+        association_distance = self._association_distance(label)
         if any(item[0] == label and math.hypot(item[1] - x, item[2] - y) <=
-               self.merge_distance for item in self.suppressed):
+               association_distance for item in self.suppressed):
             return None
         # A single frame may contain several instances of the same class. Do
         # not let a track already updated by this observation absorb another
@@ -763,7 +807,8 @@ class ObjectTracker:
                        t.get("last_observation") != observation_id)]
         track = min(candidates, key=lambda t: math.hypot(t["x"] - x, t["y"] - y)) \
             if candidates else None
-        if track is None or math.hypot(track["x"] - x, track["y"] - y) > self.merge_distance:
+        if (track is None or
+                math.hypot(track["x"] - x, track["y"] - y) > association_distance):
             track = {"id": self.next_id, "label": label, "x": float(x), "y": float(y),
                      "z": (float(z) if z is not None else None),
                      "confidence": float(confidence), "count": 0, "m2": 0.0,

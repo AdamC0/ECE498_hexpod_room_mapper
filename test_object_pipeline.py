@@ -333,6 +333,17 @@ class ObjectPipelineTests(unittest.TestCase):
         n.process_objects()
         self.assertEqual(n.object_tracker.tracks, [])
         self.assertIsNone(n.object_detections[0]['map_point'])
+        self.assertIn('insufficient registered depth', n.object_status)
+
+    def test_incoherent_depth_reports_why_detection_was_not_mapped(self):
+        n = self.node
+        n.object_tracker = ObjectTracker(priority_labels=['chair'])
+        n.registered_depth[:, :50] = 1.
+        n.registered_depth[:, 50:] = 3.
+        n.process_objects()
+        self.assertEqual(n.object_tracker.tracks, [])
+        self.assertIsNone(n.object_detections[0]['map_point'])
+        self.assertIn('unreliable registered depth', n.object_status)
 
     def test_auto_mapping_focuses_until_candidate_is_confirmed(self):
         n = self.node
@@ -711,6 +722,7 @@ class ObjectPipelineTests(unittest.TestCase):
         self.assertEqual(len(n.object_detections), 1)
         self.assertIsNone(n.object_detections[0]['map_point'])
         self.assertEqual(n.object_tracker.tracks, [])
+        self.assertIn('image-time map transform unavailable', n.object_status)
 
     def test_tf_is_snapshotted_before_inference(self):
         n = self.node

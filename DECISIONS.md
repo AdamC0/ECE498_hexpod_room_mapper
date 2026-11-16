@@ -2035,3 +2035,38 @@ submit navigation directly on pointer-up. Pointer cancellation never navigates.
 This preserves pan/zoom behavior and ensures a tap is interpreted against the
 exact image the operator pressed. All 17 web tests and all 263 native tests pass.
 The deployed files were backed up under `backup_pre_map_click_fix_20261109`.
+
+## Align object association with confirmation geometry - 2026-11-16
+
+An offline audit of unreliable object marking found a deterministic policy
+mismatch. The tracker searched up to `_object_merge_distance:=0.65` m for an
+existing same-class track, but confirmation rejects expected-class positions
+more than 0.25 m apart and other-class positions more than 0.20 m apart (with
+separate configured tolerances for large objects). Observations could therefore
+be merged into a track that was structurally unable to confirm. Once a track
+confirmed, a newly visible neighboring instance could refresh that frozen
+landmark instead of creating its own candidate. Manual removal used the same
+wide radius and could suppress a nearby distinct instance.
+
+Chosen: cap association and removal suppression at the same class-specific
+position tolerance used by confirmation. Keep `_object_merge_distance` as the
+outer configurable cap and retain the larger configured tolerance for large
+objects. Observations too far apart to confirm as one object now form separate
+tracks. Confidence, repeated-frame, box-overlap, synchronization, settled-
+motion, image-time TF, and depth-quality requirements remain unchanged.
+
+The audit also found that robust depth was always back-projected through the
+YOLO box center, even when every valid depth pixel used by the fallback lay to
+one side of a center hole. Chosen: preserve the central crop, median depth, and
+all quality gates, but use the centroid of coherent median-depth inlier pixels
+as the projection ray. Normalize only clear equivalent model labels (`tv` /
+`monitor`, board, shelf/cabinet, trash-bin, and existing luggage variants) to
+the established semantic policy class. Surface per-inference counts for boxes
+rejected by missing depth, poor depth quality, or unavailable image-time TF.
+
+All 269 Windows-host tests pass with warnings treated as errors, including new
+regressions for offset depth surfaces, nearby same-class candidates, confirmed-
+track stealing, suppression radius, label aliases, and rejection reporting.
+Production Python compiles. PT was unavailable, so robot-native, labeled-scene,
+and deployment validation remain pending; no motion or external state change
+occurred.

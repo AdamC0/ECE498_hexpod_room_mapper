@@ -1,5 +1,30 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Object landmark reliability candidate - 2026-11-16
+
+Offline review found that `_object_merge_distance:=0.65` was also used for
+track association even though confirmation accepts only 0.25 m expected-class
+position spread, 0.20 m other-class spread, or the configured large-object
+tolerance. Two nearby same-class objects could therefore feed one track that
+could never confirm; confirmed tracks and manual suppression could also claim
+a neighboring instance. Association and suppression now use the applicable
+confirmation tolerance capped by the existing merge distance.
+
+Registered-depth sampling still uses the protected central crop and unchanged
+quality gates, but now returns the representative pixel of its coherent depth
+inliers for back-projection rather than always using the YOLO box center. Clear
+cross-model synonyms normalize TVs, boards, shelves/cabinets, trash bins, and
+luggage to the established policy labels. Per-inference status explicitly
+counts boxes rejected for insufficient depth, unreliable depth, or missing
+image-time map TF. Confidence thresholds, three-hit/eight-frame validation,
+box overlap, settled capture, synchronization, and map-trust gates are
+unchanged.
+
+All 269 Windows-host tests pass under `-W error`; production Python compiles.
+The robot was unavailable. No robot-native test, deployment, sensor check, or
+motion occurred. Run the new labeled-scene checks in `RUN_SHEET.txt` before
+calling the behavior validated or deployed.
+
 ## Large-room Hector and clicked-route fix deployed - 2026-11-09
 
 Live diagnosis found `/odom/filtered` has no publisher. `/imu/raw` and

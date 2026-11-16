@@ -34,6 +34,18 @@ class ObjectMappingTests(unittest.TestCase):
         depth[35:38, 45:49] = 1.75
         result = sample_box_depth(depth, (10, 10, 90, 90), min_pixels=12)
         self.assertAlmostEqual(result[0], 1.75)
+        self.assertAlmostEqual(result[1], 47.0)
+        self.assertAlmostEqual(result[2], 36.5)
+
+    def test_depth_sampling_uses_coherent_surface_pixel_not_empty_box_center(self):
+        depth = np.zeros((100, 100), np.float32)
+        depth[40:60, 60:70] = 2.0
+        distance, u, v, quality = sample_box_depth(
+            depth, (10, 10, 90, 90), min_pixels=24, return_quality=True)
+        self.assertAlmostEqual(distance, 2.0)
+        self.assertAlmostEqual(u, 63.0)
+        self.assertAlmostEqual(v, 50.0)
+        self.assertFalse(quality['fallback'])
 
     def test_depth_sampling_reports_surface_quality(self):
         depth = np.full((100, 100), 2.0, np.float32)
@@ -138,6 +150,44 @@ class ObjectMappingTests(unittest.TestCase):
         self.assertEqual(canonical_object_label('suitcase'), 'luggage')
         self.assertEqual(canonical_object_label('luggage'), 'luggage')
         self.assertEqual(canonical_object_label('chair'), 'chair')
+
+    def test_equivalent_model_vocabularies_share_semantic_labels(self):
+        self.assertEqual(canonical_object_label('tv'), 'monitor/tv')
+        self.assertEqual(canonical_object_label('whiteboard'),
+                         'blackboard/whiteboard')
+        self.assertEqual(canonical_object_label('bookshelf'), 'cabinet/shelf')
+        self.assertEqual(canonical_object_label('trash can'), 'trash bin can')
+
+    def test_nearby_same_class_objects_do_not_form_unconfirmable_track(self):
+        tracker = ObjectTracker(merge_distance=.65, priority_labels=['chair'])
+        first = tracker.update(
+            'chair', 0., 0., .8, 1, observation_id=1,
+            validation_group=('endpoint', 1), box=(10, 10, 40, 60))
+        second = tracker.update(
+            'chair', .40, 0., .8, 2, observation_id=2,
+            validation_group=('endpoint', 1), box=(60, 10, 90, 60))
+        self.assertNotEqual(first['id'], second['id'])
+        self.assertEqual(len(tracker.snapshot(False, 2)), 2)
+
+    def test_confirmed_track_does_not_steal_neighboring_same_class_object(self):
+        tracker = ObjectTracker(merge_distance=.65, priority_labels=['chair'])
+        for observation in range(1, 4):
+            confirmed = tracker.update(
+                'chair', 0., 0., .8, observation, observation_id=observation,
+                validation_group=('endpoint', 1), box=(10, 10, 40, 60))
+        self.assertTrue(confirmed['confirmed'])
+        neighbor = tracker.update(
+            'chair', .40, 0., .8, 4, observation_id=4,
+            validation_group=('endpoint', 2), box=(60, 10, 90, 60))
+        self.assertNotEqual(confirmed['id'], neighbor['id'])
+        self.assertEqual(len(tracker.snapshot(False, 4)), 2)
+
+    def test_manual_removal_suppresses_only_confirmable_same_location(self):
+        tracker = ObjectTracker(merge_distance=.65, priority_labels=['chair'])
+        removed = tracker.update('chair', 0., 0., .8, 1)
+        self.assertTrue(tracker.remove(removed['id']))
+        self.assertIsNone(tracker.update('chair', .20, 0., .8, 2))
+        self.assertIsNotNone(tracker.update('chair', .40, 0., .8, 3))
 
     def test_high_confidence_does_not_override_box_inconsistency(self):
         tracker = ObjectTracker(priority_labels=['chair'])
