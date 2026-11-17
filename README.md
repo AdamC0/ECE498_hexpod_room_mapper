@@ -7,8 +7,10 @@ solely because the raw Hector frontier probe also fails. If live LiDAR and
 depth show the 0.35 m in-place rotation footprint is clear, the robot may make
 one of the existing eight bounded zero-stride resurvey turns, settle, and
 replan from new sensor evidence. An occupied rotation footprint still prohibits
-the turn, and no raw-only route is ever driven. The candidate passes all 279
-host tests; robot-native and supervised motion validation are pending.
+the turn, and no raw-only route is ever driven. All 279 host and robot-native
+tests pass. Commit `0ee8135` is deployed with matching controller/test hashes;
+Hector was preserved and one TensorRT mapper remains `AUTO PAUSED`/stop. No
+deployment motion was commanded; supervised motion validation is pending.
 
 ## False autonomous-turn pause correction
 

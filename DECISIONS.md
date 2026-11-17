@@ -2200,5 +2200,8 @@ from normal fused state. If the footprint is occupied, hold. This gathers new
 views without reducing route clearance or driving a raw-only path.
 
 All 279 Windows-host tests pass, including clear-footprint rotation and
-occupied-footprint hold regressions. Robot-native testing, deployment, and
-supervised physical validation remain pending.
+occupied-footprint hold regressions. All 279 tests also pass natively on PT.
+Commit `0ee8135` is deployed with matching controller/test hashes after backup
+to `backup_pre_0ee8135`. The safe TensorRT restart preserved Hector and left one
+mapper `AUTO PAUSED`/stop; no deployment motion was commanded. Supervised
+physical validation remains pending.

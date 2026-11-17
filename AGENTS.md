@@ -141,6 +141,14 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+The generalized clear-footprint resurvey is deployed at commit `0ee8135`. All
+279 host and robot-native tests pass. When no frontier route is reachable, the
+mapper may use one of eight bounded zero-stride turns only if live LiDAR/depth
+show the 0.35 m rotation footprint clear; occupied footprints still hold and
+raw-only routes are never driven. Hector was preserved and one TensorRT mapper
+is `AUTO PAUSED`/stop. No deployment motion was commanded; supervised motion
+validation remains pending.
+
 The fresh cumulative turn-progress fix is deployed at commit `38d0614`, with
 the TensorRT-default launcher follow-up at `f04602d`. All 277 host and
 robot-native tests pass. Turn windows require two new recent Hector poses, and

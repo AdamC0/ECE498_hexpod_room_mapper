@@ -13,8 +13,11 @@ The candidate generalizes the same bounded zero-stride resurvey: any failed
 frontier plan may rotate when the live 0.35 m LiDAR/depth rotation footprint is
 clear. It remains limited to eight turns with settling and replanning after
 each; an occupied footprint still holds, and raw-only routes remain diagnostic
-and are never driven. All 279 host tests pass. Robot-native, deployment, and
-supervised physical validation remain pending.
+and are never driven. All 279 host and robot-native tests pass. Commit
+`0ee8135` is deployed after backup to `backup_pre_0ee8135`, with matching
+controller/test hashes. The safe TensorRT restart preserved Hector and left one
+mapper `AUTO PAUSED` with command `stop`; no motion was commanded. Supervised
+physical validation remains pending.
 
 ## TensorRT launcher default - 2026-11-16
 
