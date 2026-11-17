@@ -2922,26 +2922,30 @@ class RoomMapper:
             if not self.plan(pose, now):
                 attempts = getattr(self, "frontier_resurvey_attempts", 0)
                 max_turns = getattr(self, "frontier_resurvey_max_turns", 8)
-                if (getattr(self, "frontier_blocked_by_fused", False) and
-                        attempts < max_turns and not rotation_blocked):
+                fused_blocked = getattr(self, "frontier_blocked_by_fused", False)
+                if attempts < max_turns and not rotation_blocked:
                     self.frontier_resurvey_attempts = attempts + 1
                     self.avoid_dir = self.open_side(lidar, pose)
                     self.phase, self.phase_start = "frontier_resurvey_turn", now
-                    self.web_msg = (
-                        "Hector frontier blocked by retained depth cells; safe depth "
-                        "resurvey turn %d/%d" %
-                        (self.frontier_resurvey_attempts, max_turns))
+                    cause = ("Hector frontier blocked by retained depth cells"
+                             if fused_blocked else
+                             "No reachable route in the current map")
+                    self.web_msg = ("%s; safe in-place resurvey turn %d/%d" %
+                                    (cause, self.frontier_resurvey_attempts,
+                                     max_turns))
                     self.send(("spin", self.avoid_dir), interrupt_object=True)
                 else:
-                    if getattr(self, "frontier_blocked_by_fused", False):
+                    if fused_blocked:
                         reason = ("rotation footprint is not clear" if rotation_blocked else
                                   "%d bounded resurvey turns found no safe route" % max_turns)
                         self.web_msg = (
                             "Hector frontiers remain blocked by fused obstacles; %s; "
                             "holding position" % reason)
                     else:
-                        self.web_msg = (
-                            "No reachable frontier; holding position and surveying")
+                        reason = ("rotation footprint is not clear" if rotation_blocked else
+                                  "%d bounded resurvey turns found no route" % max_turns)
+                        self.web_msg = ("No reachable frontier; %s; holding position" %
+                                        reason)
                     self.start_look(now)
         elif self.phase == "frontier_resurvey_turn":
             was_moving = self.commanded_moving

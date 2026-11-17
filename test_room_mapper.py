@@ -938,6 +938,35 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.frontier_resurvey_attempts, 1)
         n.send.assert_called_with(('spin', -1.), interrupt_object=True)
 
+    def test_raw_frontier_stall_rotates_when_footprint_is_clear(self):
+        n = self.controller()
+        n.phase = 'plan'
+        n.plan = Mock(return_value=False)
+        n.frontier_blocked_by_fused = False
+        n.frontier_resurvey_attempts = 0
+        n.frontier_resurvey_max_turns = 8
+        n.open_side = Mock(return_value=1.)
+        n.control_step()
+        self.assertEqual(n.phase, 'frontier_resurvey_turn')
+        self.assertEqual(n.frontier_resurvey_attempts, 1)
+        self.assertIn('No reachable route', n.web_msg)
+        n.send.assert_called_with(('spin', 1.), interrupt_object=True)
+
+    def test_raw_frontier_stall_holds_when_rotation_footprint_is_occupied(self):
+        n = self.controller()
+        n.phase = 'plan'
+        n.lidar['nearest'] = .20
+        n.plan = Mock(return_value=False)
+        n.frontier_blocked_by_fused = False
+        n.frontier_resurvey_attempts = 0
+        n.frontier_resurvey_max_turns = 8
+        n.start_look = Mock()
+        n.control_step()
+        n.start_look.assert_called_once()
+        self.assertIn('rotation footprint is not clear', n.web_msg)
+        self.assertNotIn(unittest.mock.call(('spin', 1.), interrupt_object=True),
+                         n.send.call_args_list)
+
     def test_fused_frontier_stall_does_not_turn_inside_occupied_footprint(self):
         n = self.controller()
         n.phase = 'plan'

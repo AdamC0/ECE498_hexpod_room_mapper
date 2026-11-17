@@ -43,6 +43,9 @@ one mapper process exists.
   drive-disabled if used for research comparison. Never run both SLAM stacks.
 - `map_explore.py` plans through known free space using a 0.30 m radius and
   0.13 m leg-clearance margin.
+- If no frontier route is reachable but the live 0.35 m circular rotation
+  footprint is clear, the mapper may make up to eight zero-stride resurvey
+  turns with settled replanning. It never drives a raw-only route.
 - `room_mapper.py` handles continuous path gait commands, bounded recovery,
   sensor safety, omnidirectional manual control, clicked routes, and autonomous
   object verification. During autonomous frontier travel only, a moving YOLO

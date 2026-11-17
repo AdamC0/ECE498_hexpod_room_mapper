@@ -1,5 +1,21 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Clear-footprint route resurvey - 2026-11-16
+
+Live autonomy was active with command `stop` and `No reachable frontier` even
+though current LiDAR reported 3.00 m. The raw map contained 506 frontier cells,
+but only six walkable cells were connected to the robot; start clearance was
+0.439 m against the 0.43 m planning requirement. The existing resurvey turn was
+restricted to cases where raw Hector had a route and only the fused layer
+blocked it, so this pinched raw-map case could never collect a new view.
+
+The candidate generalizes the same bounded zero-stride resurvey: any failed
+frontier plan may rotate when the live 0.35 m LiDAR/depth rotation footprint is
+clear. It remains limited to eight turns with settling and replanning after
+each; an occupied footprint still holds, and raw-only routes remain diagnostic
+and are never driven. All 279 host tests pass. Robot-native, deployment, and
+supervised physical validation remain pending.
+
 ## TensorRT launcher default - 2026-11-16
 
 Per operator request, `start_room_mapper.sh` now selects `tensorrt_fp16` by

@@ -2183,3 +2183,22 @@ Deployment follow-up: all 277 tests passed natively on PT. Turn-progress commit
 backups. A no-option safe launch reported `tensorrt_fp16`, preserved the running
 Hector process, and left exactly one mapper `AUTO PAUSED` with command `stop`.
 No physical motion was commanded; supervised moving validation remains pending.
+
+## Resurvey a route-less map when the live rotation footprint is clear - 2026-11-16
+
+Live autonomy held at `No reachable frontier` despite a visually clear path
+and 3.00 m current LiDAR clearance. The raw Hector diagnostic found 506 frontier
+cells but only six connected walkable cells: the robot cell had 0.439 m map
+clearance against the 0.43 m planner requirement, leaving the known-free region
+pinched off by inflated occupancy. The existing bounded resurvey applied only
+when raw Hector already had a route that fused depth disconnected.
+
+Chosen: when any frontier plan fails, permit the same zero-stride resurvey turn
+if current LiDAR and depth show the 0.35 m circular rotation footprint clear.
+Keep the existing eight-attempt bound, settle after every turn, and replan only
+from normal fused state. If the footprint is occupied, hold. This gathers new
+views without reducing route clearance or driving a raw-only path.
+
+All 279 Windows-host tests pass, including clear-footprint rotation and
+occupied-footprint hold regressions. Robot-native testing, deployment, and
+supervised physical validation remain pending.

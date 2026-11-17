@@ -1,5 +1,15 @@
 # JetHexa Room Mapper
 
+## Clear-footprint route resurvey
+
+When the current map has no reachable route, autonomy no longer holds forever
+solely because the raw Hector frontier probe also fails. If live LiDAR and
+depth show the 0.35 m in-place rotation footprint is clear, the robot may make
+one of the existing eight bounded zero-stride resurvey turns, settle, and
+replan from new sensor evidence. An occupied rotation footprint still prohibits
+the turn, and no raw-only route is ever driven. The candidate passes all 279
+host tests; robot-native and supervised motion validation are pending.
+
 ## False autonomous-turn pause correction
 
 Live ROS history showed that several reported resets were not pose-jump resets:

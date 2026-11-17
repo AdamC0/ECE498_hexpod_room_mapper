@@ -17,6 +17,20 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+CLEAR-FOOTPRINT ROUTE RESURVEY (CANDIDATE; DEPLOYMENT PENDING):
+  [x] Reproduce active autonomy holding with 506 raw frontier cells but only six
+      connected walkable cells and no route, while live LiDAR reports 3.00 m.
+  [x] Permit the existing bounded zero-stride resurvey when any frontier plan
+      fails and the live 0.35 m rotation footprint is clear.
+  [x] Keep the eight-turn bound, settled evidence/replanning, and prohibition
+      on driving a raw-only route.
+  [x] Unit-test both clear-footprint rotation and occupied-footprint hold.
+  [x] Pass all 279 Windows-host tests with warnings treated as errors.
+  [ ] Pass all tests natively, deploy paused with matching hashes, and preserve
+      Hector unless its frame independently becomes invalid.
+  [ ] Under direct supervision, confirm the robot rotates to seek routes and
+      stops if anything enters the rotation footprint.
+
 FALSE AUTOMATIC MAP RESET (DEPLOYED; SUPERVISED CHECK PENDING):
   [x] Confirm ROS history contains automatic resets caused by repeated weak
       turn progress even without a pose discontinuity.
