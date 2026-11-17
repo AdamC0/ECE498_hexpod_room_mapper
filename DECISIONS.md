@@ -2138,5 +2138,9 @@ For the actual 0.25 m / 20 degree discontinuity guard, require two consecutive
 threshold-crossing poses that agree with one another within half of each jump
 threshold. The first candidate is withheld from control and mapping state. A
 return to the accepted pose cancels it; a persistent discontinuity still uses
-the existing serialized one-shot reset. All 274 host tests pass under warnings
-treated as errors. Robot-native validation and deployment remain pending.
+the existing serialized one-shot reset. All 274 host and robot-native tests
+pass under warnings treated as errors. Commit `371279a` is deployed with a
+matching runtime hash after backup to `backup_pre_371279a`. Hector's existing
+map was preserved; one TensorRT mapper remains `AUTO PAUSED`/stop with Hector
+only, and no deployment motion was commanded. Supervised physical turn-stall
+and persistent real-jump validation remain pending.

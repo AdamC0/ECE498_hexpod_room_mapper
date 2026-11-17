@@ -15,6 +15,12 @@ automatic reset runs. A single transient sample is ignored if pose returns to
 the accepted frame. The confirmation count is configurable with
 `_pose_jump_confirmations:=2` (2-5).
 
+Commit `371279a` passes all 274 host and robot-native tests with warnings as
+errors and is deployed with a matching runtime hash. The existing Hector map
+was preserved; exactly one TensorRT mapper remains `AUTO PAUSED` with command
+`stop`, and no deployment motion was commanded. Directly supervised turn-stall
+and persistent real-jump checks remain pending.
+
 ## Object landmark association and depth-ray correction (deployed; scene check pending)
 
 The object mapper now limits same-class track association to the same

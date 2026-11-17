@@ -14,8 +14,12 @@ The candidate makes three weak turn bursts stop and pause autonomy with the map,
 fused layer, route, and landmarks retained. Pose thresholds remain 0.25 m / 20
 degrees, but reset now requires two consecutive discontinuous samples that are
 mutually consistent; a single sample that returns to the accepted frame is
-discarded. All 274 host tests pass under warnings-as-errors. Robot-native
-validation and paused deployment remain pending.
+discarded. All 274 host and robot-native tests pass under warnings-as-errors.
+Commit `371279a` is deployed with matching `room_mapper.py` hash after backup
+to `backup_pre_371279a`. Hector's existing map was preserved and exactly one
+TensorRT mapper remains `AUTO PAUSED` with command `stop`; RTAB-Map is absent
+and no deployment motion was commanded. Supervised physical turn-stall and
+persistent real-jump checks remain pending.
 
 ## Bounded unconfirmed depth cells - 2026-11-16
 

@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-FALSE AUTOMATIC MAP RESET (CANDIDATE; LIVE CHECK PENDING):
+FALSE AUTOMATIC MAP RESET (DEPLOYED; SUPERVISED CHECK PENDING):
   [x] Confirm ROS history contains automatic resets caused by repeated weak
       turn progress even without a pose discontinuity.
   [x] Pause after three weak turn bursts while retaining the map, fused cells,
@@ -26,8 +26,11 @@ FALSE AUTOMATIC MAP RESET (CANDIDATE; LIVE CHECK PENDING):
       automatic pose-jump reset; reject a single sample that recovers.
   [x] Pass all 274 host tests under warnings-as-errors and compile production
       Python.
-  [ ] Pass all tests natively, deploy paused, and validate synthetic transient,
-      confirmed jump, and turn-stall behavior without physical motion.
+  [x] Pass all 274 tests natively and deploy commit 371279a with matching
+      runtime hash, the existing Hector map preserved, and exactly one
+      TensorRT mapper AUTO PAUSED/stop. No deployment motion was commanded.
+  [ ] Under direct supervision, verify three ineffective turns pause without a
+      reset and a persistent real pose discontinuity still resets exactly once.
 
 OBJECT LANDMARK RELIABILITY (DEPLOYED; LABELED SCENE CHECKS PENDING):
   [x] Limit same-class association and manual-removal suppression to the
