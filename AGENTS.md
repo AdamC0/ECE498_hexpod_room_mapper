@@ -55,6 +55,9 @@ one mapper process exists.
   settled captures and prefers the Objects365 classroom model with automatic
   fallback to the retained COCO YOLOv5n model. Moving captures are RGB-only
   previews and never update semantic tracks or planner occupancy.
+- The safe launcher defaults to TensorRT FP16. Engine initialization or runtime
+  failure automatically falls back to CPU for that process; explicit CPU
+  startup remains available with `--yolo-backend cpu`.
 
 ## Current safety/calibration facts
 

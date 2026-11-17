@@ -9,12 +9,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JETHEXA_SETUP="${JETHEXA_SETUP:-$HOME/jethexa/devel/setup.bash}"
 LOG_DIR="${ROOM_MAPPER_LOG_DIR:-$HOME/.room_mapper_logs}"
 FRESH_MAP=false
-YOLO_BACKEND=cpu
+YOLO_BACKEND=tensorrt_fp16
 
 usage() {
   echo "Usage: $0 [--fresh-map] [--yolo-backend cpu|tensorrt_fp16]"
   echo "  --fresh-map  Reset Hector's current map when starting the mapper."
-  echo "  --yolo-backend  Select object inference; CPU remains the default."
+  echo "  --yolo-backend  Select object inference; TensorRT is the default and CPU is the fallback."
 }
 
 while [[ $# -gt 0 ]]; do

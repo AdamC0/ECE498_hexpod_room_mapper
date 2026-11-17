@@ -41,7 +41,7 @@ FALSE TURN-PROGRESS PAUSE (CANDIDATE; DEPLOYMENT PENDING):
       totaling at least 3 degrees clears the stall condition.
   [x] Retain a map-preserving pause for three evidence-backed bursts totaling
       less than 3 degrees.
-  [x] Pass all 276 Windows-host tests with warnings treated as errors.
+  [x] Pass all 277 Windows-host tests with warnings treated as errors.
   [ ] Pass the suite natively on PT, deploy with matching hashes, and leave one
       mapper AUTO PAUSED/stop without commanding motion.
   [ ] Under direct supervision, verify normal autonomous turning no longer
@@ -511,9 +511,10 @@ SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   _frontier_goal_distance:=0.5 and the explicit yolov5n model path. Do not
   alter LiDAR/depth fusion for rollback.
 
-OPTIONAL TENSORRT YOLO (SHORT FULL-STACK PAUSED GATE PASSED):
-  CPU remains the default. The original ONNX, labels, and yolov5n rollback must
-  remain unchanged. The engine is device-specific and stays under
+TENSORRT YOLO WITH CPU FALLBACK (SHORT FULL-STACK PAUSED GATE PASSED):
+  TensorRT FP16 is the safe-launcher default. CPU remains the automatic runtime
+  fallback. The original ONNX, labels, and yolov5n rollback must remain
+  unchanged. The engine is device-specific and stays under
   models/gpu_trial/ with its required .json checksum sidecar.
 
   [x] Build the FP16 engine on PT with prepare_tensorrt_engine.py.
@@ -532,9 +533,10 @@ OPTIONAL TENSORRT YOLO (SHORT FULL-STACK PAUSED GATE PASSED):
   [x] Force an invalid engine/checksum and confirm status reports (cpu) after
       automatic rollback without changing either ONNX model.
 
-  Rollback: stop the mapper, run ./start_room_mapper.sh with no backend option,
-  and verify Detector reports (cpu). Remove only the exact gpu_trial engine and
-  sidecar if desired. Do not resume autonomy during benchmark or rollback.
+  Explicit CPU start: stop the mapper, run
+  ./start_room_mapper.sh --yolo-backend cpu, and verify Detector reports (cpu).
+  TensorRT failures should select CPU automatically. Remove only the exact
+  gpu_trial engine and sidecar if desired. Do not resume autonomy during tests.
 
   Expected validation cadence: YOLO acquires up to five distinct fresh
   synchronized frame pairs during the one-second grace at each ready stationary

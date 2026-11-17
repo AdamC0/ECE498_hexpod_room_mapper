@@ -1,4 +1,5 @@
 """Workstation-safe regression tests for detector startup and rollback."""
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
@@ -6,6 +7,12 @@ from room_mapper import RoomMapper
 
 
 class ModelStartupTests(unittest.TestCase):
+    def test_safe_launcher_defaults_to_tensorrt(self):
+        launcher = Path(__file__).with_name("start_room_mapper.sh").read_text(
+            encoding="utf-8")
+        self.assertIn("YOLO_BACKEND=tensorrt_fp16", launcher)
+        self.assertIn("_yolo_backend:=\"$YOLO_BACKEND\"", launcher)
+
     def node(self):
         n = RoomMapper.__new__(RoomMapper)
         n.yolo_model = "/models/preferred.onnx"

@@ -1,5 +1,13 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## TensorRT launcher default - 2026-11-16
+
+Per operator request, `start_room_mapper.sh` now selects `tensorrt_fp16` by
+default. Engine load, checksum, warm-up, or runtime inference failures retain
+the existing permanent fallback to the same preferred model on CPU, followed
+by the retained YOLOv5n model fallback if necessary. Explicit CPU startup
+remains available with `--yolo-backend cpu`.
+
 ## False autonomous-turn pause correction - 2026-11-16
 
 The operator reported repeated map resets without a visible pose jump. Live
@@ -20,7 +28,7 @@ The new candidate requires at least two new, recent Hector poses before it
 classifies a turn window. It measures cumulative heading change across the
 three bursts, so three slow windows that total at least 3 degrees clear the
 stall counter. Three evidence-backed bursts totaling less than 3 degrees still
-pause and retain the map. All 276 Windows-host tests pass under
+pause and retain the map. All 277 Windows-host tests pass under
 warnings-as-errors. Robot-native testing, deployment, and supervised physical
 validation remain pending.
 

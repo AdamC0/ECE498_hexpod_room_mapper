@@ -2162,7 +2162,18 @@ below 3 degrees. This retains detection of a genuinely ineffective gait while
 allowing slow continuous rotation. Direction changes, manual control, map
 reset, and a successful 3-degree turn clear the pending evidence.
 
-All 276 Windows-host unit tests pass with warnings treated as errors, including
+All 277 Windows-host unit tests pass with warnings treated as errors, including
 regressions for slow cumulative rotation and missing fresh pose evidence.
 Robot-native testing, deployment, and supervised motion validation remain
 pending.
+
+## Default the production launcher to TensorRT with CPU fallback - 2026-11-16
+
+The production robot already runs the validated device-specific TensorRT FP16
+engine, but the safe launcher still selected CPU unless an option was supplied.
+This caused a routine paused restart to silently return to slower CPU inference.
+
+Chosen: make `tensorrt_fp16` the safe-launcher default. Preserve the existing
+startup and runtime exception paths that permanently rebuild the preferred
+detector on CPU, and retain the COCO YOLOv5n model as the final model fallback.
+An operator can still request CPU explicitly with `--yolo-backend cpu`.

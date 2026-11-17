@@ -19,7 +19,7 @@ automatic reset runs. A single transient sample is ignored if pose returns to
 the accepted frame. The confirmation count is configurable with
 `_pose_jump_confirmations:=2` (2-5).
 
-The candidate passes all 276 host tests with warnings as errors. Robot-native
+The candidate passes all 277 host tests with warnings as errors. Robot-native
 testing, deployment, and a directly supervised moving validation remain
 pending; unit tests do not command physical motion.
 
@@ -465,10 +465,11 @@ frames from consuming inference resources or being treated as additional
 mapping observations. A future continuous preview/test mode must keep repeated
 display-only detections separate from landmark-confirmation observations.
 
-### Optional TensorRT acceleration
+### TensorRT acceleration with automatic CPU fallback
 
-CPU remains the production default and rollback path. On PT, build the
-device-specific FP16 engine in the isolated, gitignored trial directory:
+TensorRT FP16 is the production launcher default. CPU remains the automatic
+rollback path. On PT, build the device-specific FP16 engine in the isolated,
+gitignored trial directory:
 
 ```bash
 cd ~/room_mapper
@@ -476,12 +477,11 @@ python3 prepare_tensorrt_engine.py models/yolo26n-objv1-150.onnx \
   --output models/gpu_trial/yolo26n-objv1-150-fp16.engine
 ```
 
-The engine metadata binds it to the exact ONNX checksum. Enable it explicitly
-with `./start_room_mapper.sh --yolo-backend tensorrt_fp16` or the ROS parameter
-`_yolo_backend:=tensorrt_fp16`. Engine load, checksum, warm-up, or later CUDA
-execution failure permanently switches that mapper process to the same model
-on CPU; the retained YOLOv5n rollback remains the final fallback. Running the
-launcher without the option restores CPU selection.
+The engine metadata binds it to the exact ONNX checksum. The safe launcher now
+selects `tensorrt_fp16` without an option. Engine load, checksum, warm-up, or
+later CUDA execution failure permanently switches that mapper process to the
+same model on CPU; the retained YOLOv5n model remains the final model fallback.
+Use `./start_room_mapper.sh --yolo-backend cpu` only for an explicit CPU start.
 
 Use `benchmark_yolo_backends.py` on fixed saved frames before enabling the
 mapper. With all ROS perception processes stopped, the initial PT trial on
