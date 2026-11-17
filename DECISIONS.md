@@ -2202,9 +2202,13 @@ and do not load unused rectification, metric, software-registration, or point-
 cloud nodelets. Mapper collision/planner limits remain 15/10/2 Hz.
 
 A reversible paused live trial kept required depth topics near 15.4-15.7 Hz and
-depth health primary; nodelet-manager CPU fell to 32-35%. All 280 host tests
-pass, and the checked-in patch applies cleanly to the deployed vendor file.
-Durable deployment, reboot persistence, and supervised motion remain pending.
+depth health primary; nodelet-manager CPU fell to 32-35%. The corrected patch
+was then applied with a recoverable vendor backup. After a camera-stack restart,
+only the driver nodelet loaded, both streams held near 15.5-15.8 Hz, synchronized
+inference resumed, depth remained primary, and nodelet-manager CPU measured
+about 16%. All 280 host and robot-native tests pass. One TensorRT mapper was
+left `AUTO PAUSED`/`stop`, Hector and its map were preserved, and no motion was
+commanded. Full-reboot persistence and supervised motion remain pending.
 
 ## Resurvey a route-less map when the live rotation footprint is clear - 2026-11-16
 

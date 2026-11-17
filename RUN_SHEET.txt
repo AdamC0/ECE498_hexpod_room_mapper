@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-DEPTH PIPELINE CPU REDUCTION (CANDIDATE; DURABLE DEPLOYMENT PENDING):
+DEPTH PIPELINE CPU REDUCTION (DEPLOYED; REBOOT/MOTION VALIDATION PENDING):
   [x] Measure the live CPU bottleneck: Astra nodelet manager about 58%, mapper
       about one core, Hector about one core, and all four cores 75-100% busy.
   [x] Confirm native/registered raw depth are the required products and both
@@ -27,10 +27,14 @@ DEPTH PIPELINE CPU REDUCTION (CANDIDATE; DURABLE DEPLOYMENT PENDING):
       and nodelet-manager CPU reduced to about 32-35% while paused.
   [x] Check in a cleanly applicable Halley vendor patch and pass all 280 host
       tests with warnings treated as errors.
-  [ ] Back up and patch the vendor launch, restart the camera stack while the
-      mapper is paused, and pass all tests natively.
-  [ ] Verify required topics, calibration, timestamps, TensorRT, Hector, and
-      paused status after restart and again after a full reboot.
+  [x] Back up and patch the vendor launch, restart the camera stack while the
+      mapper is paused, and pass all 280 tests natively.
+  [x] After the camera restart, verify only the driver nodelet, depth mode 68,
+      required streams near 15.5-15.8 Hz, primary depth health, synchronized
+      inference, TensorRT, preserved Hector, and one AUTO PAUSED/stop mapper.
+      Nodelet-manager CPU measured about 16%; no motion was commanded.
+  [ ] Repeat required-topic, calibration, timestamp, and paused-state checks
+      after a full robot reboot.
   [ ] Under direct supervision, validate depth stops and normal autonomy at the
       15 Hz source rate. Restore the vendor backup if freshness or safety drops.
 

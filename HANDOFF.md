@@ -9,13 +9,17 @@ the native and registered raw depth images; both XYZ and XYZRGB point clouds
 had no subscribers. The installed OpenCV 4.5.5 has no CUDA modules, so there is
 no safe configuration switch that moves the ROS Melodic depth graph to GPU.
 
-The candidate vendor patch disables unused RGB/depth processing and point-cloud
+The deployed vendor patch disables unused RGB/depth processing and point-cloud
 nodelets and selects the Astra driver's 640x480@15 mode (`depth_mode=68`) rather
-than 640x480@30 (`69`). A reversible paused live trial kept both required topics
-near 15.4-15.7 Hz and depth sensing primary, while nodelet-manager CPU fell to
-32-35%. All 280 host tests pass, including a patch-policy regression. Durable
-robot patching, camera-stack restart/reboot persistence, robot-native tests,
-and supervised motion validation remain pending.
+than 640x480@30 (`69`). The original vendor file is recoverable at
+`Halley.launch.backup_pre_63924a7`. After a camera-stack restart, only
+`/camera/driver` was loaded; native and registered depth remained near
+15.5-15.8 Hz, synchronized RGB/depth inference resumed, and depth sensing was
+primary. Nodelet-manager CPU measured about 16%, versus about 58% before the
+change (the reversible trial measured 32-35%). All 280 host and robot-native
+tests pass. Exactly one TensorRT mapper is `AUTO PAUSED`/`stop`, Hector and its
+map were preserved, and no motion was commanded. Full-reboot persistence and
+supervised motion/depth-stop validation remain pending.
 
 ## Clear-footprint route resurvey - 2026-11-16
 

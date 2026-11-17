@@ -10,12 +10,14 @@ nodelets that have no consumers in production. The mapper continues consuming
 native and registered raw depth at its existing 15/10 Hz callback limits and
 projects planner depth at 2 Hz.
 
-In a paused live trial, both required depth topics remained near 15.4-15.7 Hz,
-depth collision sensing stayed primary, and the camera nodelet manager fell
-from about 58% CPU to 32-35%. This is a CPU optimization rather than a GPU port;
-the installed OpenCV has no CUDA modules. All 280 host tests pass. Durable
-vendor-patch deployment, reboot persistence, and supervised motion validation
-remain pending.
+The patch is deployed on PT with a recoverable vendor-file backup. After a
+camera-stack restart, only the Astra driver nodelet was loaded, both required
+depth topics remained near 15.5-15.8 Hz, depth collision sensing stayed
+primary, and nodelet-manager CPU measured about 16% (down from about 58%; the
+reversible pre-deployment trial measured 32-35%). This is a CPU optimization
+rather than a GPU port; the installed OpenCV has no CUDA modules. All 280 host
+and robot-native tests pass. Full-reboot persistence and supervised motion/
+depth-stop validation remain pending.
 
 ## Clear-footprint route resurvey
 
