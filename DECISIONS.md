@@ -2177,3 +2177,9 @@ Chosen: make `tensorrt_fp16` the safe-launcher default. Preserve the existing
 startup and runtime exception paths that permanently rebuild the preferred
 detector on CPU, and retain the COCO YOLOv5n model as the final model fallback.
 An operator can still request CPU explicitly with `--yolo-backend cpu`.
+
+Deployment follow-up: all 277 tests passed natively on PT. Turn-progress commit
+`38d0614` and launcher-default commit `f04602d` were deployed after recoverable
+backups. A no-option safe launch reported `tensorrt_fp16`, preserved the running
+Hector process, and left exactly one mapper `AUTO PAUSED` with command `stop`.
+No physical motion was commanded; supervised moving validation remains pending.

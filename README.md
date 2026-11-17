@@ -19,9 +19,12 @@ automatic reset runs. A single transient sample is ignored if pose returns to
 the accepted frame. The confirmation count is configurable with
 `_pose_jump_confirmations:=2` (2-5).
 
-The candidate passes all 277 host tests with warnings as errors. Robot-native
-testing, deployment, and a directly supervised moving validation remain
-pending; unit tests do not command physical motion.
+All 277 host and robot-native tests pass with warnings as errors. Turn fix
+commit `38d0614` and TensorRT-default follow-up `f04602d` are deployed with
+matching runtime files. A no-option safe launch selected `tensorrt_fp16`,
+preserved Hector, and left exactly one mapper `AUTO PAUSED` with command
+`stop`; no deployment motion was commanded. Directly supervised moving
+validation remains pending; unit tests do not command physical motion.
 
 ## Object landmark association and depth-ray correction (deployed; scene check pending)
 

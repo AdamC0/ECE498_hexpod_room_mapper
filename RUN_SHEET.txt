@@ -32,7 +32,7 @@ FALSE AUTOMATIC MAP RESET (DEPLOYED; SUPERVISED CHECK PENDING):
   [ ] Under direct supervision, verify three ineffective turns pause without a
       reset and a persistent real pose discontinuity still resets exactly once.
 
-FALSE TURN-PROGRESS PAUSE (CANDIDATE; DEPLOYMENT PENDING):
+FALSE TURN-PROGRESS PAUSE (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Confirm the pause followed three per-window heading checks even though
       the operator observed continuous physical rotation and a stable map.
   [x] Require at least two new, recent Hector poses before classifying a turn
@@ -42,7 +42,7 @@ FALSE TURN-PROGRESS PAUSE (CANDIDATE; DEPLOYMENT PENDING):
   [x] Retain a map-preserving pause for three evidence-backed bursts totaling
       less than 3 degrees.
   [x] Pass all 277 Windows-host tests with warnings treated as errors.
-  [ ] Pass the suite natively on PT, deploy with matching hashes, and leave one
+  [x] Pass the suite natively on PT, deploy with matching hashes, and leave one
       mapper AUTO PAUSED/stop without commanding motion.
   [ ] Under direct supervision, verify normal autonomous turning no longer
       pauses and a deliberately ineffective turn still pauses with map retained.

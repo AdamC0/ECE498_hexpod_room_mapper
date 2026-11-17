@@ -138,6 +138,14 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+The fresh cumulative turn-progress fix is deployed at commit `38d0614`, with
+the TensorRT-default launcher follow-up at `f04602d`. All 277 host and
+robot-native tests pass. Turn windows require two new recent Hector poses, and
+three weak windows pause only when their cumulative rotation remains below 3
+degrees. A no-option safe launch selected TensorRT, preserved Hector, and left
+one mapper `AUTO PAUSED`/stop; no deployment motion was commanded. Supervised
+normal-turn and deliberately ineffective-turn checks remain pending.
+
 The large-room Hector and clicked-route fix is deployed at commit `c2f45df` and
 has 261 passing Windows-host and robot-native tests. It uses a Hector-only
 0.50 m minimum range, three multiresolution levels, and a one-scan queue;

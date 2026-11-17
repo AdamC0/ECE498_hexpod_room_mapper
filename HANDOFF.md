@@ -8,6 +8,11 @@ the existing permanent fallback to the same preferred model on CPU, followed
 by the retained YOLOv5n model fallback if necessary. Explicit CPU startup
 remains available with `--yolo-backend cpu`.
 
+All 277 tests pass on the Windows host and natively on PT. Commit `f04602d` is
+deployed after backup to `backup_pre_f04602d`; a no-option launcher restart
+reported `tensorrt_fp16`, preserved the running Hector process, and left one
+mapper `AUTO PAUSED` with command `stop`. No motion was commanded.
+
 ## False autonomous-turn pause correction - 2026-11-16
 
 The operator reported repeated map resets without a visible pose jump. Live
@@ -28,9 +33,10 @@ The new candidate requires at least two new, recent Hector poses before it
 classifies a turn window. It measures cumulative heading change across the
 three bursts, so three slow windows that total at least 3 degrees clear the
 stall counter. Three evidence-backed bursts totaling less than 3 degrees still
-pause and retain the map. All 277 Windows-host tests pass under
-warnings-as-errors. Robot-native testing, deployment, and supervised physical
-validation remain pending.
+pause and retain the map. All 277 Windows-host and robot-native tests pass under
+warnings-as-errors. Commit `38d0614` is deployed with matching runtime hashes;
+the safe restart preserved Hector and commanded no motion. Supervised physical
+validation remains pending.
 
 ## Bounded unconfirmed depth cells - 2026-11-16
 
