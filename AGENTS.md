@@ -72,8 +72,9 @@ one mapper process exists.
   with LiDAR and the fused planner; without usable upper or lower-floor depth,
   sustained sparsity still faults.
 - Map pose jump: 0.25 m / 20 degrees, confirmed by two consistent samples.
-- Turn progress: three consecutive bursts below 3 degrees pause autonomy and
-  retain the map; turn failure alone is not proof of localization loss.
+- Turn progress: require at least two new, recent Hector poses and evaluate
+  cumulative heading across three bursts. A total below 3 degrees pauses
+  autonomy and retains the map; turn failure alone is not localization loss.
 - Stationary synchronized captures are the only source of semantic-map
   evidence. Moving YOLO preview is display/recording-only, and inference
   completion remains nonblocking. The legacy object-focus mode remains opt-in

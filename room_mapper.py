@@ -591,7 +591,10 @@ class RoomMapper:
         self.stable_turn_scans = 0
         self.rejected_motion_scans = 0
         self.pending_spin_yaw = None
+        self.pending_spin_pose_count = None
+        self.pose_update_count = 0
         self.spin_stall_count = 0
+        self.spin_stall_start_yaw = None
         self.frontier_blocked_by_fused = False
         self.frontier_resurvey_attempts = 0
         self.settle_until = time.time() + self.scan_settle
@@ -2170,6 +2173,7 @@ class RoomMapper:
             self.prev_pose = pose
             self.pose = pose
             self.t_pose = time.time()
+            self.pose_update_count = getattr(self, "pose_update_count", 0) + 1
             if hasattr(self, "survey"):
                 self.survey.localize(self.message_time(msg))
             if getattr(self, "web_map_center", None) is None:
@@ -2207,10 +2211,74 @@ class RoomMapper:
     def pause_for_turn_progress(self, reason):
         """Stop autonomy after ineffective turns without discarding a valid map."""
         self.pending_spin_yaw = None
+        self.pending_spin_pose_count = None
         self.spin_stall_count = 0
+        self.spin_stall_start_yaw = None
         message = "Autonomy paused: %s; map retained" % reason
         self.stop_manual(message)
         rospy.logerr(message)
+
+    def start_turn_progress_window(self, now=None, reset_stalls=False):
+        """Snapshot fresh-pose evidence for a commanded autonomous turn."""
+        now = time.time() if now is None else now
+        with self.data_lock:
+            pose = self.pose
+            pose_count = getattr(self, "pose_update_count", 0)
+        self.pending_spin_yaw = pose[2] if pose is not None else None
+        self.pending_spin_pose_count = pose_count
+        if reset_stalls:
+            self.spin_stall_count = 0
+            self.spin_stall_start_yaw = None
+
+    def measured_turn_progress(self, now=None):
+        """Return heading change only when Hector supplied enough fresh poses.
+
+        A delayed pose callback must not turn physical motion into a reported
+        zero-progress burst. ``None`` means the controller needs more pose
+        evidence; the normal SLAM freshness gate remains responsible for
+        stopping motion if that evidence does not arrive.
+        """
+        now = time.time() if now is None else now
+        start = getattr(self, "pending_spin_yaw", None)
+        if start is None:
+            return None
+        with self.data_lock:
+            pose = self.pose
+            pose_count = getattr(self, "pose_update_count", 0)
+            pose_time = getattr(self, "t_pose", 0.0)
+        start_count = getattr(self, "pending_spin_pose_count", None)
+        enough_samples = (start_count is None or pose_count - start_count >= 2)
+        max_age = max(.25, getattr(self, "spin_burst", .5))
+        fresh = pose_time > 0.0 and 0.0 <= now - pose_time <= max_age
+        if pose is None or not enough_samples or not fresh:
+            return None
+        return abs(math.atan2(math.sin(pose[2] - start),
+                              math.cos(pose[2] - start)))
+
+    def record_turn_progress(self, progress):
+        """Return True only for a confirmed cumulative turn stall."""
+        threshold = getattr(self, "min_spin_progress", math.radians(3.0))
+        if progress >= threshold:
+            self.spin_stall_count = 0
+            self.spin_stall_start_yaw = None
+            return False
+        if getattr(self, "spin_stall_count", 0) == 0:
+            self.spin_stall_start_yaw = getattr(self, "pending_spin_yaw", None)
+        self.spin_stall_count = getattr(self, "spin_stall_count", 0) + 1
+        limit = getattr(self, "max_spin_stalls", 3)
+        if self.spin_stall_count < limit:
+            return False
+        with self.data_lock:
+            pose = self.pose
+        aggregate_start = getattr(self, "spin_stall_start_yaw", None)
+        aggregate = (abs(math.atan2(math.sin(pose[2] - aggregate_start),
+                                    math.cos(pose[2] - aggregate_start)))
+                     if pose is not None and aggregate_start is not None else 0.0)
+        if aggregate >= threshold:
+            self.spin_stall_count = 0
+            self.spin_stall_start_yaw = None
+            return False
+        return True
 
     def send_actual(self, cmd):
         if cmd == self.last_cmd:
@@ -2320,25 +2388,27 @@ class RoomMapper:
         # application-level survey gate.
         spin_start = getattr(self, "pending_spin_yaw", None)
         if spin_start is not None:
-            with self.data_lock:
-                pose = self.pose
-            progress = (abs(math.atan2(math.sin(pose[2] - spin_start),
-                                       math.cos(pose[2] - spin_start)))
-                        if pose is not None else 0.0)
-            self.pending_spin_yaw = None
+            progress = self.measured_turn_progress(now)
+            if progress is None:
+                self.web_msg = "Waiting for fresh Hector poses to verify turn progress"
+                return
             if progress < getattr(self, "min_spin_progress", math.radians(3.0)):
-                self.spin_stall_count = getattr(self, "spin_stall_count", 0) + 1
-                limit = getattr(self, "max_spin_stalls", 3)
-                if self.spin_stall_count >= limit:
+                if self.record_turn_progress(progress):
                     self.pause_for_turn_progress(
-                        "%d consecutive turns made less than %.1f deg progress" %
-                        (self.spin_stall_count,
+                        "%d turn bursts made less than %.1f deg cumulative progress" %
+                        (getattr(self, "max_spin_stalls", 3),
                          math.degrees(self.min_spin_progress)))
                 else:
-                    self.web_msg = ("Turn made only %.1f deg progress; retrying (%d/%d)" %
-                                    (math.degrees(progress), self.spin_stall_count, limit))
+                    self.web_msg = ("Turn made %.1f deg; checking cumulative progress "
+                                    "(%d/%d)" %
+                                    (math.degrees(progress), self.spin_stall_count,
+                                     getattr(self, "max_spin_stalls", 3)))
+                self.pending_spin_yaw = None
+                self.pending_spin_pose_count = None
                 return
-            self.spin_stall_count = 0
+            self.record_turn_progress(progress)
+            self.pending_spin_yaw = None
+            self.pending_spin_pose_count = None
         # CPU inference is slow on this robot. Keep exploring through an
         # empty-scene inference; if that inference finds something, its boxes
         # remain visible and the next settled observation is allowed to finish
@@ -2350,8 +2420,7 @@ class RoomMapper:
                 not interrupt_object):
             return
         if cmd[0] == "spin":
-            with self.data_lock:
-                self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
+            self.start_turn_progress_window(now, reset_stalls=False)
         self.send_actual(cmd)
         self.set_motion(True)
         self.continuous_translation_start = (now if cmd[0] in
@@ -2369,6 +2438,9 @@ class RoomMapper:
         self.motion_until = 0.0
         self.continuous_translation_start = 0.0
         self.pending_spin_yaw = None
+        self.pending_spin_pose_count = None
+        self.spin_stall_count = 0
+        self.spin_stall_start_yaw = None
         self.send_actual(cmd)
         self.set_motion(cmd[0] != "stop")
 
@@ -2380,21 +2452,26 @@ class RoomMapper:
         previous = self.last_cmd
         if (previous is not None and previous[0] == "spin" and
                 self.commanded_moving and now >= self.motion_until):
-            start = getattr(self, "pending_spin_yaw", None)
-            progress = (abs(math.atan2(math.sin(self.pose[2] - start),
-                                      math.cos(self.pose[2] - start)))
-                        if start is not None and self.pose is not None else 0.)
-            self.spin_stall_count = (getattr(self, "spin_stall_count", 0) + 1
-                                     if progress < self.min_spin_progress else 0)
-            if self.spin_stall_count >= self.max_spin_stalls:
+            progress = self.measured_turn_progress(now)
+            if progress is None:
+                self.web_msg = "Waiting for fresh Hector poses to verify turn progress"
+                self.motion_until = now + self.spin_burst
+            elif self.record_turn_progress(progress):
                 self.pause_for_turn_progress(
-                    "repeated turns made insufficient heading progress")
+                    "%d turn bursts made less than %.1f deg cumulative progress" %
+                    (self.max_spin_stalls, math.degrees(self.min_spin_progress)))
                 return
-            self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
-            self.motion_until = now + self.spin_burst
+            else:
+                self.start_turn_progress_window(now, reset_stalls=False)
+                self.motion_until = now + self.spin_burst
         if cmd != previous or not self.commanded_moving:
-            self.pending_spin_yaw = (self.pose[2] if cmd[0] == "spin" and
-                                     self.pose is not None else None)
+            if cmd[0] == "spin":
+                self.start_turn_progress_window(now, reset_stalls=True)
+            else:
+                self.pending_spin_yaw = None
+                self.pending_spin_pose_count = None
+                self.spin_stall_count = 0
+                self.spin_stall_start_yaw = None
             self.motion_until = now + self.spin_burst
             # A direction change invalidates any pending stationary observation.
             self.motion_generation = getattr(self, "motion_generation", 0) + 1
@@ -3019,7 +3096,9 @@ class RoomMapper:
             self.automatic_map_reset_reason = ""
             self.automatic_map_reset_failure = ""
             self.pending_spin_yaw = None
+            self.pending_spin_pose_count = None
             self.spin_stall_count = 0
+            self.spin_stall_start_yaw = None
             self.frontier_blocked_by_fused = False
             self.frontier_resurvey_attempts = 0
             # Any inference captured against the old map must fail its

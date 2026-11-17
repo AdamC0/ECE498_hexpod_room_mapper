@@ -97,14 +97,57 @@ class MapperTests(unittest.TestCase):
         n.commanded_moving, n.last_cmd = True, ('spin', 1.)
         n.settle_until, n.motion_until = 0., 0.
         n.pending_spin_yaw, n.pose = 0., (0., 0., 0.)
+        n.pending_spin_pose_count, n.pose_update_count = 0, 0
         n.spin_burst, n.min_spin_progress, n.max_spin_stalls = .5, .05, 3
+        n.spin_stall_count, n.spin_stall_start_yaw = 0, None
         n.send_actual, n.set_motion, n.send = Mock(), Mock(), Mock()
+        n.pause_for_turn_progress = Mock()
+        for now in (1., 2., 3.):
+            n.pose_update_count += 2
+            n.t_pose = now
+            with patch('room_mapper.time.time', return_value=now):
+                n.send_path(('spin', 1.))
+        n.pause_for_turn_progress.assert_called_once_with(
+            '3 turn bursts made less than 2.9 deg cumulative progress')
+
+    def test_continuous_slow_turn_uses_cumulative_progress(self):
+        n = self.node
+        n.commanded_moving, n.last_cmd = True, ('spin', 1.)
+        n.settle_until, n.motion_until = 0., 0.
+        n.pending_spin_yaw, n.pose = 0., (0., 0., 0.)
+        n.pending_spin_pose_count, n.pose_update_count = 0, 0
+        n.spin_burst = .5
+        n.min_spin_progress, n.max_spin_stalls = math.radians(3.), 3
+        n.spin_stall_count, n.spin_stall_start_yaw = 0, None
+        n.send_actual, n.set_motion = Mock(), Mock()
+        n.pause_for_turn_progress = Mock()
+        for now, yaw in ((1., 1.), (2., 2.), (3., 3.2)):
+            n.pose = (0., 0., math.radians(yaw))
+            n.pose_update_count += 2
+            n.t_pose = now
+            with patch('room_mapper.time.time', return_value=now):
+                n.send_path(('spin', 1.))
+        n.pause_for_turn_progress.assert_not_called()
+        self.assertEqual(n.spin_stall_count, 0)
+
+    def test_continuous_turn_does_not_count_stale_pose_as_stall(self):
+        n = self.node
+        n.commanded_moving, n.last_cmd = True, ('spin', 1.)
+        n.settle_until, n.motion_until = 0., 0.
+        n.pending_spin_yaw, n.pose = 0., (0., 0., 0.)
+        n.pending_spin_pose_count, n.pose_update_count = 5, 5
+        n.t_pose = .9
+        n.spin_burst = .5
+        n.min_spin_progress, n.max_spin_stalls = math.radians(3.), 3
+        n.spin_stall_count, n.spin_stall_start_yaw = 0, None
+        n.send_actual, n.set_motion = Mock(), Mock()
         n.pause_for_turn_progress = Mock()
         for now in (1., 2., 3.):
             with patch('room_mapper.time.time', return_value=now):
                 n.send_path(('spin', 1.))
-        n.pause_for_turn_progress.assert_called_once_with(
-            'repeated turns made insufficient heading progress')
+        n.pause_for_turn_progress.assert_not_called()
+        self.assertEqual(n.spin_stall_count, 0)
+        self.assertIn('fresh Hector poses', n.web_msg)
 
     def test_floor_and_body_bob_are_clear(self):
         self.calibrate()

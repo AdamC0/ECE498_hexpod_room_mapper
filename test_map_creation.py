@@ -368,6 +368,7 @@ class SurveyMotionTests(unittest.TestCase):
         n.survey.observe(1.)
         n.survey.localize(1.)
         n.pose = (0., 0., math.radians(1.))
+        n.t_pose = 2.
         n.pending_spin_yaw = 0.
         n.min_spin_progress = math.radians(3.)
         n.max_spin_stalls = 3
@@ -384,18 +385,18 @@ class SurveyMotionTests(unittest.TestCase):
                 patch('room_mapper.rospy.logerr'):
             n.send(('forward',))
             self.assertTrue(n.map_trusted)
-            self.assertIn('retrying (1/3)', n.web_msg)
+            self.assertIn('(1/3)', n.web_msg)
             n.pending_spin_yaw = 0.
             n.send(('forward',))
             self.assertTrue(n.map_trusted)
-            self.assertIn('retrying (2/3)', n.web_msg)
+            self.assertIn('(2/3)', n.web_msg)
             n.pending_spin_yaw = 0.
             n.send(('forward',))
         n.send_actual.assert_called_once_with(('stop',))
         n.set_motion.assert_called_once_with(False)
         self.assertTrue(n.map_trusted)
         self.assertTrue(n.paused)
-        self.assertIn('3 consecutive turns', n.web_msg)
+        self.assertIn('3 turn bursts', n.web_msg)
         self.assertIn('map retained', n.web_msg)
         self.assertEqual(n.spin_stall_count, 0)
 

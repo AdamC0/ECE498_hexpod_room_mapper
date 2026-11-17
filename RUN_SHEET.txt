@@ -32,6 +32,21 @@ FALSE AUTOMATIC MAP RESET (DEPLOYED; SUPERVISED CHECK PENDING):
   [ ] Under direct supervision, verify three ineffective turns pause without a
       reset and a persistent real pose discontinuity still resets exactly once.
 
+FALSE TURN-PROGRESS PAUSE (CANDIDATE; DEPLOYMENT PENDING):
+  [x] Confirm the pause followed three per-window heading checks even though
+      the operator observed continuous physical rotation and a stable map.
+  [x] Require at least two new, recent Hector poses before classifying a turn
+      window; missing/delayed pose evidence cannot increment the stall count.
+  [x] Evaluate cumulative heading across three bursts so slow real rotation
+      totaling at least 3 degrees clears the stall condition.
+  [x] Retain a map-preserving pause for three evidence-backed bursts totaling
+      less than 3 degrees.
+  [x] Pass all 276 Windows-host tests with warnings treated as errors.
+  [ ] Pass the suite natively on PT, deploy with matching hashes, and leave one
+      mapper AUTO PAUSED/stop without commanding motion.
+  [ ] Under direct supervision, verify normal autonomous turning no longer
+      pauses and a deliberately ineffective turn still pauses with map retained.
+
 OBJECT LANDMARK RELIABILITY (DEPLOYED; LABELED SCENE CHECKS PENDING):
   [x] Limit same-class association and manual-removal suppression to the
       applicable confirmation-position tolerance instead of the full 0.65 m
@@ -626,8 +641,8 @@ FAULTS:
 
   SLAM LOST / pose jump / sustained stationary drift:
     Stop. Reset or restart Hector and begin a fresh map. Never reuse the
-    invalid grid. A single weak turn retries; three consecutive weak turns now
-    stop and pause while retaining the map.
+    invalid grid. Turn stalls require fresh pose evidence; three bursts totaling
+    less than 3 degrees stop and pause while retaining the map.
 
   /scan publisher exists but no scan messages after reboot:
     rosservice call /start_scan '{}'

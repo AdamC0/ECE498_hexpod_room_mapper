@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## False automatic-map-reset correction - 2026-11-16
+## False autonomous-turn pause correction - 2026-11-16
 
 The operator reported repeated map resets without a visible pose jump. Live
 inspection found the robot unexpectedly autonomous and issuing translation, so
@@ -10,16 +10,19 @@ progress`, plus a marginal single-message `pose jumped 0.26 m / 4 deg` reset.
 The former conflated an ineffective/blocked physical turn with localization
 loss, while the latter had no temporal confirmation.
 
-The candidate makes three weak turn bursts stop and pause autonomy with the map,
-fused layer, route, and landmarks retained. Pose thresholds remain 0.25 m / 20
-degrees, but reset now requires two consecutive discontinuous samples that are
-mutually consistent; a single sample that returns to the accepted frame is
-discarded. All 274 host and robot-native tests pass under warnings-as-errors.
-Commit `371279a` is deployed with matching `room_mapper.py` hash after backup
-to `backup_pre_371279a`. Hector's existing map was preserved and exactly one
-TensorRT mapper remains `AUTO PAUSED` with command `stop`; RTAB-Map is absent
-and no deployment motion was commanded. Supervised physical turn-stall and
-persistent real-jump checks remain pending.
+Commit `371279a` first changed that condition to a map-retaining pause. The
+operator then confirmed that the robot was physically rotating and the map was
+stable, but the pause recurred. The detector sampled each fixed 0.5-second
+window independently and could classify delayed Hector callbacks or three slow
+sub-3-degree windows as a physical stall.
+
+The new candidate requires at least two new, recent Hector poses before it
+classifies a turn window. It measures cumulative heading change across the
+three bursts, so three slow windows that total at least 3 degrees clear the
+stall counter. Three evidence-backed bursts totaling less than 3 degrees still
+pause and retain the map. All 276 Windows-host tests pass under
+warnings-as-errors. Robot-native testing, deployment, and supervised physical
+validation remain pending.
 
 ## Bounded unconfirmed depth cells - 2026-11-16
 
@@ -1100,7 +1103,8 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
   depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses
-- weak turn tolerance: pause with map retained after 3 bursts below 3 degrees
+- weak turn tolerance: require fresh pose evidence and pause with the map
+  retained only when 3 bursts total less than 3 degrees
 - pose jump guard: 0.25 m / 20 degrees across 2 consistent samples
 
 Depth cannot guarantee detection of reflective, transparent, out-of-view, or

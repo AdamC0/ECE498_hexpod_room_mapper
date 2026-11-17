@@ -2144,3 +2144,25 @@ matching runtime hash after backup to `backup_pre_371279a`. Hector's existing
 map was preserved; one TensorRT mapper remains `AUTO PAUSED`/stop with Hector
 only, and no deployment motion was commanded. Supervised physical turn-stall
 and persistent real-jump validation remain pending.
+
+## Require fresh cumulative evidence before pausing a turn - 2026-11-16
+
+After deployment of the map-retaining turn response, the operator observed
+multiple pauses while the robot continued rotating normally and the Hector map
+remained stable. The detector still judged every 0.5-second burst separately:
+three sub-3-degree windows paused even when their combined rotation was real,
+and a delayed pose callback could make physical motion appear to be zero.
+
+Chosen: classify a window only after at least two new Hector pose callbacks and
+only while the latest pose is recent. Missing evidence does not increment the
+stall counter; the existing 2.5-second SLAM freshness gate remains responsible
+for stopping motion if pose updates actually disappear. Accumulate the three
+weak windows from their first heading and pause only when their total remains
+below 3 degrees. This retains detection of a genuinely ineffective gait while
+allowing slow continuous rotation. Direction changes, manual control, map
+reset, and a successful 3-degree turn clear the pending evidence.
+
+All 276 Windows-host unit tests pass with warnings treated as errors, including
+regressions for slow cumulative rotation and missing fresh pose evidence.
+Robot-native testing, deployment, and supervised motion validation remain
+pending.

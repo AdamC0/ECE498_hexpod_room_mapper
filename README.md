@@ -1,13 +1,17 @@
 # JetHexa Room Mapper
 
-## False automatic-map-reset correction
+## False autonomous-turn pause correction
 
 Live ROS history showed that several reported resets were not pose-jump resets:
 three ineffective turn bursts were routed through the same destructive Hector
 reset path. Turn progress can fail because the robot is blocked or a gait does
 not produce rotation; that alone does not prove the coordinate frame is bad.
-Repeated insufficient turn progress now stops and pauses autonomy while
-retaining Hector, fused occupancy, routes, and landmarks.
+The first correction retained Hector, fused occupancy, routes, and landmarks,
+but exposed the same detector as repeated false pauses. Turn validation now
+requires at least two new, recent Hector poses and measures cumulative heading
+change across the three 0.5-second bursts. Slow real rotation therefore clears
+the stall condition, while three evidence-backed bursts totaling less than 3
+degrees still pause safely.
 
 The 0.25 m / 20 degree pose-discontinuity guard remains. A threshold crossing
 must now appear in two consistent consecutive pose messages before the existing
@@ -15,11 +19,9 @@ automatic reset runs. A single transient sample is ignored if pose returns to
 the accepted frame. The confirmation count is configurable with
 `_pose_jump_confirmations:=2` (2-5).
 
-Commit `371279a` passes all 274 host and robot-native tests with warnings as
-errors and is deployed with a matching runtime hash. The existing Hector map
-was preserved; exactly one TensorRT mapper remains `AUTO PAUSED` with command
-`stop`, and no deployment motion was commanded. Directly supervised turn-stall
-and persistent real-jump checks remain pending.
+The candidate passes all 276 host tests with warnings as errors. Robot-native
+testing, deployment, and a directly supervised moving validation remain
+pending; unit tests do not command physical motion.
 
 ## Object landmark association and depth-ray correction (deployed; scene check pending)
 
@@ -597,8 +599,9 @@ medium, charging, stale, and unavailable telemetry.
   fall through into ordinary frontier exploration.
 - If the front remains blocked after 2.5 seconds of turning, corner recovery
   escalates to the same guarded reverse escape when rear LiDAR is clear.
-- One weak turn no longer invalidates SLAM. Three consecutive turn bursts with
-  less than 3 degrees of measured heading progress latch `SLAM LOST`.
+- Turn progress is evaluated only with at least two new, recent Hector poses.
+  Three turn bursts totaling less than 3 degrees pause autonomy and retain the
+  map; slow cumulative rotation does not falsely count as a stall.
 - Pose updates larger than 0.25 m or 20 degrees still invalidate the map.
 - The web map follows the robot by default. It supports wheel/button zoom,
   drag-to-pan, and a Center button that restores 100% robot-centered view.
