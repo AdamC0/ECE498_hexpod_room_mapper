@@ -71,8 +71,9 @@ one mapper process exists.
   calibrated current lower-floor region can then provide bump/dropout sensing
   with LiDAR and the fused planner; without usable upper or lower-floor depth,
   sustained sparsity still faults.
-- Map pose jump: 0.25 m / 20 degrees.
-- Turn progress: three consecutive bursts below 3 degrees invalidate SLAM.
+- Map pose jump: 0.25 m / 20 degrees, confirmed by two consistent samples.
+- Turn progress: three consecutive bursts below 3 degrees pause autonomy and
+  retain the map; turn failure alone is not proof of localization loss.
 - Stationary synchronized captures are the only source of semantic-map
   evidence. Moving YOLO preview is display/recording-only, and inference
   completion remains nonblocking. The legacy object-focus mode remains opt-in
@@ -86,8 +87,8 @@ one mapper process exists.
   LiDAR swept-circle path that retains the 0.45 m emergency envelope.
   Floor-bump and depth-dropout alarms prohibit reverse.
 - Active paths use continuous translation and turning with live heading-progress
-  checks. Repeated turn-progress loss schedules the same one-shot automatic
-  Hector reset as a pose jump. Recovery otherwise retains bounded bursts.
+  checks. Repeated turn-progress loss stops and pauses with the map retained.
+  Only a confirmed pose discontinuity schedules automatic Hector reset.
 - Do not report a map completion/known percentage. The configured occupancy
   grid is not the unknown room boundary; use frontier availability and direct
   map evidence instead.
@@ -170,7 +171,7 @@ close-object, active turn-loss reset, sparse-depth motion, and other pending
 physical checks in `RUN_SHEET.txt` remain outstanding.
 
 The current baseline adds autonomous-frontier close-object verification,
-one-shot reset scheduling after repeated turn-progress loss, lower-floor depth
+map-retaining pause after repeated turn-progress loss, lower-floor depth
 fallback for a sparse upper image, a 10 s minimum depth-cell hold followed by
 positive-clear removal, automatic pose-jump reset, session-static landmarks,
 moving display-only YOLO preview, and downloadable annotated video recording.

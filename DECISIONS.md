@@ -2119,3 +2119,24 @@ same interval. One TensorRT mapper remains `AUTO PAUSED`/stop with Hector only.
 The temporary tier fell from 4 to 2 cells in the final delayed sample while
 current repeated geometry promoted normally. No motion was commanded. A
 controlled 60-second transient and promoted-retention check remains pending.
+
+## Do not erase the map for ineffective turns or one pose outlier - 2026-11-16
+
+The operator reported repeated map resets without a visible pose jump. The live
+robot was unexpectedly autonomous and issuing translation during diagnosis, so
+it was paused immediately. ROS logs identified multiple resets whose recorded
+reason was `repeated turns made insufficient heading progress`; another reset
+followed a marginal single-message 0.26 m / 4 degree threshold crossing.
+
+Turn-progress failure is ambiguous: the robot may be blocked or the gait may
+not produce rotation, and there is no independent physical-yaw sensor proving
+that Hector failed. Chosen: retain the three-burst/3-degree detection, but stop
+and pause autonomy with the current map, fused occupancy, route, and landmarks
+intact. It no longer marks SLAM untrusted or calls the reset service.
+
+For the actual 0.25 m / 20 degree discontinuity guard, require two consecutive
+threshold-crossing poses that agree with one another within half of each jump
+threshold. The first candidate is withheld from control and mapping state. A
+return to the accepted pose cancels it; a persistent discontinuity still uses
+the existing serialized one-shot reset. All 274 host tests pass under warnings
+treated as errors. Robot-native validation and deployment remain pending.

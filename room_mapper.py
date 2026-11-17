@@ -246,6 +246,10 @@ class RoomMapper:
         # the former 50 cm threshold nearly admitted a bad 0.487 m update.
         self.max_pose_jump = float(rospy.get_param("~max_pose_jump", 0.25))
         self.max_yaw_jump = math.radians(float(rospy.get_param("~max_yaw_jump_deg", 20.0)))
+        self.pose_jump_confirmations = int(rospy.get_param(
+            "~pose_jump_confirmations", 2))
+        if not 2 <= self.pose_jump_confirmations <= 5:
+            raise ValueError("pose_jump_confirmations must be between 2 and 5")
         self.slam_stale = float(rospy.get_param("~slam_stale", 2.5))
 
         # Object detection is optional at runtime: mapping still starts if the
@@ -601,6 +605,8 @@ class RoomMapper:
         self.automatic_map_reset_reason = ""
         self.automatic_map_reset_failure = ""
         self.prev_pose = None
+        self.pose_jump_candidate = None
+        self.pose_jump_candidate_count = 0
         self.pose_guard_start = time.time() + 5.0
         self.paused = self.start_paused
         self.manual_cmd = None
@@ -2127,9 +2133,40 @@ class RoomMapper:
                 turn = abs(math.atan2(math.sin(pose[2] - self.prev_pose[2]),
                                       math.cos(pose[2] - self.prev_pose[2])))
                 if distance > self.max_pose_jump or turn > self.max_yaw_jump:
+                    candidate = getattr(self, "pose_jump_candidate", None)
+                    if candidate is not None:
+                        candidate_distance = math.hypot(
+                            pose[0] - candidate[0], pose[1] - candidate[1])
+                        candidate_turn = abs(math.atan2(
+                            math.sin(pose[2] - candidate[2]),
+                            math.cos(pose[2] - candidate[2])))
+                        consistent = (
+                            candidate_distance <= self.max_pose_jump * .5 and
+                            candidate_turn <= self.max_yaw_jump * .5)
+                    else:
+                        consistent = False
+                    count = (getattr(self, "pose_jump_candidate_count", 0) + 1
+                             if consistent else 1)
+                    self.pose_jump_candidate = pose
+                    self.pose_jump_candidate_count = count
+                    required = getattr(self, "pose_jump_confirmations", 2)
+                    if count < required:
+                        rospy.logwarn(
+                            "Possible SLAM pose jump %.2f m / %.0f deg; "
+                            "waiting for confirmation %d/%d",
+                            distance, math.degrees(turn), count, required)
+                        return
+                    self.pose_jump_candidate = None
+                    self.pose_jump_candidate_count = 0
                     self.invalidate_slam(
-                        "pose jumped %.2f m / %.0f deg" %
-                        (distance, math.degrees(turn)))
+                        "pose jumped %.2f m / %.0f deg in %d consistent samples" %
+                        (distance, math.degrees(turn), required))
+                else:
+                    self.pose_jump_candidate = None
+                    self.pose_jump_candidate_count = 0
+            else:
+                self.pose_jump_candidate = None
+                self.pose_jump_candidate_count = 0
             self.prev_pose = pose
             self.pose = pose
             self.t_pose = time.time()
@@ -2166,6 +2203,14 @@ class RoomMapper:
         if hasattr(self, "object_queue_lock"):
             with self.object_queue_lock:
                 self.object_pending_snapshots = []
+
+    def pause_for_turn_progress(self, reason):
+        """Stop autonomy after ineffective turns without discarding a valid map."""
+        self.pending_spin_yaw = None
+        self.spin_stall_count = 0
+        message = "Autonomy paused: %s; map retained" % reason
+        self.stop_manual(message)
+        rospy.logerr(message)
 
     def send_actual(self, cmd):
         if cmd == self.last_cmd:
@@ -2285,7 +2330,7 @@ class RoomMapper:
                 self.spin_stall_count = getattr(self, "spin_stall_count", 0) + 1
                 limit = getattr(self, "max_spin_stalls", 3)
                 if self.spin_stall_count >= limit:
-                    self.invalidate_slam(
+                    self.pause_for_turn_progress(
                         "%d consecutive turns made less than %.1f deg progress" %
                         (self.spin_stall_count,
                          math.degrees(self.min_spin_progress)))
@@ -2342,8 +2387,7 @@ class RoomMapper:
             self.spin_stall_count = (getattr(self, "spin_stall_count", 0) + 1
                                      if progress < self.min_spin_progress else 0)
             if self.spin_stall_count >= self.max_spin_stalls:
-                self.send(("stop",))
-                self.invalidate_slam(
+                self.pause_for_turn_progress(
                     "repeated turns made insufficient heading progress")
                 return
             self.pending_spin_yaw = self.pose[2] if self.pose is not None else None
@@ -2967,6 +3011,8 @@ class RoomMapper:
             self.settle_until = now + self.scan_settle
             self.survey.reset(self.settle_until)
             self.prev_pose = None
+            self.pose_jump_candidate = None
+            self.pose_jump_candidate_count = 0
             self.pose_guard_start = now + 5.0
             self.map_trusted = True
             self.automatic_map_reset_pending = False

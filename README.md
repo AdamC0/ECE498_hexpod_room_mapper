@@ -1,5 +1,20 @@
 # JetHexa Room Mapper
 
+## False automatic-map-reset correction
+
+Live ROS history showed that several reported resets were not pose-jump resets:
+three ineffective turn bursts were routed through the same destructive Hector
+reset path. Turn progress can fail because the robot is blocked or a gait does
+not produce rotation; that alone does not prove the coordinate frame is bad.
+Repeated insufficient turn progress now stops and pauses autonomy while
+retaining Hector, fused occupancy, routes, and landmarks.
+
+The 0.25 m / 20 degree pose-discontinuity guard remains. A threshold crossing
+must now appear in two consistent consecutive pose messages before the existing
+automatic reset runs. A single transient sample is ignored if pose returns to
+the accepted frame. The confirmation count is configurable with
+`_pose_jump_confirmations:=2` (2-5).
+
 ## Object landmark association and depth-ray correction (deployed; scene check pending)
 
 The object mapper now limits same-class track association to the same

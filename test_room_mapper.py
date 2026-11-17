@@ -92,21 +92,19 @@ class MapperTests(unittest.TestCase):
         self.assertEqual(n.send_actual.call_args_list,
                          [unittest.mock.call(('forward',)), unittest.mock.call(('spin', 1.))])
 
-    def test_continuous_path_turn_faults_after_repeated_no_progress(self):
+    def test_continuous_path_turn_pauses_without_reset_after_no_progress(self):
         n = self.node
         n.commanded_moving, n.last_cmd = True, ('spin', 1.)
         n.settle_until, n.motion_until = 0., 0.
         n.pending_spin_yaw, n.pose = 0., (0., 0., 0.)
         n.spin_burst, n.min_spin_progress, n.max_spin_stalls = .5, .05, 3
         n.send_actual, n.set_motion, n.send = Mock(), Mock(), Mock()
-        n.clear_object_tracks = Mock()
+        n.pause_for_turn_progress = Mock()
         for now in (1., 2., 3.):
             with patch('room_mapper.time.time', return_value=now):
                 n.send_path(('spin', 1.))
-        n.send.assert_called_once_with(('stop',))
-        self.assertFalse(n.map_trusted)
-        self.assertTrue(n.automatic_map_reset_pending)
-        self.assertIn('insufficient heading progress', n.automatic_map_reset_reason)
+        n.pause_for_turn_progress.assert_called_once_with(
+            'repeated turns made insufficient heading progress')
 
     def test_floor_and_body_bob_are_clear(self):
         self.calibrate()
@@ -928,16 +926,52 @@ class MapperTests(unittest.TestCase):
         n.prev_pose = (0., 0., 0.)
         n.pose_guard_start, n.map_trusted = 0, True
         n.max_pose_jump, n.max_yaw_jump = .5, np.radians(35)
+        n.pose_jump_confirmations = 2
         n.web_msg = ''
         msg = SimpleNamespace(pose=SimpleNamespace(
             position=SimpleNamespace(x=0., y=0.),
             orientation=SimpleNamespace(x=0., y=0., z=np.sin(np.radians(30)),
                                         w=np.cos(np.radians(30)))))
         n.pose_callback(msg)
+        self.assertTrue(n.map_trusted)
+        self.assertEqual(n.pose_jump_candidate_count, 1)
+        n.pose_callback(msg)
         self.assertFalse(n.map_trusted)
         self.assertIn('SLAM LOST', n.web_msg)
         self.assertTrue(n.automatic_map_reset_pending)
         self.assertIn('pose jumped', n.automatic_map_reset_reason)
+
+    def test_single_pose_jump_sample_is_rejected_when_pose_recovers(self):
+        n = self.node
+        n.prev_pose = n.pose = (0., 0., 0.)
+        n.pose_guard_start, n.map_trusted = 0., True
+        n.max_pose_jump, n.max_yaw_jump = .25, np.radians(20)
+        n.pose_jump_confirmations = 2
+        n.web_map_center, n.t_pose = (0., 0.), 0.
+        jump = SimpleNamespace(pose=SimpleNamespace(
+            position=SimpleNamespace(x=.26, y=0.),
+            orientation=SimpleNamespace(x=0., y=0., z=0., w=1.)))
+        recovered = SimpleNamespace(pose=SimpleNamespace(
+            position=SimpleNamespace(x=.01, y=0.),
+            orientation=SimpleNamespace(x=0., y=0., z=0., w=1.)))
+        n.pose_callback(jump)
+        self.assertEqual(n.pose, (0., 0., 0.))
+        self.assertTrue(n.map_trusted)
+        n.pose_callback(recovered)
+        self.assertEqual(n.pose, (.01, 0., 0.))
+        self.assertTrue(n.map_trusted)
+        self.assertEqual(n.pose_jump_candidate_count, 0)
+
+    def test_turn_progress_pause_retains_map_and_stops(self):
+        n = RoomMapper.__new__(RoomMapper)
+        n.pending_spin_yaw, n.spin_stall_count = 1., 3
+        n.stop_manual = Mock()
+        with patch('room_mapper.rospy.logerr'):
+            n.pause_for_turn_progress('turn did not move')
+        self.assertIsNone(n.pending_spin_yaw)
+        self.assertEqual(n.spin_stall_count, 0)
+        n.stop_manual.assert_called_once_with(
+            'Autonomy paused: turn did not move; map retained')
 
     def test_control_step_runs_one_shot_pending_automatic_map_reset(self):
         n = self.controller()

@@ -674,9 +674,11 @@ class ObjectPipelineTests(unittest.TestCase):
         n.pose_guard_start = 0.
         n.max_pose_jump, n.max_yaw_jump = .5, math.radians(35)
         def infer(frame):
-            n.pose_callback(SimpleNamespace(pose=SimpleNamespace(
+            jump = SimpleNamespace(pose=SimpleNamespace(
                 position=SimpleNamespace(x=10., y=2.),
-                orientation=SimpleNamespace(x=0., y=0., z=0., w=1.))))
+                orientation=SimpleNamespace(x=0., y=0., z=0., w=1.)))
+            n.pose_callback(jump)
+            n.pose_callback(jump)
             return self.detections(frame)
         n.detector.detect.side_effect = infer
         n.process_objects()

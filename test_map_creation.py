@@ -357,7 +357,7 @@ class SurveyMotionTests(unittest.TestCase):
         n.send_actual.assert_called_once_with(('forward',))
         n.set_motion.assert_called_once_with(True)
 
-    def test_repeated_missing_heading_progress_faults_after_retries(self):
+    def test_repeated_missing_heading_progress_pauses_and_retains_map(self):
         n = RoomMapper.__new__(RoomMapper)
         n.drive = n.use_map = True
         n.commanded_moving = False
@@ -373,8 +373,11 @@ class SurveyMotionTests(unittest.TestCase):
         n.max_spin_stalls = 3
         n.spin_stall_count = 0
         n.map_trusted = True
+        n.paused = False
+        n.phase = 'go'
+        n.manual_cmd, n.manual_until = None, 0.
+        n.novel_object_request = n.novel_object_verification = None
         n.web_msg = ''
-        n.clear_object_tracks = Mock()
         n.send_actual, n.set_motion = Mock(), Mock()
         n.move_burst, n.spin_burst = .45, .5
         with patch('room_mapper.time.time', return_value=2.), \
@@ -388,11 +391,13 @@ class SurveyMotionTests(unittest.TestCase):
             self.assertIn('retrying (2/3)', n.web_msg)
             n.pending_spin_yaw = 0.
             n.send(('forward',))
-        n.send_actual.assert_not_called()
-        self.assertFalse(n.map_trusted)
+        n.send_actual.assert_called_once_with(('stop',))
+        n.set_motion.assert_called_once_with(False)
+        self.assertTrue(n.map_trusted)
+        self.assertTrue(n.paused)
         self.assertIn('3 consecutive turns', n.web_msg)
-        self.assertTrue(n.automatic_map_reset_pending)
-        self.assertIn('3 consecutive turns', n.automatic_map_reset_reason)
+        self.assertIn('map retained', n.web_msg)
+        self.assertEqual(n.spin_stall_count, 0)
 
 
 if __name__ == '__main__':

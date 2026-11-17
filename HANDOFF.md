@@ -1,5 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## False automatic-map-reset correction - 2026-11-16
+
+The operator reported repeated map resets without a visible pose jump. Live
+inspection found the robot unexpectedly autonomous and issuing translation, so
+it was immediately paused; no further motion was commanded. ROS history showed
+multiple resets explicitly caused by `repeated turns made insufficient heading
+progress`, plus a marginal single-message `pose jumped 0.26 m / 4 deg` reset.
+The former conflated an ineffective/blocked physical turn with localization
+loss, while the latter had no temporal confirmation.
+
+The candidate makes three weak turn bursts stop and pause autonomy with the map,
+fused layer, route, and landmarks retained. Pose thresholds remain 0.25 m / 20
+degrees, but reset now requires two consecutive discontinuous samples that are
+mutually consistent; a single sample that returns to the accepted frame is
+discarded. All 274 host tests pass under warnings-as-errors. Robot-native
+validation and paused deployment remain pending.
+
 ## Bounded unconfirmed depth cells - 2026-11-16
 
 Live paused diagnosis found 96 temporary and 73 persistent depth cells. The
@@ -1079,8 +1096,8 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 - object confirmation: expected 3-of-4; other classes 4-of-5, with confidence,
   depth, box, and map-position consistency gates
 - object focus: 15 s or 2 distinct misses
-- weak turn tolerance: fault after 3 consecutive bursts below 3 degrees
-- pose jump guard: 0.25 m / 20 degrees
+- weak turn tolerance: pause with map retained after 3 bursts below 3 degrees
+- pose jump guard: 0.25 m / 20 degrees across 2 consistent samples
 
 Depth cannot guarantee detection of reflective, transparent, out-of-view, or
 invalid geometry. LiDAR independently protects its scan plane at 0.45 m.
