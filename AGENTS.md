@@ -61,6 +61,10 @@ one mapper process exists.
 - The safe launcher defaults to TensorRT FP16. Engine initialization or runtime
   failure automatically falls back to CPU for that process; explicit CPU
   startup remains available with `--yolo-backend cpu`.
+- The production depth candidate uses the driver's 640x480@15 mode and omits
+  unused processing/point-cloud nodelets via
+  `patches/halley_depth_cpu_reduction.patch`. Native and registered raw depth
+  remain required; do not remove or throttle either below the safety policy.
 
 ## Current safety/calibration facts
 

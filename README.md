@@ -1,5 +1,22 @@
 # JetHexa Room Mapper
 
+## Depth pipeline CPU reduction
+
+The Halley camera vendor launch can be patched with
+`patches/halley_depth_cpu_reduction.patch`. It selects the driver's supported
+640x480@15 depth mode instead of 30 Hz and does not load RGB rectification,
+depth rectification/metric conversion, software registration, or point-cloud
+nodelets that have no consumers in production. The mapper continues consuming
+native and registered raw depth at its existing 15/10 Hz callback limits and
+projects planner depth at 2 Hz.
+
+In a paused live trial, both required depth topics remained near 15.4-15.7 Hz,
+depth collision sensing stayed primary, and the camera nodelet manager fell
+from about 58% CPU to 32-35%. This is a CPU optimization rather than a GPU port;
+the installed OpenCV has no CUDA modules. All 280 host tests pass. Durable
+vendor-patch deployment, reboot persistence, and supervised motion validation
+remain pending.
+
 ## Clear-footprint route resurvey
 
 When the current map has no reachable route, autonomy no longer holds forever

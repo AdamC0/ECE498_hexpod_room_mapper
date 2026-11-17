@@ -1,5 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Depth pipeline CPU reduction - 2026-11-16
+
+Live load sampling found all four CPU cores around 75-100%, with the Astra
+nodelet manager near 58%, the mapper near one core, and Hector near one core.
+The GPU was idle outside TensorRT bursts. The mapper is the only subscriber to
+the native and registered raw depth images; both XYZ and XYZRGB point clouds
+had no subscribers. The installed OpenCV 4.5.5 has no CUDA modules, so there is
+no safe configuration switch that moves the ROS Melodic depth graph to GPU.
+
+The candidate vendor patch disables unused RGB/depth processing and point-cloud
+nodelets and selects the Astra driver's 640x480@15 mode (`depth_mode=68`) rather
+than 640x480@30 (`69`). A reversible paused live trial kept both required topics
+near 15.4-15.7 Hz and depth sensing primary, while nodelet-manager CPU fell to
+32-35%. All 280 host tests pass, including a patch-policy regression. Durable
+robot patching, camera-stack restart/reboot persistence, robot-native tests,
+and supervised motion validation remain pending.
+
 ## Clear-footprint route resurvey - 2026-11-16
 
 Live autonomy was active with command `stop` and `No reachable frontier` even

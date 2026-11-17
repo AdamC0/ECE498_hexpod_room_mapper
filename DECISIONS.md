@@ -2184,6 +2184,28 @@ backups. A no-option safe launch reported `tensorrt_fp16`, preserved the running
 Hector process, and left exactly one mapper `AUTO PAUSED` with command `stop`.
 No physical motion was commanded; supervised moving validation remains pending.
 
+## Reduce unused depth CPU work instead of adding an unvalidated GPU path - 2026-11-16
+
+Live sampling showed the Astra nodelet manager using about 58% of one core,
+with the mapper and Hector each near one full core and all four CPU cores around
+75-100% busy. Outside TensorRT inference bursts the GPU was idle, but the
+installed OpenCV 4.5.5 exposes no CUDA modules and ROS Melodic's standard
+`depth_image_proc` graph has no GPU switch. A custom CUDA registration pipeline
+would add synchronization, memory, and safety-validation risk on a 4 GB system
+already using swap.
+
+The production mapper consumes only `/camera/depth/image_raw`,
+`/camera/depth_registered/image_raw`, and registered camera info. Both published
+point clouds had no subscribers. Chosen: keep the current CPU driver but patch
+the Halley launch to use its supported 640x480@15 depth mode rather than 30 Hz,
+and do not load unused rectification, metric, software-registration, or point-
+cloud nodelets. Mapper collision/planner limits remain 15/10/2 Hz.
+
+A reversible paused live trial kept required depth topics near 15.4-15.7 Hz and
+depth health primary; nodelet-manager CPU fell to 32-35%. All 280 host tests
+pass, and the checked-in patch applies cleanly to the deployed vendor file.
+Durable deployment, reboot persistence, and supervised motion remain pending.
+
 ## Resurvey a route-less map when the live rotation footprint is clear - 2026-11-16
 
 Live autonomy held at `No reachable frontier` despite a visually clear path

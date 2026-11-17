@@ -287,6 +287,18 @@ class HectorLaunchTests(unittest.TestCase):
         self.assertEqual(params['map_update_angle_thresh'], '0.06')
 
 
+class CameraCpuPatchTests(unittest.TestCase):
+    def test_halley_patch_uses_fifteen_hz_raw_streams_without_unused_processing(self):
+        patch_path = Path(__file__).with_name('patches') / \
+            'halley_depth_cpu_reduction.patch'
+        patch = patch_path.read_text(encoding='utf-8')
+        self.assertIn('name="driver/depth_mode" type="int" value="68"', patch)
+        for name in ('rgb_processing', 'depth_processing',
+                     'depth_registered_processing'):
+            self.assertIn('name="%s"' % name, patch)
+        self.assertGreaterEqual(patch.count('default="false"'), 3)
+
+
 class SurveyMotionTests(unittest.TestCase):
     def test_next_burst_only_waits_for_scan_settle_not_full_survey(self):
         n = RoomMapper.__new__(RoomMapper)
