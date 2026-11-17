@@ -1,7 +1,7 @@
 diff --git a/src/jethexa_peripherals/launch/Halley.launch b/src/jethexa_peripherals/launch/Halley.launch
 --- a/src/jethexa_peripherals/launch/Halley.launch
 +++ b/src/jethexa_peripherals/launch/Halley.launch
-@@ -44,9 +44,9 @@
+@@ -44,10 +44,10 @@
    <arg name="publish_tf" default="true" />
    <!-- Processing Modules -->
 -  <arg name="rgb_processing"                  default="true"  />

@@ -292,6 +292,7 @@ class CameraCpuPatchTests(unittest.TestCase):
         patch_path = Path(__file__).with_name('patches') / \
             'halley_depth_cpu_reduction.patch'
         patch = patch_path.read_text(encoding='utf-8')
+        self.assertIn('@@ -44,10 +44,10 @@', patch)
         self.assertIn('name="driver/depth_mode" type="int" value="68"', patch)
         for name in ('rgb_processing', 'depth_processing',
                      'depth_registered_processing'):
