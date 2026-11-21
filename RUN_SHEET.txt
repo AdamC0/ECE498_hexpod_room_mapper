@@ -30,8 +30,12 @@ CUDA DEPTH REGISTRATION TRIAL (SIDE-BY-SIDE; NOT A MAPPER INPUT):
       2,500 continuous frames, no motion. Conservative hole fill measured
       0.68-0.79 ms and 53.6% valid coverage versus 69.9% native-alias coverage.
       Stop the trial node afterward.
-  [x] Pass all 283 host tests including topic isolation, z-buffer, calibration,
+  [x] Pass all 284 host tests including topic isolation, z-buffer, calibration,
       transform direction, timestamp, and RGB-frame regressions.
+  [x] Benchmark identical CPU/CUDA registration on the same 640x480 frames:
+      three 100-iteration runs measured CPU 29.09-29.61 ms, CUDA end-to-end
+      1.65-1.68 ms, and CUDA kernel 0.70-0.71 ms. End-to-end speedup was
+      17.36-17.84x with 1.000 valid-mask IoU and 0 mm median/p95 error.
   [ ] Capture an equivalent stationary vendor-registered reference and set
       quantitative valid-mask, millimetre-error, and edge-alignment gates.
   [ ] Validate labeled RGB/depth alignment, foreground z-buffer behavior,

@@ -35,6 +35,15 @@ class CudaDepthRegistrationTests(unittest.TestCase):
         self.assertIn('GetCameraParams', source)
         self.assertIn('service.response.r2l_t[index] * 0.001f', source)
 
+    def test_benchmark_times_equivalent_cpu_and_cuda_outputs(self):
+        source = (self.root / 'src' /
+                  'registration_benchmark_node.cpp').read_text(encoding='utf-8')
+        self.assertIn('cpu.registerDepth', source)
+        self.assertIn('gpu.registerDepth', source)
+        self.assertIn('end_to_end_speedup', source)
+        self.assertIn('valid_iou', source)
+        self.assertIn('median_error_mm', source)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,7 +17,16 @@ uses the RGB optical frame and RGB-family intrinsics, but the device exposes
 only one depth mode, so enabling it would remove the independent native stream
 required by collision sensing.
 
-The CUDA package builds natively on PT. An isolated no-mapper run sustained
+The CUDA package builds natively on PT. An equivalent-algorithm benchmark used
+the same captured 640x480 native frame for a single-core `-O3` CPU registrar
+and the CUDA registrar, with 10 warmups and 100 measured iterations in each of
+three runs. Median CPU time was 29.09-29.61 ms; CUDA end-to-end time including
+host/device copies was 1.65-1.68 ms, and CUDA kernel time was 0.70-0.71 ms.
+That is a 17.36-17.84x end-to-end speedup (about 41x comparing CPU to kernel
+time alone). CPU and CUDA outputs matched exactly in all runs: valid-mask IoU
+1.000 and median/p95 joint-pixel error 0 mm.
+
+An isolated no-mapper live run sustained
 about 15.6-15.9 Hz, used about 36 MB RSS and 5.4% CPU, and reported roughly
 0.44-0.57 ms per registration kernel over about 2,500 frames. The final
 conservative hole-fill pass raised kernel time to about 0.68-0.79 ms and the
@@ -27,7 +36,8 @@ was restored to `depth_registration=false` after the reference check. This is
 build and stationary pipeline evidence only: the CUDA output is not deployed
 as a mapper input. Controlled hardware-reference capture, labeled RGB/depth
 alignment, valid-mask/depth parity, failure injection, soak/thermal checks,
-and supervised safety validation remain required.
+and supervised safety validation remain required. The speed result does not
+by itself authorize production remapping.
 
 ## Depth pipeline CPU reduction
 

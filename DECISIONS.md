@@ -2272,3 +2272,29 @@ labeled RGB/depth edge alignment, valid-mask and millimetre-error thresholds,
 foreground/hole behavior, TensorRT contention, soak/thermal data, failure
 injection, and separate directly supervised safety/motion validation. Native
 depth remains mandatory and the current driver path remains rollback.
+
+## Benchmark equivalent CPU and CUDA registration work - 2026-11-21
+
+Comparing the CUDA node with the deployed `/camera/depth_registered` topic
+would be misleading because that topic is only a native-depth float conversion
+when `depth_registration=false`; it does not perform the same RGB projection.
+Chosen: add a persistent-buffer, single-core `-O3` CPU implementation of the
+same factory-extrinsic inversion, raw-RGB distortion, nearest-depth z-buffer,
+and conservative hole-fill policy. A one-shot node captures one live 640x480
+native frame, warms both implementations, measures them sequentially on that
+same frame, and checks output parity. CUDA end-to-end timing includes
+calibration/input copies, z-buffer clear, kernels, output copy, and stream
+synchronization; kernel timing is reported separately.
+
+Three independent runs used 10 warmups and 100 measured iterations each. CPU
+medians were 29.6071, 29.3034, and 29.0879 ms. CUDA end-to-end medians were
+1.6596, 1.6460, and 1.6758 ms, while CUDA kernel medians were 0.7120, 0.7042,
+and 0.7102 ms. End-to-end speedup was 17.8396x, 17.8030x, and 17.3579x; CPU to
+kernel-only speedup was about 41x. Every run produced identical CPU/CUDA valid
+masks and depths: IoU 1.000, median error 0 mm, and p95 error 0 mm.
+
+This establishes algorithmic speed and parity on the sampled stationary
+frames, not production safety. The benchmark publishes no image, the mapper
+was stopped, and no motion was commanded. Hardware-reference alignment,
+TensorRT contention, soak/failure behavior, and directly supervised safety
+checks remain adoption gates.

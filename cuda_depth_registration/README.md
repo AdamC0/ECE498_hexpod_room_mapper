@@ -53,6 +53,24 @@ registered and acquired from an equivalent stationary scene:
 rosrun cuda_depth_registration compare_registration.py _frames:=30
 ```
 
+For an equivalent-algorithm speed comparison on one captured live frame, run:
+
+```bash
+rosrun cuda_depth_registration cuda_depth_registration_benchmark \
+  _iterations:=100 _warmup_iterations:=10
+```
+
+The benchmark runs the same transform, distortion, nearest-depth z-buffer, and
+hole-fill policy on one CPU core and CUDA. It reports CPU, CUDA end-to-end
+(including host/device copies), CUDA kernel-only timing, speedups, and output
+parity. It publishes no depth topic and never commands the robot.
+
+On PT, three 640x480 runs with 10 warmups and 100 measured iterations produced
+29.09-29.61 ms CPU medians, 1.65-1.68 ms CUDA end-to-end medians, and
+0.70-0.71 ms CUDA kernel medians. The end-to-end speedup was 17.36-17.84x.
+CPU and CUDA outputs matched exactly: valid-mask IoU 1.000 and median/p95 depth
+error 0 mm in every run.
+
 Do not point `room_mapper.py` at the CUDA topic until timestamp, calibration,
 valid-mask, depth-error, labeled RGB alignment, load/thermal, and failure-mode
 gates pass. Native depth must remain available for collision sensing. GPU

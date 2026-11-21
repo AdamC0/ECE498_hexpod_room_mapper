@@ -25,7 +25,7 @@ collisions with an `atomicMin` nearest-depth z-buffer. It preserves the input
 stamp and publishes a separate `16UC1` candidate in the RGB optical frame at
 `/camera/depth_registered_cuda/image_raw`.
 
-All 283 host tests pass. The package built successfully in the target catkin
+All 284 host tests pass. The package built successfully in the target catkin
 workspace against ROS Melodic and CUDA 10.2. A stopped-mapper trial sustained
 about 15.6-15.9 Hz, 0.44-0.57 ms kernel time, about 36 MB RSS, and about 5.4%
 CPU over roughly 2,500 frames. A conservative two-neighbor/50 mm GPU hole fill
@@ -34,6 +34,16 @@ then measured 0.68-0.79 ms and raised candidate valid coverage from about
 alias differs geometrically as expected (final 30-frame joint-pixel median
 12 mm, p95 421 mm, valid-mask IoU 0.57), so those figures are diagnostic rather
 than acceptance parity. The trial node was stopped and no motion was commanded.
+
+An added one-shot benchmark runs the identical transform, distortion,
+nearest-depth z-buffer, and hole-fill algorithm on one persistent-buffer CPU
+implementation and CUDA using the same captured 640x480 frame. Three runs of
+10 warmups plus 100 measured iterations produced CPU medians of 29.6071,
+29.3034, and 29.0879 ms; CUDA end-to-end medians (including copies) of 1.6596,
+1.6460, and 1.6758 ms; and CUDA kernel medians of 0.7120, 0.7042, and 0.7102 ms.
+End-to-end speedup was 17.84x, 17.80x, and 17.36x. Every run had valid-mask IoU
+1.000 and median/p95 error 0 mm, so the timing comparison did not trade output
+parity for speed. The benchmark publishes nothing and no motion was commanded.
 
 Do not remap the mapper yet. Capture a real registered reference from an
 equivalent stationary scene, validate labeled RGB edges and depth holes,
