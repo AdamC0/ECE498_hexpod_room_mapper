@@ -2298,3 +2298,42 @@ frames, not production safety. The benchmark publishes no image, the mapper
 was stopped, and no motion was commanded. Hardware-reference alignment,
 TensorRT contention, soak/failure behavior, and directly supervised safety
 checks remain adoption gates.
+
+## Default to CUDA for faster geometric obstacle insertion - 2026-11-21
+
+The operator clarified that the intended speedup concerns unlabeled collision
+geometry such as walls, chair legs, and boxes appearing in the fused planner
+map, not YOLO semantic labels. CUDA registration alone removes the equivalent
+29 ms single-core projection cost, but the mapper still throttled geometric
+planner projection to 2 Hz, allowing nearly 0.5 s of scheduling delay before a
+new accepted frame could add a blocking cell.
+
+Chosen: make `/camera/depth_registered_cuda/image_raw` and its matching camera
+info the `room_mapper.py` defaults, start and verify the CUDA registrar from the
+safe launcher, and fail closed when its image or calibration stream is absent.
+Retain `--registered-depth-backend driver` as an explicit, visible rollback;
+do not silently change geometry sources. Native `/camera/depth/image_raw`
+remains independent and continues to drive the immediate 0.60 m collision stop.
+
+Raise only the geometric planner projection rate from 2 Hz to 5 Hz. A first
+accepted observation already creates a temporary route-blocking cell, so this
+reduces the scheduler interval to about 0.2 s without weakening evidence,
+clearance, hold, or promotion policies. Three settled LiDAR-paired observations
+still control session promotion, not initial route blocking.
+
+All 288 Windows-host and robot-native tests pass. Robot-side launcher syntax
+passes and the CUDA package rebuilt successfully against ROS Melodic/CUDA 10.2,
+with the target's pre-existing clock-skew warnings. A no-option safe launch
+started fresh Hector and exactly one CUDA-default mapper `AUTO PAUSED` with
+command `stop`. CUDA depth ran near 15.65-15.69 Hz, native collision sensing was
+`PRIMARY`, the fused planner layer was active, and TensorRT inference reported
+0.20-0.43 s. No motion was commanded. Labeled geometric alignment,
+TensorRT-contention soak, failure injection, and directly supervised obstacle
+motion validation remain pending. Reflective, transparent, invalid, and
+out-of-view geometry remains outside any depth guarantee.
+
+Runtime follow-up: autonomous control now requests `stop` and enters `FAULT`
+when registered planner depth is absent or older than one second. This prevents
+a CUDA process failure from silently leaving autonomy on a stale fused map;
+native collision sensing remains independent, and paused/manual behavior is
+unchanged.

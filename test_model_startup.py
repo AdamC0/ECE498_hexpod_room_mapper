@@ -13,6 +13,26 @@ class ModelStartupTests(unittest.TestCase):
         self.assertIn("YOLO_BACKEND=tensorrt_fp16", launcher)
         self.assertIn("_yolo_backend:=\"$YOLO_BACKEND\"", launcher)
 
+    def test_safe_launcher_defaults_to_cuda_registered_depth(self):
+        launcher = Path(__file__).with_name("start_room_mapper.sh").read_text(
+            encoding="utf-8")
+        self.assertIn("REGISTERED_DEPTH_BACKEND=cuda", launcher)
+        self.assertIn("cuda_depth_registration.launch", launcher)
+        self.assertIn('_registered_depth_topic:="$REGISTERED_DEPTH_TOPIC"',
+                      launcher)
+        self.assertIn(
+            '_depth_map_camera_info_topic:="$REGISTERED_DEPTH_CAMERA_INFO_TOPIC"',
+            launcher)
+        self.assertIn('_depth_map_hz:=5.0', launcher)
+        self.assertIn("--registered-depth-backend driver", launcher)
+
+    def test_mapper_defaults_to_cuda_topics_and_faster_obstacle_updates(self):
+        source = Path(__file__).with_name("room_mapper.py").read_text(
+            encoding="utf-8")
+        self.assertIn('"/camera/depth_registered_cuda/image_raw"', source)
+        self.assertIn('"/camera/depth_registered_cuda/camera_info"', source)
+        self.assertIn('rospy.get_param("~depth_map_hz", 5.0)', source)
+
     def node(self):
         n = RoomMapper.__new__(RoomMapper)
         n.yolo_model = "/models/preferred.onnx"

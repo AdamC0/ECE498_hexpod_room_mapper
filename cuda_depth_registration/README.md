@@ -1,9 +1,11 @@
-# CUDA depth registration trial
+# CUDA depth registration
 
 This catkin package projects the Astra native `16UC1` depth image into the raw
-RGB pixel grid on the Jetson Nano GPU. It is deliberately a side-by-side trial:
-the default output is `/camera/depth_registered_cuda/image_raw`, and it never
-remaps the mapper or replaces `/camera/depth_registered/image_raw`.
+RGB pixel grid on the Jetson Nano GPU. The safe room-mapper launcher uses
+`/camera/depth_registered_cuda/image_raw` and its matching camera info by
+default while preserving native depth for the independent collision check.
+The legacy driver stream remains available through the launcher's explicit
+`--registered-depth-backend driver` rollback option.
 
 The node obtains the camera's factory right-to-left rotation and translation
 from `/camera/get_camera_params`, combines those extrinsics with the live depth
@@ -29,13 +31,13 @@ source devel/setup.bash
 The checked-in CUDA target is `sm_53`, matching the Jetson Nano's Maxwell GPU
 and its installed CUDA 10.2 toolchain.
 
-## Stationary trial
+## Standalone launch
 
 Keep autonomy paused or leave the mapper stopped. Start the isolated output:
 
 ```bash
 source ~/jethexa/devel/setup.bash
-roslaunch cuda_depth_registration cuda_depth_trial.launch
+roslaunch cuda_depth_registration cuda_depth_registration.launch
 ```
 
 Verify the candidate without changing the mapper:
@@ -71,8 +73,8 @@ On PT, three 640x480 runs with 10 warmups and 100 measured iterations produced
 CPU and CUDA outputs matched exactly: valid-mask IoU 1.000 and median/p95 depth
 error 0 mm in every run.
 
-Do not point `room_mapper.py` at the CUDA topic until timestamp, calibration,
-valid-mask, depth-error, labeled RGB alignment, load/thermal, and failure-mode
-gates pass. Native depth must remain available for collision sensing. GPU
-registration does not improve the camera's reflective, transparent,
-out-of-view, or invalid-depth limitations.
+The production mapper now defaults to this CUDA topic and projects geometric
+planner obstacles at 5 Hz. Native depth must remain available for collision
+sensing. GPU registration does not improve the camera's reflective,
+transparent, out-of-view, or invalid-depth limitations; supervised motion,
+labeled alignment, load/thermal, and failure-mode validation remain required.

@@ -10,11 +10,15 @@ JETHEXA_SETUP="${JETHEXA_SETUP:-$HOME/jethexa/devel/setup.bash}"
 LOG_DIR="${ROOM_MAPPER_LOG_DIR:-$HOME/.room_mapper_logs}"
 FRESH_MAP=false
 YOLO_BACKEND=tensorrt_fp16
+REGISTERED_DEPTH_BACKEND=cuda
+REGISTERED_DEPTH_TOPIC=/camera/depth_registered_cuda/image_raw
+REGISTERED_DEPTH_CAMERA_INFO_TOPIC=/camera/depth_registered_cuda/camera_info
 
 usage() {
-  echo "Usage: $0 [--fresh-map] [--yolo-backend cpu|tensorrt_fp16]"
+  echo "Usage: $0 [--fresh-map] [--yolo-backend cpu|tensorrt_fp16] [--registered-depth-backend cuda|driver]"
   echo "  --fresh-map  Reset Hector's current map when starting the mapper."
   echo "  --yolo-backend  Select object inference; TensorRT is the default and CPU is the fallback."
+  echo "  --registered-depth-backend  Select RGB-registered depth; CUDA is the default."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -31,6 +35,18 @@ while [[ $# -gt 0 ]]; do
       shift
       if [[ "$YOLO_BACKEND" != cpu && "$YOLO_BACKEND" != tensorrt_fp16 ]]; then
         echo "Unsupported YOLO backend: $YOLO_BACKEND" >&2
+        exit 2
+      fi
+      ;;
+    --registered-depth-backend)
+      if [[ $# -lt 2 ]]; then
+        echo "--registered-depth-backend requires cuda or driver" >&2
+        exit 2
+      fi
+      REGISTERED_DEPTH_BACKEND="$2"
+      shift
+      if [[ "$REGISTERED_DEPTH_BACKEND" != cuda && "$REGISTERED_DEPTH_BACKEND" != driver ]]; then
+        echo "Unsupported registered-depth backend: $REGISTERED_DEPTH_BACKEND" >&2
         exit 2
       fi
       ;;
@@ -80,6 +96,10 @@ topic_has_message() {
   local topic="$1"
   local seconds="$2"
   timeout "$seconds" rostopic echo -n 1 "$topic" >/dev/null 2>&1
+}
+
+cuda_depth_launch_pids() {
+  pgrep -f '(^|/)roslaunch .*cuda_depth_registration\.launch( |$)' || true
 }
 
 mapper_pids() {
@@ -224,6 +244,47 @@ if ! topic_has_message /scan 10; then
 fi
 echo "LiDAR is publishing."
 
+cuda_depth_started=false
+if [[ "$REGISTERED_DEPTH_BACKEND" == cuda ]]; then
+  if ! rospack find cuda_depth_registration >/dev/null 2>&1; then
+    echo "CUDA depth registration package is unavailable in the sourced workspace." >&2
+    echo "Build cuda_depth_registration or use --registered-depth-backend driver for rollback." >&2
+    exit 1
+  fi
+
+  if node_is_live /cuda_depth_registration; then
+    echo "CUDA depth registration is already running; verifying its output."
+  elif [[ -n "$(cuda_depth_launch_pids)" ]]; then
+    echo "A stale CUDA depth launch exists without a live node; inspect it before retrying." >&2
+    exit 1
+  else
+    echo "Starting CUDA depth registration."
+    nohup roslaunch cuda_depth_registration cuda_depth_registration.launch \
+      >"$LOG_DIR/cuda_depth_registration.log" 2>&1 < /dev/null &
+    disown $! 2>/dev/null || true
+    cuda_depth_started=true
+  fi
+
+  if ! topic_has_message "$REGISTERED_DEPTH_TOPIC" 15 || \
+     ! topic_has_message "$REGISTERED_DEPTH_CAMERA_INFO_TOPIC" 5; then
+    echo "CUDA registered depth did not become healthy; inspect $LOG_DIR/cuda_depth_registration.log." >&2
+    if [[ "$cuda_depth_started" == true ]] && node_is_live /cuda_depth_registration; then
+      rosnode kill /cuda_depth_registration >/dev/null 2>&1 || true
+    fi
+    exit 1
+  fi
+  echo "CUDA registered depth is publishing."
+else
+  REGISTERED_DEPTH_TOPIC=/camera/depth_registered/image_raw
+  REGISTERED_DEPTH_CAMERA_INFO_TOPIC=/camera/depth_registered/camera_info
+  if ! topic_has_message "$REGISTERED_DEPTH_TOPIC" 10 || \
+     ! topic_has_message "$REGISTERED_DEPTH_CAMERA_INFO_TOPIC" 5; then
+    echo "Driver registered-depth rollback stream is unavailable." >&2
+    exit 1
+  fi
+  echo "Using the explicit driver registered-depth rollback."
+fi
+
 hector_started=false
 hector_live=false
 if node_is_live /hector_mapping; then
@@ -281,6 +342,9 @@ nohup /usr/bin/python3 room_mapper.py \
   _yolo_backend:="$YOLO_BACKEND" \
   _use_depth:=true \
   _use_depth_map:=true \
+  _registered_depth_topic:="$REGISTERED_DEPTH_TOPIC" \
+  _depth_map_camera_info_topic:="$REGISTERED_DEPTH_CAMERA_INFO_TOPIC" \
+  _depth_map_hz:=5.0 \
   >"$LOG_DIR/mapper.log" 2>&1 < /dev/null &
 mapper_pid=$!
 disown "$mapper_pid" 2>/dev/null || true

@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-02)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-21)
 =====================================================
 
 ROBOT:
@@ -17,7 +17,7 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
-CUDA DEPTH REGISTRATION TRIAL (SIDE-BY-SIDE; NOT A MAPPER INPUT):
+CUDA GEOMETRIC DEPTH REGISTRATION (DEFAULT; MOTION VALIDATION PENDING):
   [x] Confirm CUDA 10.2 at /usr/local/cuda and build the sm_53 catkin package
       natively against ROS Melodic and the Astra factory-calibration service.
   [x] Confirm the deployed depth_registration=false "registered" topic is a
@@ -30,7 +30,7 @@ CUDA DEPTH REGISTRATION TRIAL (SIDE-BY-SIDE; NOT A MAPPER INPUT):
       2,500 continuous frames, no motion. Conservative hole fill measured
       0.68-0.79 ms and 53.6% valid coverage versus 69.9% native-alias coverage.
       Stop the trial node afterward.
-  [x] Pass all 284 host tests including topic isolation, z-buffer, calibration,
+  [x] Pass all 284 pre-adoption host tests including topic isolation, z-buffer, calibration,
       transform direction, timestamp, and RGB-frame regressions.
   [x] Benchmark identical CPU/CUDA registration on the same 640x480 frames:
       three 100-iteration runs measured CPU 29.09-29.61 ms, CUDA end-to-end
@@ -40,11 +40,25 @@ CUDA DEPTH REGISTRATION TRIAL (SIDE-BY-SIDE; NOT A MAPPER INPUT):
       quantitative valid-mask, millimetre-error, and edge-alignment gates.
   [ ] Validate labeled RGB/depth alignment, foreground z-buffer behavior,
       holes, reflective/invalid surfaces, and full registered-depth coverage.
+  [x] Make CUDA image/camera-info the mapper and safe-launcher defaults. The
+      launcher verifies both outputs and fails closed before starting the
+      mapper; --registered-depth-backend driver is the explicit rollback.
+  [x] Raise geometric planner projection from 2 Hz to 5 Hz. First-frame
+      temporary cells already block routes, reducing the scheduling bound from
+      about 0.5 s to about 0.2 s without changing the promotion threshold.
+  [x] Pass all 288 host and robot-native tests, target bash syntax, and target
+      catkin rebuild.
+  [x] With the robot stationary, run the normal launcher and verify exactly one
+      CUDA node, CUDA image near 15.65-15.69 Hz, CUDA namespace mapper inputs,
+      active fused planner cells, primary native collision depth, TensorRT at
+      0.20-0.43 s, AUTO PAUSED, and command stop. No motion was commanded.
+  [x] Stop autonomous mapping and enter FAULT if registered planner depth is
+      stale for more than 1.0 s; keep native collision depth independent.
   [ ] Soak beside TensorRT while checking rates, memory, thermals, throttling,
-      and graceful CUDA/node failure. Do not remap room_mapper.py yet.
-  [ ] Only after those gates, run directly supervised depth-stop and normal
-      autonomy checks. Preserve native collision depth and a one-command
-      rollback to the existing driver stream.
+      and graceful CUDA/node failure.
+  [ ] Under direct supervision, validate a matte wall/box and chair legs entering
+      the fused map soon enough to stop/replan at the normal motion speed.
+      Preserve native collision depth and the one-command driver rollback.
 
 DEPTH PIPELINE CPU REDUCTION (DEPLOYED; REBOOT/MOTION VALIDATION PENDING):
   [x] Measure the live CPU bottleneck: Astra nodelet manager about 58%, mapper
@@ -443,7 +457,8 @@ STARTUP AFTER A ROBOT REBOOT:
   robot script preserves a live Hector map by default; use --fresh-map only
   when deliberately discarding it. A Hector process without live
   /slam_out_pose is restarted with a fresh map. Logs are in
-  ~/.room_mapper_logs/.
+  ~/.room_mapper_logs/. CUDA registered depth is the default; use
+  --registered-depth-backend driver only for explicit rollback.
 
   Manual troubleshooting sequence:
   source /opt/ros/melodic/setup.bash
@@ -461,7 +476,10 @@ VERIFY:
   curl -fsS http://127.0.0.1:8000/status
   curl -fsS http://127.0.0.1:8000/battery.json
   pgrep -af '^/usr/bin/python3 room_mapper.py'
-  rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
+  rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw \
+    /camera/depth_registered_cuda/image_raw
+  rosparam get /room_mapper/registered_depth_topic
+  rosparam get /room_mapper/depth_map_hz
   cd ~/room_mapper && python3 -m unittest discover -v
 
   Repository regression count: 215 host tests.

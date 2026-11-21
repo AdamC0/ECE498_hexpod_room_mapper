@@ -7,7 +7,7 @@ class CudaDepthRegistrationTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(__file__).with_name('cuda_depth_registration')
 
-    def test_trial_topic_cannot_replace_production_by_default(self):
+    def test_compatibility_launch_keeps_cuda_topic_isolated(self):
         launch = ET.parse(str(self.root / 'launch' / 'cuda_depth_trial.launch')).getroot()
         args = {item.attrib['name']: item.attrib.get('default')
                 for item in launch.findall('arg')}
@@ -16,6 +16,17 @@ class CudaDepthRegistrationTests(unittest.TestCase):
                          '/camera/depth_registered_cuda/image_raw')
         self.assertNotEqual(args['output_image'],
                             '/camera/depth_registered/image_raw')
+
+    def test_production_launch_preserves_native_input(self):
+        launch = ET.parse(
+            str(self.root / 'launch' / 'cuda_depth_registration.launch')).getroot()
+        args = {item.attrib['name']: item.attrib.get('default')
+                for item in launch.findall('arg')}
+        self.assertEqual(args['input_image'], '/camera/depth/image_raw')
+        self.assertEqual(args['output_image'],
+                         '/camera/depth_registered_cuda/image_raw')
+        self.assertEqual(args['output_camera_info'],
+                         '/camera/depth_registered_cuda/camera_info')
 
     def test_kernel_uses_z_buffer_and_factory_extrinsic_inverse(self):
         source = (self.root / 'src' / 'cuda_registration_kernel.cu').read_text(

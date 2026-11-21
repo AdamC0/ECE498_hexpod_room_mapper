@@ -267,7 +267,7 @@ class RoomMapper:
             "~yolo_engine",
             "~/room_mapper/models/gpu_trial/yolo26n-objv1-150-fp16.engine"))
         self.registered_depth_topic = rospy.get_param(
-            "~registered_depth_topic", "/camera/depth_registered/image_raw")
+            "~registered_depth_topic", "/camera/depth_registered_cuda/image_raw")
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info")
         # Hector remains authoritative for pose and the persistent LiDAR map.
@@ -276,8 +276,12 @@ class RoomMapper:
         # after the robot approaches, while remaining finite for moved objects.
         self.use_depth_map = bool(rospy.get_param("~use_depth_map", True))
         self.depth_map_camera_info_topic = rospy.get_param(
-            "~depth_map_camera_info_topic", "/camera/depth_registered/camera_info")
-        self.depth_map_hz = float(rospy.get_param("~depth_map_hz", 2.0))
+            "~depth_map_camera_info_topic",
+            "/camera/depth_registered_cuda/camera_info")
+        # CUDA registration supplies fresh aligned depth at camera rate. Five
+        # planner updates per second bounds first-frame obstacle insertion to
+        # about 0.2 s without running the heavier projection on every frame.
+        self.depth_map_hz = float(rospy.get_param("~depth_map_hz", 5.0))
         self.depth_map_decimation = int(rospy.get_param("~depth_map_decimation", 4))
         self.depth_map_range_min = float(rospy.get_param("~depth_map_range_min", 0.15))
         self.depth_map_range_max = float(rospy.get_param("~depth_map_range_max", 2.0))
@@ -2666,6 +2670,8 @@ class RoomMapper:
             pose, lidar = self.pose, getattr(self, "lidar", None)
             depth = self.depth
             t_pose, t_scan, t_camera, t_depth = self.t_pose, self.t_scan, self.t_camera, self.t_depth
+            registered_depth = getattr(self, "registered_depth", None)
+            t_registered_depth = getattr(self, "t_registered_depth", 0.0)
         # Web safety controls must still work while a sensor or map is faulty.
         self.handle_web()
         if getattr(self, "automatic_map_reset_pending", False):
@@ -2701,6 +2707,15 @@ class RoomMapper:
                     self.objects_ready(now)):
                 if self.capture_endpoint_snapshot(now):
                     self.capture_preview_snapshot(now)
+            return
+        # The fused route planner must not silently continue after its
+        # registered geometry source dies. Native depth remains the immediate
+        # collision sensor, but autonomous mapping stops until aligned planner
+        # depth recovers. Manual dead-man control keeps its existing behavior.
+        if (getattr(self, "use_depth_map", False) and
+                (registered_depth is None or now - t_registered_depth > 1.0)):
+            self.send(("stop",))
+            self.set_state(FAULT, "waiting for registered planner depth")
             return
         # RGB is used for display and YOLO, not collision sensing. A stalled
         # RGB stream must not disable depth/LiDAR-protected manual navigation.

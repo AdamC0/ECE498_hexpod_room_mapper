@@ -1,12 +1,16 @@
 # JetHexa Room Mapper
 
-## Experimental CUDA depth registration
+## CUDA depth registration
 
-`cuda_depth_registration/` contains a reversible ROS Melodic/CUDA 10.2 trial
-that projects the native Astra depth image into the raw RGB pixel grid with an
-`sm_53` CUDA kernel and nearest-surface z-buffer. It publishes only
-`/camera/depth_registered_cuda/image_raw` plus matching camera info; the
-production mapper and its topics are not remapped by default.
+`cuda_depth_registration/` contains the default ROS Melodic/CUDA 10.2 depth
+registrar. It projects the native Astra depth image into the raw RGB pixel grid
+with an `sm_53` CUDA kernel and nearest-surface z-buffer. The safe launcher
+starts and verifies `/camera/depth_registered_cuda/image_raw` plus matching
+camera info, then passes those topics to the mapper. Startup fails closed if
+the CUDA stream is unavailable. `--registered-depth-backend driver` explicitly
+selects the old driver stream for rollback. During autonomous mapping, planner
+depth older than one second stops the robot and enters `FAULT` rather than
+continuing on stale fused geometry.
 
 Live inspection found that the currently deployed launch has
 `depth_registration=false`. In that mode the driver's so-called registered
@@ -32,12 +36,14 @@ about 15.6-15.9 Hz, used about 36 MB RSS and 5.4% CPU, and reported roughly
 conservative hole-fill pass raised kernel time to about 0.68-0.79 ms and the
 candidate valid fraction from about 52.9% to 53.6% in the live scene (the
 unregistered native alias was about 69.9%). The vendor mode
-was restored to `depth_registration=false` after the reference check. This is
-build and stationary pipeline evidence only: the CUDA output is not deployed
-as a mapper input. Controlled hardware-reference capture, labeled RGB/depth
-alignment, valid-mask/depth parity, failure injection, soak/thermal checks,
-and supervised safety validation remain required. The speed result does not
-by itself authorize production remapping.
+was restored to `depth_registration=false` after the reference check. Native
+depth therefore remains independent and continues to supply the immediate
+collision check. CUDA registration is now the geometric planner input, and the
+planner update rate is 5 Hz instead of 2 Hz, reducing its scheduling interval
+from as much as 0.5 s to about 0.2 s. This is intended to insert walls, chair
+legs, boxes, and similar geometry sooner; it is separate from YOLO semantic
+recognition. Directly supervised motion, labeled alignment, failure injection,
+and soak/thermal validation remain pending.
 
 ## Depth pipeline CPU reduction
 
@@ -47,7 +53,7 @@ The Halley camera vendor launch can be patched with
 depth rectification/metric conversion, software registration, or point-cloud
 nodelets that have no consumers in production. The mapper continues consuming
 native and registered raw depth at its existing 15/10 Hz callback limits and
-projects planner depth at 2 Hz.
+now projects CUDA-registered planner depth at 5 Hz.
 
 The patch is deployed on PT with a recoverable vendor-file backup. After a
 camera-stack restart, only the Astra driver nodelet was loaded, both required
@@ -797,7 +803,13 @@ reset it. A Hector node that responds but does not publish `/slam_out_pose`, or
 a stale `hex_map.launch` without a live Hector node, is stopped and restarted
 with a fresh map. The launcher refuses to run alongside visual SLAM, verifies
 `AUTO PAUSED` and command `stop`, and writes logs to
-`~/.room_mapper_logs/`. It never resumes autonomous motion.
+`~/.room_mapper_logs/`. It never resumes autonomous motion. CUDA registration
+is the default geometric depth backend. For an explicit temporary rollback to
+the legacy driver stream, use:
+
+```bash
+./start_room_mapper.sh --registered-depth-backend driver
+```
 
 From a Windows checkout, double-click `start_room_mapper.cmd` to run the same
 launcher over SSH and open the web dashboard. SSH may prompt for the robot

@@ -1,6 +1,5 @@
 <launch>
-  <!-- This launch never remaps the production mapper. It publishes a
-       side-by-side candidate for stationary parity and load validation. -->
+  <!-- Compatibility wrapper retained for the original side-by-side command. -->
   <arg name="input_image" default="/camera/depth/image_raw" />
   <arg name="depth_camera_info" default="/camera/depth/camera_info" />
   <arg name="rgb_camera_info" default="/camera/rgb/camera_info" />
@@ -8,15 +7,12 @@
   <arg name="output_camera_info" default="/camera/depth_registered_cuda/camera_info" />
   <arg name="calibration_service" default="/camera/get_camera_params" />
 
-  <node pkg="cuda_depth_registration" type="cuda_depth_registration_node"
-        name="cuda_depth_registration" output="screen" required="true">
-    <param name="input_image" value="$(arg input_image)" />
-    <param name="depth_camera_info" value="$(arg depth_camera_info)" />
-    <param name="rgb_camera_info" value="$(arg rgb_camera_info)" />
-    <param name="output_image" value="$(arg output_image)" />
-    <param name="output_camera_info" value="$(arg output_camera_info)" />
-    <param name="calibration_service" value="$(arg calibration_service)" />
-    <param name="max_depth_metres" value="8.0" />
-    <param name="hole_fill_max_delta_mm" value="50" />
-  </node>
+  <include file="$(find cuda_depth_registration)/launch/cuda_depth_registration.launch">
+    <arg name="input_image" value="$(arg input_image)" />
+    <arg name="depth_camera_info" value="$(arg depth_camera_info)" />
+    <arg name="rgb_camera_info" value="$(arg rgb_camera_info)" />
+    <arg name="output_image" value="$(arg output_image)" />
+    <arg name="output_camera_info" value="$(arg output_camera_info)" />
+    <arg name="calibration_service" value="$(arg calibration_service)" />
+  </include>
 </launch>

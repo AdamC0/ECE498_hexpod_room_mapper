@@ -61,10 +61,16 @@ one mapper process exists.
 - The safe launcher defaults to TensorRT FP16. Engine initialization or runtime
   failure automatically falls back to CPU for that process; explicit CPU
   startup remains available with `--yolo-backend cpu`.
+- The safe launcher defaults geometric registered depth to the CUDA sidecar and
+  fails closed if its image or camera-info stream is unavailable. The planner
+  consumes this geometry at 5 Hz; native depth remains independent for the
+  immediate collision check. Explicit rollback is available with
+  `--registered-depth-backend driver`.
 - The production depth launch uses the driver's 640x480@15 mode and omits
   unused processing/point-cloud nodelets via
-  `patches/halley_depth_cpu_reduction.patch`. Native and registered raw depth
-  remain required; do not remove or throttle either below the safety policy.
+  `patches/halley_depth_cpu_reduction.patch`. Native and CUDA-registered raw
+  depth remain required; do not remove or throttle either below the safety
+  policy.
 
 ## Current safety/calibration facts
 
@@ -144,6 +150,17 @@ physical motion as pending supervised tests. The battery was subsequently
 recharged; the latest value is recorded below.
 
 ## Latest validation
+
+CUDA geometric registration is the mapping default as of 2026-11-21. The safe
+launcher starts and verifies it, keeps driver registration as an explicit
+rollback, raises temporary obstacle insertion from 2 Hz to 5 Hz, and stops
+autonomy if registered planner depth is stale for more than one second. All 288
+host and robot-native tests pass; target shell syntax and catkin rebuild pass
+with existing clock-skew warnings. A no-option safe launch started fresh Hector
+and left one mapper `AUTO PAUSED`/stop with CUDA depth near 15.65-15.69 Hz,
+native collision depth primary, active fused cells, and TensorRT at 0.20-0.43 s.
+No motion occurred. Failure, soak, labeled alignment, and directly supervised
+obstacle-motion validation remain pending.
 
 The generalized clear-footprint resurvey is deployed at commit `0ee8135`. All
 279 host and robot-native tests pass. When no frontier route is reachable, the

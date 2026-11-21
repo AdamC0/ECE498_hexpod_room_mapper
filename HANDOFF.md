@@ -1,12 +1,12 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Experimental CUDA depth registration - 2026-11-21
+## Default CUDA geometric depth registration - 2026-11-21
 
 The Jetson has CUDA 10.2 and an `sm_53` GPU even though `nvcc` is not on the
 default shell `PATH` (`/usr/local/cuda/bin/nvcc`). The earlier conclusion that
 there was no CUDA configuration switch remains correct, but a standalone
-side-by-side registration node is now implemented under
-`cuda_depth_registration/`.
+registration node is implemented under `cuda_depth_registration/` and is now
+the mapper's default registered-depth source.
 
 Live inspection also corrected an assumption about the deployed stream. With
 the vendor launch's `depth_registration=false`,
@@ -45,12 +45,31 @@ End-to-end speedup was 17.84x, 17.80x, and 17.36x. Every run had valid-mask IoU
 1.000 and median/p95 error 0 mm, so the timing comparison did not trade output
 parity for speed. The benchmark publishes nothing and no motion was commanded.
 
-Do not remap the mapper yet. Capture a real registered reference from an
-equivalent stationary scene, validate labeled RGB edges and depth holes,
-measure valid-mask/depth parity and TensorRT contention, inject node/GPU
-failure, soak thermals, then separately perform directly supervised depth-stop
-and autonomy checks. Preserve native depth for collision sensing and retain the
-existing CPU/driver stream as rollback.
+The operator clarified that the goal is faster geometric obstacle insertion
+for walls, chair legs, boxes, and similar collision geometry, not faster YOLO
+labels. `room_mapper.py` therefore defaults its registered image and calibration
+to the CUDA namespace, and geometric planner projection now runs at 5 Hz rather
+than 2 Hz. A first accepted frame is immediately a temporary blocking cell, so
+the software scheduling bound falls from about 0.5 s to about 0.2 s; the three
+settled observations still govern session promotion only.
+
+`start_room_mapper.sh` starts and verifies the CUDA node before the mapper and
+fails closed if either CUDA image or camera-info output is missing. Use
+`--registered-depth-backend driver` only for explicit rollback. Native
+`/camera/depth/image_raw` remains unchanged for the 0.60 m collision stop. The
+288-test host and robot-native suites pass, robot shell syntax passes, and the
+target CUDA package rebuild succeeds with the existing clock-skew warnings. A
+no-option safe launch started a fresh Hector frame and exactly one mapper in
+`AUTO PAUSED` with command `stop`. CUDA depth published near 15.65-15.69 Hz,
+native collision depth was `PRIMARY`, the fused layer reported live temporary
+and persistent cells, and TensorRT inference reported 0.20-0.43 s. No motion
+was commanded. Labeled alignment, TensorRT-contention soak, failure injection,
+thermal validation, and directly supervised geometric-obstacle motion remain
+pending.
+
+Once autonomy is active, registered planner depth older than one second now
+requests `stop` and enters `FAULT`; the mapper no longer continues on a stale
+CUDA fused layer. Paused capture and manual dead-man behavior are unchanged.
 
 ## Depth pipeline CPU reduction - 2026-11-16
 

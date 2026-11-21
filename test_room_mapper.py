@@ -769,6 +769,16 @@ class MapperTests(unittest.TestCase):
         n.send.assert_called_with(('stop',))
         self.assertEqual(n.state, FAULT)
 
+    def test_stale_registered_planner_depth_stops_autonomy(self):
+        n = self.controller()
+        n.use_depth_map = True
+        n.registered_depth = np.ones((10, 10), dtype=np.float32)
+        n.t_registered_depth = time.time() - 2.0
+        n.control_step()
+        n.send.assert_called_with(('stop',))
+        self.assertEqual(n.state, FAULT)
+        self.assertIn('registered planner depth', n.state_reason)
+
     def test_failed_stop_is_retried(self):
         n = self.node
         n.drive, n.last_cmd = True, ('forward',)
