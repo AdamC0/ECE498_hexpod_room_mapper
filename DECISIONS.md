@@ -2231,3 +2231,44 @@ Commit `0ee8135` is deployed with matching controller/test hashes after backup
 to `backup_pre_0ee8135`. The safe TensorRT restart preserved Hector and left one
 mapper `AUTO PAUSED`/stop; no deployment motion was commanded. Supervised
 physical validation remains pending.
+
+## Build CUDA registration beside, not in place of, safety depth - 2026-11-21
+
+The operator asked for an actual CUDA depth port after the CPU-only camera
+reduction. PT has CUDA 10.2 and an `sm_53` Jetson Nano GPU, although `nvcc` is
+not in the default shell path. Inspection found no GPU stage to toggle in the
+existing ROS graph, but also found that the deployed
+`depth_registration=false` configuration does not produce an RGB-registered
+image: `/camera/depth_registered/image_raw` is the driver's `32FC1` conversion
+of the native depth frame and carries depth-frame calibration.
+
+The Astra hardware registration mode cannot provide a simultaneous independent
+native stream. A brief mapper-stopped dynamic check changed the depth image to
+the RGB optical frame and RGB-family intrinsics at about 15.5-15.8 Hz, then the
+setting was restored to false. Replacing production with that one-stream mode
+would remove the denser native collision source and is rejected.
+
+Chosen: add a separate catkin/CUDA candidate. It consumes native `16UC1`, live
+depth and raw-RGB intrinsics, and factory right-to-left extrinsics from the
+Astra service. The kernel inverts the rigid transform, applies raw-RGB
+distortion, and uses an atomic nearest-surface z-buffer. It preserves the depth
+timestamp and publishes `16UC1` in the RGB frame only under the explicit
+`/camera/depth_registered_cuda` namespace. No production topic or mapper
+parameter changes by default.
+
+All 283 host tests pass. The package built successfully on PT and an isolated
+stationary run sustained about 15.6-15.9 Hz with 0.44-0.57 ms kernel reports,
+about 36 MB RSS, about 5.4% CPU, and roughly 2,500 processed frames. A
+conservative GPU hole-fill pass that requires two four-neighbours agreeing
+within 50 mm measured 0.68-0.79 ms and increased candidate valid coverage from
+about 52.9% to 53.6%, versus about 69.9% for the native alias. A final
+same-stamp diagnostic against that unregistered alias produced a 12 mm
+joint-pixel median, 421 mm p95, and 0.57 valid-mask IoU; this confirms the
+streams differ geometrically but is not a registration acceptance test. The
+trial node was stopped, the mapper was not running, and no motion was commanded.
+
+Adoption remains gated on equivalent-scene hardware-reference capture,
+labeled RGB/depth edge alignment, valid-mask and millimetre-error thresholds,
+foreground/hole behavior, TensorRT contention, soak/thermal data, failure
+injection, and separate directly supervised safety/motion validation. Native
+depth remains mandatory and the current driver path remains rollback.

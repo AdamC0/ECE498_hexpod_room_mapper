@@ -1,5 +1,47 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Experimental CUDA depth registration - 2026-11-21
+
+The Jetson has CUDA 10.2 and an `sm_53` GPU even though `nvcc` is not on the
+default shell `PATH` (`/usr/local/cuda/bin/nvcc`). The earlier conclusion that
+there was no CUDA configuration switch remains correct, but a standalone
+side-by-side registration node is now implemented under
+`cuda_depth_registration/`.
+
+Live inspection also corrected an assumption about the deployed stream. With
+the vendor launch's `depth_registration=false`,
+`/camera/depth_registered/image_raw` is a `32FC1` conversion/remap of the same
+native depth frame, not RGB-registered depth: it carries the depth optical
+frame and depth intrinsics. Dynamically enabling the driver's hardware mode
+changed the stream to the RGB optical frame and RGB-family intrinsics at the
+same 15.5-15.8 Hz rate, but the Astra exposes only one depth mode, so that
+setting removes the independent native stream required for collision sensing.
+It was restored to `false` immediately after the camera-only check.
+
+The new node subscribes to native `16UC1` depth and both camera-info topics,
+loads the factory right-to-left extrinsics from `/camera/get_camera_params`,
+inverts that transform in CUDA, applies raw-RGB distortion, and resolves
+collisions with an `atomicMin` nearest-depth z-buffer. It preserves the input
+stamp and publishes a separate `16UC1` candidate in the RGB optical frame at
+`/camera/depth_registered_cuda/image_raw`.
+
+All 283 host tests pass. The package built successfully in the target catkin
+workspace against ROS Melodic and CUDA 10.2. A stopped-mapper trial sustained
+about 15.6-15.9 Hz, 0.44-0.57 ms kernel time, about 36 MB RSS, and about 5.4%
+CPU over roughly 2,500 frames. A conservative two-neighbor/50 mm GPU hole fill
+then measured 0.68-0.79 ms and raised candidate valid coverage from about
+52.9% to 53.6%; the unregistered native alias was about 69.9%. The current
+alias differs geometrically as expected (final 30-frame joint-pixel median
+12 mm, p95 421 mm, valid-mask IoU 0.57), so those figures are diagnostic rather
+than acceptance parity. The trial node was stopped and no motion was commanded.
+
+Do not remap the mapper yet. Capture a real registered reference from an
+equivalent stationary scene, validate labeled RGB edges and depth holes,
+measure valid-mask/depth parity and TensorRT contention, inject node/GPU
+failure, soak thermals, then separately perform directly supervised depth-stop
+and autonomy checks. Preserve native depth for collision sensing and retain the
+existing CPU/driver stream as rollback.
+
 ## Depth pipeline CPU reduction - 2026-11-16
 
 Live load sampling found all four CPU cores around 75-100%, with the Astra

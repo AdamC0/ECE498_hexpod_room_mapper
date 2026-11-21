@@ -17,6 +17,31 @@ PRE-RUN:
   [ ] Confirm status is not FAULT and stationary pose is stable.
   [ ] Confirm Depth is ready or explicitly upper-only, not insufficient/stale.
 
+CUDA DEPTH REGISTRATION TRIAL (SIDE-BY-SIDE; NOT A MAPPER INPUT):
+  [x] Confirm CUDA 10.2 at /usr/local/cuda and build the sm_53 catkin package
+      natively against ROS Melodic and the Astra factory-calibration service.
+  [x] Confirm the deployed depth_registration=false "registered" topic is a
+      32FC1 native-depth alias with the depth frame/intrinsics, not RGB aligned.
+  [x] Briefly enable vendor hardware registration with no mapper running,
+      verify RGB-frame output near 15.5-15.8 Hz, then restore false so native
+      collision depth remains available.
+  [x] Run the CUDA candidate only on /camera/depth_registered_cuda: about
+      15.6-15.9 Hz, 0.44-0.57 ms base kernel, 36 MB RSS, 5.4% CPU, roughly
+      2,500 continuous frames, no motion. Conservative hole fill measured
+      0.68-0.79 ms and 53.6% valid coverage versus 69.9% native-alias coverage.
+      Stop the trial node afterward.
+  [x] Pass all 283 host tests including topic isolation, z-buffer, calibration,
+      transform direction, timestamp, and RGB-frame regressions.
+  [ ] Capture an equivalent stationary vendor-registered reference and set
+      quantitative valid-mask, millimetre-error, and edge-alignment gates.
+  [ ] Validate labeled RGB/depth alignment, foreground z-buffer behavior,
+      holes, reflective/invalid surfaces, and full registered-depth coverage.
+  [ ] Soak beside TensorRT while checking rates, memory, thermals, throttling,
+      and graceful CUDA/node failure. Do not remap room_mapper.py yet.
+  [ ] Only after those gates, run directly supervised depth-stop and normal
+      autonomy checks. Preserve native collision depth and a one-command
+      rollback to the existing driver stream.
+
 DEPTH PIPELINE CPU REDUCTION (DEPLOYED; REBOOT/MOTION VALIDATION PENDING):
   [x] Measure the live CPU bottleneck: Astra nodelet manager about 58%, mapper
       about one core, Hector about one core, and all four cores 75-100% busy.

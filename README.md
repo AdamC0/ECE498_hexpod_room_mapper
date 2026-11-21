@@ -1,5 +1,34 @@
 # JetHexa Room Mapper
 
+## Experimental CUDA depth registration
+
+`cuda_depth_registration/` contains a reversible ROS Melodic/CUDA 10.2 trial
+that projects the native Astra depth image into the raw RGB pixel grid with an
+`sm_53` CUDA kernel and nearest-surface z-buffer. It publishes only
+`/camera/depth_registered_cuda/image_raw` plus matching camera info; the
+production mapper and its topics are not remapped by default.
+
+Live inspection found that the currently deployed launch has
+`depth_registration=false`. In that mode the driver's so-called registered
+topic is a `32FC1` conversion/remap of the native depth stream: it retains the
+depth optical frame and depth intrinsics rather than RGB registration. A brief
+camera-only check of the vendor hardware-registration mode confirmed that it
+uses the RGB optical frame and RGB-family intrinsics, but the device exposes
+only one depth mode, so enabling it would remove the independent native stream
+required by collision sensing.
+
+The CUDA package builds natively on PT. An isolated no-mapper run sustained
+about 15.6-15.9 Hz, used about 36 MB RSS and 5.4% CPU, and reported roughly
+0.44-0.57 ms per registration kernel over about 2,500 frames. The final
+conservative hole-fill pass raised kernel time to about 0.68-0.79 ms and the
+candidate valid fraction from about 52.9% to 53.6% in the live scene (the
+unregistered native alias was about 69.9%). The vendor mode
+was restored to `depth_registration=false` after the reference check. This is
+build and stationary pipeline evidence only: the CUDA output is not deployed
+as a mapper input. Controlled hardware-reference capture, labeled RGB/depth
+alignment, valid-mask/depth parity, failure injection, soak/thermal checks,
+and supervised safety validation remain required.
+
 ## Depth pipeline CPU reduction
 
 The Halley camera vendor launch can be patched with
