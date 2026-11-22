@@ -2397,6 +2397,12 @@ The launcher validates all extracted modules before starting and retains the
 CUDA registered-depth image/camera-info defaults, 5 Hz planner projection,
 native collision depth, TensorRT default, and explicit rollback flags. A new
 architecture regression caps the facade at 500 lines and checks representative
-method ownership. All 294 host tests pass; target-native and paused live
-validation are recorded separately after deployment. No safety thresholds or
+method ownership. All 294 host and robot-native tests pass, production Python
+compiles, and both shell scripts pass Bash syntax checks. A no-option launcher
+run preserved healthy Hector/CUDA processes and verified CUDA image and camera
+info before starting exactly one mapper `AUTO PAUSED`/stop. The live mapper
+uses the CUDA topics, 5.0 Hz fused-depth projection, and TensorRT FP16; native
+and CUDA depth measured about 15.6/15.8 Hz. One Hector and one CUDA registrar
+were present, with no RTAB-Map. Deployed hashes match commit `f0abd25`, models
+and recordings remain, and no movement was commanded. No safety thresholds or
 motion policy changed.

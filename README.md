@@ -13,8 +13,10 @@ owner, so the split does not duplicate or synchronize mutable safety state.
 The safe launcher checks every runtime module before starting ROS, retains CUDA
 registered depth and TensorRT FP16 as defaults, and still supports explicit
 driver-depth and CPU rollback options. The 294-test host suite passes after the
-split; target-native and paused launcher validation are recorded in
-`HANDOFF.md` after deployment.
+split. The same 294 tests pass natively on the robot. A no-option launcher run
+verified one `AUTO PAUSED`/stop mapper, one Hector stack, one CUDA registrar,
+native and CUDA depth near 15.6/15.8 Hz, and no RTAB-Map process. No movement
+was commanded.
 
 ## Repository cleanup and operator motion diagnosis
 

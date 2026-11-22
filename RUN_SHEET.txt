@@ -12,9 +12,9 @@ ROOM_MAPPER DOMAIN SPLIT (2026-11-22):
   [x] Isolate setup, sensors/SLAM, objects, motion/safety, and web control.
   [x] Require every extracted runtime module in start_room_mapper.sh.
   [x] Pass all 294 host tests and compile production Python.
-  [ ] Pass all 294 robot-native tests and Bash syntax validation.
-  [ ] Verify CUDA registered depth, native collision depth, TensorRT fallback,
-      exactly one AUTO PAUSED/stop mapper, Hector only, and no physical motion.
+  [x] Pass all 294 robot-native tests and Bash syntax validation.
+  [x] Verify CUDA registered depth, native collision depth, TensorRT default,
+      exactly one AUTO PAUSED/stop mapper, Hector only, and no commanded motion.
 
 DEPLOYMENT CLEANUP + STATUS DIAGNOSIS (DEPLOYED 2026-11-22):
   [x] Preserve models and operator recordings; remove historical backups,

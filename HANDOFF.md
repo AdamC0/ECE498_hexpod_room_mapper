@@ -10,10 +10,15 @@ tests use the same interface. The launcher fails closed if any new runtime
 module is missing. A regression test caps the facade at 500 lines and verifies
 that representative methods are owned by the intended domain modules.
 
-All 294 Windows-host tests pass, production modules compile, and the launcher
-passes Bash syntax validation. Robot-native tests, deployed hashes, CUDA-depth
-startup, and the final AUTO PAUSED/stop process check are completed during the
-deployment validation below; no physical motion is part of this refactor.
+All 294 Windows-host and robot-native tests pass, production modules compile,
+and both shell scripts pass Bash syntax validation. The no-option safe launcher
+preserved healthy Hector and CUDA processes, verified the CUDA image and camera
+info streams, and started exactly one mapper `AUTO PAUSED` with `Command: stop`.
+The active mapper parameters select the CUDA registered image/camera-info,
+5.0 Hz planner projection, and TensorRT FP16. Native and CUDA depth measured
+about 15.6 and 15.8 Hz. One Hector process and one CUDA registrar were present,
+with no RTAB-Map process. Workstation and deployed hashes match; seven model
+files and three recording files remain. No movement was commanded.
 
 ## Cleanup, structure, and motion diagnosis deployed - 2026-11-22
 
