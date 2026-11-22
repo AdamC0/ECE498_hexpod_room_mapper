@@ -32,6 +32,9 @@ class ModelStartupTests(unittest.TestCase):
         for filename in ("controller_status.py", "video_recording.py",
                          "web_dashboard.py"):
             self.assertIn(filename, launcher)
+        self.assertIn('"Command: stop"', launcher)
+        controller = (PROJECT_ROOT / "room_mapper.py").read_text(encoding="utf-8")
+        self.assertIn('"State: %s/%s%s\\nCommand: %s\\n', controller)
 
     def test_mapper_defaults_to_cuda_topics_and_faster_obstacle_updates(self):
         source = (PROJECT_ROOT / "room_mapper.py").read_text(

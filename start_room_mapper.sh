@@ -214,7 +214,7 @@ if [[ "$mapper_count" -eq 1 ]]; then
     exit 1
   fi
   printf '%s\n' "$status"
-  if [[ "$status" != *"AUTO PAUSED"* || "$status" != *"command ('stop',)"* ]]; then
+  if [[ "$status" != *"AUTO PAUSED"* || "$status" != *"Command: stop"* ]]; then
     echo "Existing mapper is not paused and stopped; inspect it directly." >&2
     exit 1
   fi
@@ -376,7 +376,7 @@ if [[ -z "$status" ]]; then
   echo "Mapper web status did not become available; inspect $LOG_DIR/mapper.log." >&2
   exit 1
 fi
-if [[ "$status" != *"AUTO PAUSED"* || "$status" != *"command ('stop',)"* ]]; then
+if [[ "$status" != *"AUTO PAUSED"* || "$status" != *"Command: stop"* ]]; then
   printf '%s\n' "$status" >&2
   echo "Mapper did not verify as AUTO PAUSED with command stop." >&2
   exit 1

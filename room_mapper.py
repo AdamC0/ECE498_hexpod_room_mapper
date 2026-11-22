@@ -3282,11 +3282,13 @@ class RoomMapper:
             "path_length": len(self.path),
         }
         diagnosis = diagnose_runtime(snapshot, now)
-        return ("State: %s/%s%s\n%s\n%s\n"
+        command_name = self.last_cmd[0] if self.last_cmd else "none"
+        return ("State: %s/%s%s\nCommand: %s\n%s\n%s\n"
                 "Speed: translation %.0f%%, rotation %.0f%%\n"
                 "%s\n%s\nLiDAR: %.2f m (emergency stop at %.2f)\n"
                 "Objects: %s\n%s\nLast action: %s" % (
-                    self.state, self.phase, mode, diagnosis.line(), pose_line,
+                    self.state, self.phase, mode, command_name,
+                    diagnosis.line(), pose_line,
                     self.translation_speed_percent, self.rotation_speed_percent,
                     depth_line, depth_map_line, front, self.lidar_stop,
                     self.object_status, survey_line, self.web_msg))
