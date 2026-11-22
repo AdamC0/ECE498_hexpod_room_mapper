@@ -2385,7 +2385,7 @@ attach implementations from focused runtime modules. This avoids distributing
 mutable safety state across independently initialized objects while making each
 domain reviewable and diagnosable in isolation.
 
-The composition root is now 320 lines. `mapper_setup.py` owns construction and
+The composition root is now 392 lines. `mapper_setup.py` owns construction and
 ROS wiring; `mapper_sensors.py` owns sensor/SLAM ingestion and fused-depth
 updates; `mapper_objects.py` owns capture and semantic verification;
 `mapper_motion.py` owns command gating, planning, and recovery; and

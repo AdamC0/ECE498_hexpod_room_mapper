@@ -2,7 +2,7 @@
 
 ## Controller architecture
 
-`room_mapper.py` is now a 320-line composition root instead of a 3,000-line
+`room_mapper.py` is now a 392-line composition root instead of a 3,000-line
 controller. It owns the `RoomMapper` public API and detector lifecycle while
 delegating initialization, sensor ingestion, object processing, motion/safety,
 and web control to `mapper_setup.py`, `mapper_sensors.py`, `mapper_objects.py`,

@@ -2,7 +2,7 @@
 
 ## RoomMapper domain split - 2026-11-22
 
-The former 3,000-plus-line controller is now a 320-line composition root.
+The former 3,000-plus-line controller is now a 392-line composition root.
 Initialization, sensor/SLAM ingestion, object processing, motion/safety, and web
 control live in focused `mapper_*` modules. The public `RoomMapper` methods and
 single controller-state owner are preserved, so existing ROS callbacks and
