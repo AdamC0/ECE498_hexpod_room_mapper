@@ -70,6 +70,9 @@ fi
 
 required_runtime_files=(
   hex_map.launch room_mapper.py map_explore.py map_web.py web_dashboard.py
+  mapper_constants.py mapper_setup.py mapper_motion.py mapper_objects.py
+  mapper_sensors.py
+  mapper_web_control.py
   video_recording.py controller_status.py object_mapping.py depth_mapping.py
   lidar_mapping.py stationary_survey.py recover_rgb_camera.sh
 )

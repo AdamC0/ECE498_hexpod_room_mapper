@@ -1,5 +1,21 @@
 # JetHexa Room Mapper
 
+## Controller architecture
+
+`room_mapper.py` is now a 320-line composition root instead of a 3,000-line
+controller. It owns the `RoomMapper` public API and detector lifecycle while
+delegating initialization, sensor ingestion, object processing, motion/safety,
+and web control to `mapper_setup.py`, `mapper_sensors.py`, `mapper_objects.py`,
+`mapper_motion.py`, and `mapper_web_control.py`. Controller state still has one
+owner, so the split does not duplicate or synchronize mutable safety state.
+`mapper_constants.py` provides the shared controller states.
+
+The safe launcher checks every runtime module before starting ROS, retains CUDA
+registered depth and TensorRT FP16 as defaults, and still supports explicit
+driver-depth and CPU rollback options. The 294-test host suite passes after the
+split; target-native and paused launcher validation are recorded in
+`HANDOFF.md` after deployment.
+
 ## Repository cleanup and operator motion diagnosis
 
 The robot deployment now mirrors the maintained repository layout: runtime
@@ -923,7 +939,13 @@ A reboot or Hector restart creates a fresh in-memory map.
 
 ## Files and validation
 
-- `room_mapper.py`: ROS node, safety, motion, recovery, object-focus workflow.
+- `room_mapper.py`: small ROS composition root and detector lifecycle.
+- `mapper_setup.py`: parameter loading, state construction, ROS wiring, and timers.
+- `mapper_sensors.py`: RGB/depth/LiDAR ingestion, depth fusion, and SLAM pose handling.
+- `mapper_objects.py`: capture, inference, semantic tracking, and object verification.
+- `mapper_motion.py`: motion commands, safety gates, planning, and recovery.
+- `mapper_web_control.py`: operator commands and runtime status snapshots.
+- `mapper_constants.py`: shared controller-state names.
 - `map_explore.py`: 10 cm planning grid, inflation, frontiers, point routes.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
@@ -940,7 +962,7 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 293 tests and does not publish physical movement
+The repository suite contains 294 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 

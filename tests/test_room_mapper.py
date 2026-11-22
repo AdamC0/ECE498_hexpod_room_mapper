@@ -1216,7 +1216,7 @@ class MapperTests(unittest.TestCase):
         n.message_time = Mock(return_value=99.)
         msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
         with patch('room_mapper.time.time', return_value=100.), \
-                patch('room_mapper.project_depth_cells',
+                patch('mapper_sensors.project_depth_cells',
                       return_value=([(0, 1)], [(0, 2)])) as project, \
                 patch('room_mapper.rospy.loginfo') as loginfo:
             n.update_depth_obstacle_map(np.ones((1, 1), np.float32), msg)
@@ -1245,7 +1245,7 @@ class MapperTests(unittest.TestCase):
         depth = np.zeros((20, 20), np.float32)
         depth[:1, :] = .30  # 5% valid coverage
         with patch('room_mapper.time.time', return_value=100.), \
-                patch('room_mapper.project_depth_cells') as project:
+                patch('mapper_sensors.project_depth_cells') as project:
             n.update_depth_obstacle_map(depth, msg)
         project.assert_not_called()
         n.tf_buffer.lookup.assert_not_called()
@@ -1293,7 +1293,7 @@ class MapperTests(unittest.TestCase):
         n.message_time = Mock(return_value=99.)
         msg = SimpleNamespace(header=SimpleNamespace(frame_id='camera'))
         with patch('room_mapper.time.time', return_value=100.), \
-                patch('room_mapper.project_depth_cells',
+                patch('mapper_sensors.project_depth_cells',
                       return_value=([(0, 1)], [(0, 2)])):
             n.update_depth_obstacle_map(np.ones((1, 1), np.float32), msg)
         n.explorer.update_fused_observations.assert_called_once_with(

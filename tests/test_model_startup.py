@@ -7,6 +7,15 @@ from tests.support import PROJECT_ROOT
 
 
 class ModelStartupTests(unittest.TestCase):
+    def test_room_mapper_facade_stays_small_and_domains_are_separate(self):
+        facade = (PROJECT_ROOT / "room_mapper.py").read_text(encoding="utf-8")
+        self.assertLessEqual(len(facade.splitlines()), 500)
+        self.assertEqual(RoomMapper.control_step.__module__, "mapper_motion")
+        self.assertEqual(RoomMapper.process_object_snapshot.__module__,
+                         "mapper_objects")
+        self.assertEqual(RoomMapper.depth_callback.__module__, "mapper_sensors")
+        self.assertEqual(RoomMapper.web_status.__module__, "mapper_web_control")
+
     def test_safe_launcher_defaults_to_tensorrt(self):
         launcher = (PROJECT_ROOT / "start_room_mapper.sh").read_text(
             encoding="utf-8")
@@ -29,15 +38,19 @@ class ModelStartupTests(unittest.TestCase):
     def test_safe_launcher_checks_refactored_runtime_modules(self):
         launcher = (PROJECT_ROOT / "start_room_mapper.sh").read_text(
             encoding="utf-8")
-        for filename in ("controller_status.py", "video_recording.py",
-                         "web_dashboard.py"):
+        for filename in ("controller_status.py", "mapper_constants.py",
+                         "mapper_motion.py", "mapper_objects.py",
+                         "mapper_sensors.py", "mapper_setup.py",
+                         "video_recording.py",
+                         "mapper_web_control.py", "web_dashboard.py"):
             self.assertIn(filename, launcher)
         self.assertIn('"Command: stop"', launcher)
-        controller = (PROJECT_ROOT / "room_mapper.py").read_text(encoding="utf-8")
+        controller = (PROJECT_ROOT / "mapper_web_control.py").read_text(
+            encoding="utf-8")
         self.assertIn('"State: %s/%s%s\\nCommand: %s\\n', controller)
 
     def test_mapper_defaults_to_cuda_topics_and_faster_obstacle_updates(self):
-        source = (PROJECT_ROOT / "room_mapper.py").read_text(
+        source = (PROJECT_ROOT / "mapper_setup.py").read_text(
             encoding="utf-8")
         self.assertIn('"/camera/depth_registered_cuda/image_raw"', source)
         self.assertIn('"/camera/depth_registered_cuda/camera_info"', source)

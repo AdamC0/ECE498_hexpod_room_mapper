@@ -1,5 +1,20 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## RoomMapper domain split - 2026-11-22
+
+The former 3,000-plus-line controller is now a 320-line composition root.
+Initialization, sensor/SLAM ingestion, object processing, motion/safety, and web
+control live in focused `mapper_*` modules. The public `RoomMapper` methods and
+single controller-state owner are preserved, so existing ROS callbacks and
+tests use the same interface. The launcher fails closed if any new runtime
+module is missing. A regression test caps the facade at 500 lines and verifies
+that representative methods are owned by the intended domain modules.
+
+All 294 Windows-host tests pass, production modules compile, and the launcher
+passes Bash syntax validation. Robot-native tests, deployed hashes, CUDA-depth
+startup, and the final AUTO PAUSED/stop process check are completed during the
+deployment validation below; no physical motion is part of this refactor.
+
 ## Cleanup, structure, and motion diagnosis deployed - 2026-11-22
 
 Robot-side historical clutter was removed after an explicit inventory. The

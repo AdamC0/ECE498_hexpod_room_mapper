@@ -2375,3 +2375,28 @@ checks pass. The final no-option launch preserved one Hector process, ran one
 CUDA registrar, started exactly one mapper `AUTO PAUSED`/stop, and had no
 RTAB-Map process. Deployed hashes matched the workstation; recording metadata
 remained readable. No motion was commanded or physically observed.
+
+## Split the RoomMapper controller by runtime domain - 2026-11-22
+
+`room_mapper.py` exceeded 3,000 lines because initialization, sensor callbacks,
+semantic mapping, motion safety, and web control all shared one class body.
+Chosen: retain one `RoomMapper` state owner and its existing method API, but
+attach implementations from focused runtime modules. This avoids distributing
+mutable safety state across independently initialized objects while making each
+domain reviewable and diagnosable in isolation.
+
+The composition root is now 320 lines. `mapper_setup.py` owns construction and
+ROS wiring; `mapper_sensors.py` owns sensor/SLAM ingestion and fused-depth
+updates; `mapper_objects.py` owns capture and semantic verification;
+`mapper_motion.py` owns command gating, planning, and recovery; and
+`mapper_web_control.py` owns operator commands and status. Shared state names
+live in `mapper_constants.py`. Detector startup and CPU/TensorRT fallback remain
+in the facade because they are one lifecycle and have dedicated rollback tests.
+
+The launcher validates all extracted modules before starting and retains the
+CUDA registered-depth image/camera-info defaults, 5 Hz planner projection,
+native collision depth, TensorRT default, and explicit rollback flags. A new
+architecture regression caps the facade at 500 lines and checks representative
+method ownership. All 294 host tests pass; target-native and paused live
+validation are recorded separately after deployment. No safety thresholds or
+motion policy changed.

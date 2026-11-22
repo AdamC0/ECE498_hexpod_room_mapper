@@ -7,6 +7,15 @@ ROBOT:
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
 
+ROOM_MAPPER DOMAIN SPLIT (2026-11-22):
+  [x] Reduce room_mapper.py to a small composition root and preserve its public API.
+  [x] Isolate setup, sensors/SLAM, objects, motion/safety, and web control.
+  [x] Require every extracted runtime module in start_room_mapper.sh.
+  [x] Pass all 294 host tests and compile production Python.
+  [ ] Pass all 294 robot-native tests and Bash syntax validation.
+  [ ] Verify CUDA registered depth, native collision depth, TensorRT fallback,
+      exactly one AUTO PAUSED/stop mapper, Hector only, and no physical motion.
+
 DEPLOYMENT CLEANUP + STATUS DIAGNOSIS (DEPLOYED 2026-11-22):
   [x] Preserve models and operator recordings; remove historical backups,
       loose revisions, root logs/diagnostics/snapshots, and caches.
