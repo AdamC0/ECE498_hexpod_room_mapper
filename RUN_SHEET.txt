@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-21)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-22)
 =====================================================
 
 ROBOT:
@@ -6,6 +6,15 @@ ROBOT:
   Project: /home/hiwonder/room_mapper
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
+
+DEPLOYMENT CLEANUP + STATUS DIAGNOSIS (DEPLOYED 2026-11-22):
+  [x] Preserve models and operator recordings; remove historical backups,
+      loose revisions, root logs/diagnostics/snapshots, and caches.
+  [x] Move tests to tests/, offline tools to tools/, and historical material to docs/.
+  [x] Report a stable Why not moving code/detail and retain explicit Command: stop.
+  [x] Pass all 293 host and robot-native tests and compile production Python.
+  [x] Verify Bash syntax, matching deployed hashes, one mapper AUTO PAUSED/stop,
+      Hector and CUDA registration only, no RTAB-Map, and no commanded motion.
 
 PRE-RUN:
   [ ] Confirm PT is reachable and no stale mapper/SLAM process is running.

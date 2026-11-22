@@ -1,5 +1,34 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Cleanup, structure, and motion diagnosis deployed - 2026-11-22
+
+Robot-side historical clutter was removed after an explicit inventory. The
+project fell from 73 MB to 58 MB; the retained size is primarily `models/`
+(49 MB) and operator-created `recordings/` (7 MB). Current source, launchers,
+tests, and maintained documentation remain. Tests now live under `tests/`,
+offline utilities under `tools/`, and historical plans/images under `docs/`.
+No `backup_*`, loose `.bak`/`.pre_*`, root log/diagnostic, snapshot, or cache
+artifacts remain. GitHub is the recovery source for the deployed code.
+
+The web status now reports a stable `Why not moving: [CODE] detail` diagnosis
+for pause, stale sensors, SLAM/map failures, startup guard, depth health,
+object verification, missing routes, and active motion. Runtime-essential
+`Command: stop` remains visible; scan-integration counters, model paths/backend,
+and object queue internals were removed. `map_web.py` delegates static content,
+recording lifecycle, and diagnosis to `web_dashboard.py`,
+`video_recording.py`, and `controller_status.py` respectively.
+
+All 293 host and robot-native tests pass, production Python compiles, and both
+shell scripts pass Bash syntax validation. Global `-W error` is not usable on
+the target because ROS Melodic itself calls deprecated `logging.warn`; the
+normal native suite passes and exposes those external warnings. The initial
+safe launch failed closed because the old stop proof had lived in a removed
+developer-counter line. Commit `56f1f50` restored the explicit `Command: stop`
+contract and added launcher coverage. The final launch verified one mapper
+`AUTO PAUSED`/stop, one Hector process, one CUDA registrar, no RTAB-Map, live
+dashboard/object inference, matching runtime hashes, and retained recording
+metadata. No motion was commanded or physically observed.
+
 ## Default CUDA geometric depth registration - 2026-11-21
 
 The Jetson has CUDA 10.2 and an `sm_53` GPU even though `nvcc` is not on the

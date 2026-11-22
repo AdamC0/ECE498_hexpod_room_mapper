@@ -151,6 +151,16 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+Repository cleanup and operator motion diagnosis are deployed at commits
+`2415f9a` and `56f1f50`. Runtime modules remain at the root, tests are under
+`tests/`, offline utilities under `tools/`, and historical plans/images under
+`docs/`. Robot-side backups, loose revisions, logs, diagnostics, snapshots,
+and caches were removed while models and recordings were preserved. All 293
+host and robot-native tests pass. The dashboard reports a prioritized
+`Why not moving: [CODE] detail` and retains explicit `Command: stop` launcher
+proof. One mapper is `AUTO PAUSED`/stop with Hector and CUDA registration only;
+RTAB-Map is stopped. Runtime hashes match and no motion was commanded.
+
 CUDA geometric registration is the mapping default as of 2026-11-21. The safe
 launcher starts and verifies it, keeps driver registration as an explicit
 rollback, raises temporary obstacle insertion from 2 Hz to 5 Hz, and stops

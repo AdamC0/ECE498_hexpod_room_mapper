@@ -1,5 +1,30 @@
 # JetHexa Room Mapper
 
+## Repository cleanup and operator motion diagnosis
+
+The robot deployment now mirrors the maintained repository layout: runtime
+modules stay at the project root, regression coverage is under `tests/`,
+offline diagnostics and model utilities are under `tools/`, and historical
+plans/images are under `docs/`. Historical `backup_*`, loose `.bak`/`.pre_*`,
+root logs, diagnostics, snapshots, and caches were removed from the robot.
+`models/` and the operator's `recordings/` were preserved.
+
+The dashboard now leads with a stable, operator-facing motion diagnosis such
+as `[AUTO_PAUSED]`, `[REGISTERED_DEPTH_STALE]`, `[LIDAR_STALE]`,
+`[MAP_UNTRUSTED]`, or `[ROUTE_UNAVAILABLE]`. It retains the safety-critical
+`Command: stop` field used by the launcher while omitting scan-integration
+counters, detector filenames/backends, and inference-queue internals. Static
+dashboard content, video lifecycle, and diagnosis policy are isolated in
+`web_dashboard.py`, `video_recording.py`, and `controller_status.py`.
+
+Commits `2415f9a` and `56f1f50` pass all 293 tests on the Windows host and
+natively on PT. The first paused deployment correctly failed closed when the
+status refactor temporarily removed the launcher's stop-command proof; the
+follow-up restored a concise `Command: stop` contract. The final safe launch
+left one mapper `AUTO PAUSED`, one Hector stack, one CUDA registrar, and no
+RTAB-Map process. Runtime hashes match the committed files, retained recording
+metadata is readable, and no movement was commanded or physically observed.
+
 ## CUDA depth registration
 
 `cuda_depth_registration/` contains the default ROS Melodic/CUDA 10.2 depth

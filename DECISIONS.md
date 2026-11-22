@@ -2337,3 +2337,41 @@ when registered planner depth is absent or older than one second. This prevents
 a CUDA process failure from silently leaving autonomy on a stale fused map;
 native collision sensing remains independent, and paused/manual behavior is
 unchanged.
+
+## Clean the deployment and expose operator-facing stop reasons - 2026-11-22
+
+The robot project accumulated 73 MB across 127 top-level files and 41
+directories. Most removable content was deployment history: approximately 30
+`backup_pre_*` directories, loose `.bak`/`.pre_*` revisions, root logs,
+diagnostic JSON, old map snapshots, and Python caches. Chosen: use GitHub as
+the code recovery source, remove those artifacts, preserve the required model
+fallbacks/engine and all operator recordings, and mirror the maintained layout.
+Tests now live in `tests/`, offline utilities in `tools/`, and historical
+plans/images in `docs/`. The result is 58 MB, including 49 MB of models and
+7 MB of recordings.
+
+The operator clarified that website "errors" means concrete reasons the robot
+does not behave as expected, especially why autonomous mapping is stopped.
+Chosen: publish one prioritized, stable diagnosis code and plain-language
+summary derived from a controller-owned snapshot. Pause, registered-depth,
+LiDAR/depth freshness, map trust, pose/map freshness, startup guard, floor
+learning, depth health, object verification, route availability, and active
+motion remain distinct. Remove developer-only scan counters, detector model
+paths/backends, and object-worker queue counts from the page.
+
+As a low-risk encapsulation pass, diagnosis became a ROS-independent module.
+The larger follow-up moved recording lifecycle out of the HTTP server and the
+static dashboard out of Python request handling. The central `RoomMapper`
+retains ownership of safety/control state instead of distributing mutable
+motion state through mixins. The launcher now validates every required runtime
+module before startup.
+
+The first safe launch exposed that its `command ('stop',)` proof had been
+embedded in the removed scan-counter line. The launcher failed closed and
+stopped the mapper. Chosen follow-up: add an explicit `Command: stop` runtime
+field and validate that stable contract. Commits `2415f9a` and `56f1f50` pass
+all 293 host and robot-native tests. Production compilation and Bash syntax
+checks pass. The final no-option launch preserved one Hector process, ran one
+CUDA registrar, started exactly one mapper `AUTO PAUSED`/stop, and had no
+RTAB-Map process. Deployed hashes matched the workstation; recording metadata
+remained readable. No motion was commanded or physically observed.
