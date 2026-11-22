@@ -164,7 +164,7 @@ that remains unconfirmed now expires 60 s after its latest occupied hit;
 another hit restarts the limit, and promotion still makes it session-persistent
 until four synchronized depth/LiDAR free observations clear it. Valid measured
 surfaces beyond the 2.0 m occupied radius may prove only the nearer ray free and
-never create a farther obstacle endpoint. `diagnose_depth_projection.py`
+never create a farther obstacle endpoint. `tools/diagnose_depth_projection.py`
 provides a read-only live comparison. All 272 host and robot-native tests pass
 under `-W error`. Commit `6f07812` is deployed with matching runtime hashes and
 an exact pre-change backup under `backup_pre_6f07812`.
@@ -280,7 +280,7 @@ validation, separate from the 257-test results and SLAM-reported pose changes.
 The repository was clean and synchronized with `origin/main` at commit
 `3ec1299`. No production-code changes have landed after the 2026-11-02
 close-object/turn-loss deployment documented immediately below. The complete
-Windows host suite passed again: 253 tests in `host_test_runner.py`.
+Windows host suite passed again: 253 tests in `tools/host_test_runner.py`.
 
 `README.md`, `RUN_SHEET.txt`, and the newest `DECISIONS.md` entries already
 match the deployed feature set and outstanding supervised checks. `AGENTS.md`
@@ -848,7 +848,7 @@ infer completion of the still-pending beyond-45-degree or obstacle-gate trials.
 The operator reported three issues: mapped object markers do not follow map
 zoom, old magenta registered-depth obstacles remain after an object is moved,
 and fast exploration can leave too few settled object captures for confirmed
-landmarks. All three priorities in `RELIABILITY_FIX_PLAN.md` are implemented in
+landmarks. All three priorities in `docs/RELIABILITY_FIX_PLAN.md` are implemented in
 separate commits and are now deployed to PT:
 
 1. `a201e37` adds conservative free-space evidence to the temporary registered-depth
@@ -907,7 +907,7 @@ total extent is unknown, so the fraction was not a valid completion measure.
 Frontier planning and occupancy data are unchanged. Test count is now 160;
 robot-native validation remains pending.
 
-The workstation validation is now reproducible through `host_test_runner.py`,
+The workstation validation is now reproducible through `tools/host_test_runner.py`,
 which supplies import-only ROS/message shims and runs all 160 tests without a
 ROS node or hardware connection. Four detector-startup regressions verify
 missing-preferred fallback, CUDA-to-CPU retry, warm-up failure rollback, and
@@ -930,7 +930,7 @@ use a lower 0.30 threshold while other classes retain 0.45; class-aware NMS
 keeps overlapping classes. Startup warm-up validates the model/backend and
 automatically falls back to CPU and then the unchanged `yolov5n.onnx`. The
 model artifacts are not committed and must be prepared with
-`prepare_yolo_model.py`, then copied beside the fallback model.
+`tools/prepare_yolo_model.py`, then copied beside the fallback model.
 
 The operator reports that the previously tested object-mapping revision placed
 landmarks nearly perfectly and did not produce duplicate landmarks or false
@@ -1309,7 +1309,7 @@ curl -fsS http://127.0.0.1:8000/status
 curl -fsS http://127.0.0.1:8000/battery.json
 pgrep -af '^/usr/bin/python3 room_mapper.py'
 rostopic hz /scan /slam_out_pose /camera/rgb/image_raw /camera/depth/image_raw
-python3 -m unittest discover -v
+python3 -m unittest discover -s tests -t . -v
 ```
 
 Only one mapper process should exist. Tests do not command the physical robot.

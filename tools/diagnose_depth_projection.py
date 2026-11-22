@@ -2,12 +2,16 @@
 """Compare registered-depth free-space projection policies without commanding motion."""
 
 import json
+import os
+import sys
 import time
 
 import numpy as np
 import rospy
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_msgs.msg import TFMessage
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from depth_mapping import project_depth_cells, quaternion_matrix
 from object_mapping import TransformCache, decode_depth_image

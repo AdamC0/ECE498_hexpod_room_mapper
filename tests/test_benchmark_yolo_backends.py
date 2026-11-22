@@ -1,6 +1,6 @@
 import unittest
 
-from benchmark_yolo_backends import compare_results
+from tools.benchmark_yolo_backends import compare_results
 
 
 class BenchmarkParityTests(unittest.TestCase):

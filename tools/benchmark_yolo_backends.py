@@ -5,9 +5,12 @@ import argparse
 import json
 import os
 import statistics
+import sys
 import time
 
 import cv2
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from object_mapping import TensorRtYoloDetector, YoloOnnxDetector, load_labels
 

@@ -1,11 +1,12 @@
 import unittest
-from pathlib import Path
 import xml.etree.ElementTree as ET
+
+from tests.support import PROJECT_ROOT
 
 
 class CudaDepthRegistrationTests(unittest.TestCase):
     def setUp(self):
-        self.root = Path(__file__).with_name('cuda_depth_registration')
+        self.root = PROJECT_ROOT / 'cuda_depth_registration'
 
     def test_compatibility_launch_keeps_cuda_topic_isolated(self):
         launch = ET.parse(str(self.root / 'launch' / 'cuda_depth_trial.launch')).getroot()

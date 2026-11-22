@@ -552,7 +552,7 @@ class TensorRtYoloDetector(YoloOnnxDetector):
     """TensorRT engine runner with no import or CUDA context cost on CPU startup.
 
     Engines are device-specific generated artifacts. A sidecar written by
-    prepare_tensorrt_engine.py binds the engine to the exact source ONNX file,
+    tools/prepare_tensorrt_engine.py binds the engine to the exact source ONNX file,
     preventing a stale engine from silently being paired with a newer model.
     """
 

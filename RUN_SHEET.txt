@@ -480,7 +480,7 @@ VERIFY:
     /camera/depth_registered_cuda/image_raw
   rosparam get /room_mapper/registered_depth_topic
   rosparam get /room_mapper/depth_map_hz
-  cd ~/room_mapper && python3 -m unittest discover -v
+  cd ~/room_mapper && python3 -m unittest discover -s tests -t . -v
 
   Repository regression count: 215 host tests.
   Deployed/native regression count: 214 tests passed on PT.
@@ -528,7 +528,7 @@ LOW-LEG ACTIVE-ROUTE FOLLOW-UP (DEPLOYED; MOTION PENDING):
       verify the robot stops/replans and retains 0.43 m center clearance.
 
 RELIABILITY UPDATE (DEPLOYED DRIVE-DISABLED; PHYSICAL GATES PENDING):
-  [x] Pass all 177 tests with host_test_runner.py and compile production Python.
+  [x] Pass all 177 tests with tools/host_test_runner.py and compile production Python.
   [x] Keep depth clearing, snapshot queueing, and map scaling in separate commits.
   [x] Deploy with _drive:=false; run all 177 tests natively on PT.
   [x] Measure registered-depth projection cost and confirm RGB/depth/LiDAR/pose
@@ -571,7 +571,7 @@ OBJECT VISIBILITY + LIVE PREVIEW (DEPLOYED; LABELED QUALITY PENDING):
 
 SMOOTH ROUTING + CLASSROOM YOLO (DEPLOYED; PHYSICAL VALIDATION PENDING):
   [x] Before copying models, keep models/yolov5n.onnx in place for rollback.
-  [x] On a workstation, run prepare_yolo_model.py; copy the generated ONNX and
+  [x] On a workstation, run tools/prepare_yolo_model.py; copy the generated ONNX and
       .names files together to /home/hiwonder/room_mapper/models/.
   [x] Start AUTO PAUSED and check detector warm-up. The exporter materializes
       the legacy-OpenCV broadcast; status must report the preferred model on CPU.
@@ -599,7 +599,7 @@ TENSORRT YOLO WITH CPU FALLBACK (SHORT FULL-STACK PAUSED GATE PASSED):
   unchanged. The engine is device-specific and stays under
   models/gpu_trial/ with its required .json checksum sidecar.
 
-  [x] Build the FP16 engine on PT with prepare_tensorrt_engine.py.
+  [x] Build the FP16 engine on PT with tools/prepare_tensorrt_engine.py.
   [x] Compare CPU and GPU on the exact same saved frames. Initial no-ROS result:
       1.010 s CPU median versus 0.400 s TensorRT median over nine samples each;
       all 11 detections matched within IoU/confidence tolerances.

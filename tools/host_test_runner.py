@@ -4,11 +4,17 @@
 These shims only satisfy imports and construct the small message objects used
 by unit tests. They do not create a ROS node or connect to robot hardware.
 """
+import os
 import sys
 import types
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
+
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 
 def module(name):
@@ -58,6 +64,7 @@ sys.modules["geometry_msgs.msg"].PoseStamped = PoseStamped
 
 
 if __name__ == "__main__":
-    suite = unittest.defaultTestLoader.discover(".")
+    suite = unittest.defaultTestLoader.discover(
+        os.path.join(PROJECT_ROOT, "tests"), top_level_dir=PROJECT_ROOT)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     raise SystemExit(0 if result.wasSuccessful() else 1)

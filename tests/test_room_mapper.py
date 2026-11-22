@@ -1,4 +1,4 @@
-"""Run on the robot: python3 -m unittest -v test_room_mapper.
+"""Run on the robot: python3 -m unittest -v tests.test_room_mapper.
 
 No ROS node is started and no motion commands are published.
 """

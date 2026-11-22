@@ -26,6 +26,7 @@ from depth_mapping import project_depth_cells
 from lidar_mapping import project_lidar_cells
 from map_explore import ExploreMap
 from stationary_survey import StationarySurvey
+from controller_status import diagnose_runtime, format_pose
 from object_mapping import (ObjectTracker, TensorRtYoloDetector, TransformCache,
                             YoloOnnxDetector, backproject, decode_depth_image, load_labels,
                             canonical_object_label, deduplicate_mapped_detections,
@@ -3244,35 +3245,51 @@ class RoomMapper:
         survey_line = "Stationary survey: %d/%d scans, %s" % (
             min(self.survey.count, self.survey.required), self.survey.required,
             "localized" if self.survey.ready(time.time()) else "waiting for settled scans / SLAM")
-        pose_line = ("Pose: x %.2f m, y %.2f m, heading %.1f deg" %
-                     (pose[0], pose[1], math.degrees(pose[2]))) if pose else "Pose: unavailable"
-        scan_line = "SLAM scans: stationary %d, turn %d, rejected motion %d; command %s" % (
-            self.stable_stationary_scans, self.stable_turn_scans,
-            self.rejected_motion_scans, self.last_cmd)
+        now = time.time()
+        pose_line = format_pose(pose)
         manual_cmd = getattr(self, "manual_cmd", None)
         mode = "  MANUAL: %s" % manual_cmd.upper() if manual_cmd else ("  AUTO PAUSED" if self.paused else "")
         depth_map_line = ("Depth planner layer: " + self.depth_map_status
                           if self.use_depth_map else "Depth planner layer: disabled")
-        active_model = getattr(self, "active_yolo_model", "")
-        detector_line = ("Detector: %s (%s)" %
-                         (os.path.basename(active_model),
-                          getattr(self, "active_yolo_backend", "unknown"))
-                         if active_model else "Detector: disabled")
-        if hasattr(self, "object_queue_lock"):
-            with self.object_queue_lock:
-                queue_line = ("Object snapshots: captured %d, processed %d, replaced %d, "
-                              "pending %d" %
-                              (self.object_snapshots_captured,
-                               self.object_snapshots_processed,
-                               self.object_snapshots_replaced,
-                               len(self.object_pending_snapshots)))
-        else:
-            queue_line = "Object snapshots: unavailable"
-        return "State: %s/%s%s\nReason: %s\n%s\n%s\nSpeed: translation %.0f%%, rotation %.0f%%\nDepth collision sensing: PRIMARY\n%s\n%s\nLiDAR fallback: %.2f m (emergency stop at %.2f)\n%s\nObjects: %s\n%s\n%s\nLast: %s" % (
-            self.state, self.phase, mode, getattr(self, "state_reason", "unknown"), pose_line,
-            scan_line, self.translation_speed_percent, self.rotation_speed_percent,
-            depth_line, depth_map_line, front, self.lidar_stop,
-            detector_line, self.object_status, queue_line, survey_line, self.web_msg)
+        snapshot = {
+            "state": self.state,
+            "phase": self.phase,
+            "state_reason": getattr(self, "state_reason", ""),
+            "web_message": self.web_msg,
+            "paused": self.paused,
+            "manual_cmd": manual_cmd,
+            "commanded_moving": getattr(self, "commanded_moving", False),
+            "last_cmd": self.last_cmd,
+            "drive": self.drive,
+            "use_map": self.use_map,
+            "use_depth": self.use_depth,
+            "use_depth_map": self.use_depth_map,
+            "scan_stamp": self.t_scan,
+            "depth_stamp": self.t_depth,
+            "registered_depth_stamp": getattr(self, "t_registered_depth", 0.0),
+            "pose_stamp": self.t_pose,
+            "pose_available": pose is not None,
+            "slam_stale": self.slam_stale,
+            "map_trusted": self.map_trusted,
+            "have_map": self.explorer.have_map,
+            "map_fresh": self.map_is_fresh(now),
+            "automatic_reset_pending": getattr(self, "automatic_map_reset_pending", False),
+            "automatic_reset_reason": getattr(self, "automatic_map_reset_reason", ""),
+            "automatic_reset_failure": getattr(self, "automatic_map_reset_failure", ""),
+            "pose_guard_start": self.pose_guard_start,
+            "floor_ready": self.floor_profile is not None,
+            "depth_health": self.depth_health,
+            "path_length": len(self.path),
+        }
+        diagnosis = diagnose_runtime(snapshot, now)
+        return ("State: %s/%s%s\n%s\n%s\n"
+                "Speed: translation %.0f%%, rotation %.0f%%\n"
+                "%s\n%s\nLiDAR: %.2f m (emergency stop at %.2f)\n"
+                "Objects: %s\n%s\nLast action: %s" % (
+                    self.state, self.phase, mode, diagnosis.line(), pose_line,
+                    self.translation_speed_percent, self.rotation_speed_percent,
+                    depth_line, depth_map_line, front, self.lidar_stop,
+                    self.object_status, survey_line, self.web_msg))
 
     def web_battery(self):
         with self.data_lock:

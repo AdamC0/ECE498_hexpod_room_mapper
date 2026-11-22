@@ -84,7 +84,7 @@ camera after an in-process UVC restart failed. Depth floor-bump/dropout alarms
 repeatedly caused HOLD/AVOID during the fallback trial and limited travel. The
 robot was paused after the bounded test with the web page still available.
 
-Repeat the read-only measurement with `python3 check_stationary_mapping.py`.
+Repeat the read-only measurement with `python3 tools/check_stationary_mapping.py`.
 
 ## False-wall correction
 

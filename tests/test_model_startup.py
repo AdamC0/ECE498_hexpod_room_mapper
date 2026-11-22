@@ -1,20 +1,20 @@
 """Workstation-safe regression tests for detector startup and rollback."""
-from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
 from room_mapper import RoomMapper
+from tests.support import PROJECT_ROOT
 
 
 class ModelStartupTests(unittest.TestCase):
     def test_safe_launcher_defaults_to_tensorrt(self):
-        launcher = Path(__file__).with_name("start_room_mapper.sh").read_text(
+        launcher = (PROJECT_ROOT / "start_room_mapper.sh").read_text(
             encoding="utf-8")
         self.assertIn("YOLO_BACKEND=tensorrt_fp16", launcher)
         self.assertIn("_yolo_backend:=\"$YOLO_BACKEND\"", launcher)
 
     def test_safe_launcher_defaults_to_cuda_registered_depth(self):
-        launcher = Path(__file__).with_name("start_room_mapper.sh").read_text(
+        launcher = (PROJECT_ROOT / "start_room_mapper.sh").read_text(
             encoding="utf-8")
         self.assertIn("REGISTERED_DEPTH_BACKEND=cuda", launcher)
         self.assertIn("cuda_depth_registration.launch", launcher)
@@ -26,8 +26,15 @@ class ModelStartupTests(unittest.TestCase):
         self.assertIn('_depth_map_hz:=5.0', launcher)
         self.assertIn("--registered-depth-backend driver", launcher)
 
+    def test_safe_launcher_checks_refactored_runtime_modules(self):
+        launcher = (PROJECT_ROOT / "start_room_mapper.sh").read_text(
+            encoding="utf-8")
+        for filename in ("controller_status.py", "video_recording.py",
+                         "web_dashboard.py"):
+            self.assertIn(filename, launcher)
+
     def test_mapper_defaults_to_cuda_topics_and_faster_obstacle_updates(self):
-        source = Path(__file__).with_name("room_mapper.py").read_text(
+        source = (PROJECT_ROOT / "room_mapper.py").read_text(
             encoding="utf-8")
         self.assertIn('"/camera/depth_registered_cuda/image_raw"', source)
         self.assertIn('"/camera/depth_registered_cuda/camera_info"', source)

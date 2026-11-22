@@ -1,6 +1,6 @@
 import unittest
 
-from prepare_yolo_model import legacy_opencv_broadcast_shape, ordered_names
+from tools.prepare_yolo_model import legacy_opencv_broadcast_shape, ordered_names
 
 
 class PrepareYoloModelTests(unittest.TestCase):

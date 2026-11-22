@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from navigation_validation import analyze
+from tools.navigation_validation import analyze
 
 
 class NavigationValidationTests(unittest.TestCase):

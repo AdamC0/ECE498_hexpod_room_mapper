@@ -1,6 +1,8 @@
 """Print why the live map does or does not have a reachable survey goal."""
 import json
 import math
+import os
+import sys
 from collections import deque
 
 import cv2
@@ -8,6 +10,8 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from map_explore import ExploreMap, FREE, OCCUPIED, UNKNOWN
 

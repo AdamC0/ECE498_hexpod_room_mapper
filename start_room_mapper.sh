@@ -68,10 +68,17 @@ if [[ ! -f "$JETHEXA_SETUP" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$SCRIPT_DIR/hex_map.launch" || ! -f "$SCRIPT_DIR/room_mapper.py" ]]; then
-  echo "Run this launcher from the deployed room_mapper project." >&2
-  exit 1
-fi
+required_runtime_files=(
+  hex_map.launch room_mapper.py map_explore.py map_web.py web_dashboard.py
+  video_recording.py controller_status.py object_mapping.py depth_mapping.py
+  lidar_mapping.py stationary_survey.py recover_rgb_camera.sh
+)
+for runtime_file in "${required_runtime_files[@]}"; do
+  if [[ ! -f "$SCRIPT_DIR/$runtime_file" ]]; then
+    echo "Required runtime file is missing: $SCRIPT_DIR/$runtime_file" >&2
+    exit 1
+  fi
+done
 
 set +u
 source "$JETHEXA_SETUP"

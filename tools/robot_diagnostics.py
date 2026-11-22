@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only, bounded ROS sensor/TF inventory. Never starts drivers or sends motion.
 
-Run on the stationary robot: python3 robot_diagnostics.py --output diagnostics.json
+Run on the stationary robot: python3 tools/robot_diagnostics.py --output diagnostics.json
 Only metadata and final pose/IMU samples are saved, not camera images.
 """
 import argparse

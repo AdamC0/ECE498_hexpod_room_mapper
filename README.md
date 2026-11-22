@@ -552,7 +552,7 @@ gitignored trial directory:
 
 ```bash
 cd ~/room_mapper
-python3 prepare_tensorrt_engine.py models/yolo26n-objv1-150.onnx \
+python3 tools/prepare_tensorrt_engine.py models/yolo26n-objv1-150.onnx \
   --output models/gpu_trial/yolo26n-objv1-150-fp16.engine
 ```
 
@@ -562,7 +562,7 @@ later CUDA execution failure permanently switches that mapper process to the
 same model on CPU; the retained YOLOv5n model remains the final model fallback.
 Use `./start_room_mapper.sh --yolo-backend cpu` only for an explicit CPU start.
 
-Use `benchmark_yolo_backends.py` on fixed saved frames before enabling the
+Use `tools/benchmark_yolo_backends.py` on fixed saved frames before enabling the
 mapper. With all ROS perception processes stopped, the initial PT trial on
 three non-classroom reference images measured 1.010 s CPU versus 0.400 s
 TensorRT FP16 median inference (nine samples each). All 11 detections matched;
@@ -575,12 +575,12 @@ output files into `/home/hiwonder/room_mapper/models/`:
 
 ```bash
 python3 -m pip install ultralytics
-python3 prepare_yolo_model.py
+python3 tools/prepare_yolo_model.py
 ```
 
 The exporter materializes a final broadcast constant so the generated model
 runs on PT's legacy OpenCV 4.5.5 DNN implementation without changing ONNX
-Runtime output. Use `validate_yolo_model.py` on the target before activation.
+Runtime output. Use `tools/validate_yolo_model.py` on the target before activation.
 
 The full update was deployed on 2026-10-25 and all 163 tests pass both through
 the workstation shim runner and natively on PT. The patched Objects365 model is
@@ -902,10 +902,11 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `map_explore.py`: 10 cm planning grid, inflation, frontiers, point routes.
 - `map_web.py`: dashboard, map transforms, manual/object/navigation APIs.
 - `object_mapping.py`: YOLO decoding, TF projection, landmark tracking.
-- `prepare_yolo_model.py`: workstation-only ONNX export and label-sidecar tool.
-- `prepare_tensorrt_engine.py`: target-only isolated FP16 engine builder.
-- `benchmark_yolo_backends.py`: same-frame CPU/TensorRT timing and parity report.
-- `validate_yolo_model.py`: target OpenCV/TensorRT warm-up and timing check.
+- `controller_status.py`: operator-facing motion diagnosis and stable status codes.
+- `video_recording.py`: recording lifecycle, codec, storage, and worker isolation.
+- `tools/`: offline diagnostics, validation, model preparation, and benchmarks.
+- `tests/`: host and robot-native regression tests.
+- `docs/`: historical plans, validation notes, and captured map images.
 - `depth_mapping.py`: registered-depth projection for temporary planner cells.
 - `lidar_mapping.py`: settled LiDAR occupied/free ray projection for fusion.
 - `hex_map.launch`: Hector and required TF bridges.
@@ -914,12 +915,12 @@ A reboot or Hector restart creates a fresh in-memory map.
 - `HANDOFF.md`: current deployment state for the next maintainer.
 - `DECISIONS.md`: chronological architecture and validation log.
 
-The repository suite contains 216 tests and does not publish physical movement
+The repository suite contains 293 tests and does not publish physical movement
 during test execution. On a workstation without ROS, the import-only shim
 runner exercises the same suite without creating a ROS node or hardware link:
 
 ```bash
-python host_test_runner.py
+python tools/host_test_runner.py
 ```
 
 To repeat the target-native regression suite against the robot's ROS message
@@ -927,7 +928,7 @@ types and OpenCV build:
 
 ```bash
 cd ~/room_mapper
-python3 -m unittest discover -v
+python3 -m unittest discover -s tests -t . -v
 ```
 
 All 204 tests pass through the host shim and natively on PT. The paused live

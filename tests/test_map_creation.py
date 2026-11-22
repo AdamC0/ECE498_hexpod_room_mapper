@@ -3,7 +3,6 @@ import math
 import threading
 import unittest
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
 
@@ -14,6 +13,7 @@ from map_web import draw_map, to_screen
 from object_mapping import ObjectTracker
 from room_mapper import RoomMapper
 from stationary_survey import StationarySurvey
+from tests.support import PROJECT_ROOT
 
 
 class ScanAdmissionTests(unittest.TestCase):
@@ -271,7 +271,7 @@ class MapPresentationTests(unittest.TestCase):
 
 class HectorLaunchTests(unittest.TestCase):
     def test_no_odometry_hector_receives_continuous_raw_scans(self):
-        root = ET.parse(str(Path(__file__).with_name('hex_map.launch'))).getroot()
+        root = ET.parse(str(PROJECT_ROOT / 'hex_map.launch')).getroot()
         args = {node.attrib['name']: node.attrib.get('default')
                 for node in root.findall('arg')}
         hector = next(node for node in root.findall('node')
@@ -289,8 +289,7 @@ class HectorLaunchTests(unittest.TestCase):
 
 class CameraCpuPatchTests(unittest.TestCase):
     def test_halley_patch_uses_fifteen_hz_raw_streams_without_unused_processing(self):
-        patch_path = Path(__file__).with_name('patches') / \
-            'halley_depth_cpu_reduction.patch'
+        patch_path = PROJECT_ROOT / 'patches' / 'halley_depth_cpu_reduction.patch'
         patch = patch_path.read_text(encoding='utf-8')
         self.assertIn('@@ -44,10 +44,10 @@', patch)
         self.assertIn('name="driver/depth_mode" type="int" value="68"', patch)
