@@ -1,5 +1,18 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Registered-depth alignment candidate - 2026-11-23
+
+The operator observed the CUDA registered overlay shifted up and right. This
+can affect more than display: the registered stream also supplies semantic
+depth lookup and low-obstacle planner projection. A diagnostic capture paired
+raw RGB and registered depth within 11.1 ms and still showed the displacement,
+so a display-only transform was rejected. The candidate applies `x=-12 px` and
+`y=+10 px` to the projection principal point before publishing the shared
+registered stream. Native collision depth is independent and unchanged. The
+offsets are bounded ROS launch parameters, and a reusable synchronized capture
+tool is under `tools/`. All 307 host tests pass; target build, robot-native
+tests, paused visual alignment, and labeled planner alignment remain pending.
+
 ## Variable-opacity RGB/depth overlay deployed - 2026-11-23
 
 The camera card adds an `OVERLAY` view and 0-100% opacity slider. Unlike the

@@ -15,6 +15,12 @@ native depth timestamp, uses the RGB optical frame, and is published as
 `16UC1` millimetres with matching RGB camera information.
 One-pixel projection holes are filled only when at least two four-neighbours
 agree within 50 mm; the nearer value wins to avoid weakening foreground depth.
+The production launch also applies the measured raw-RGB alignment correction
+(`pixel_offset_x=-12`, `pixel_offset_y=+10`) inside registration. This moves the
+published depth left and down; because the correction is applied before
+publication, the overlay, object-depth association, and planner projection all
+consume the same corrected geometry. Override these launch arguments only from
+a timestamp-matched, stationary RGB/depth calibration check.
 
 ## Target build
 

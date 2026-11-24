@@ -7,6 +7,16 @@ ROBOT:
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
 
+REGISTERED-DEPTH PIXEL ALIGNMENT (CANDIDATE):
+  [x] Capture timestamp-matched RGB/CUDA depth while paused (11.1 ms delta).
+  [x] Correct the shared registered stream, not only the dashboard overlay.
+  [x] Apply bounded production defaults x=-12 px (left), y=+10 px (down).
+  [x] Keep native collision depth and its 0.60 m stop unchanged.
+  [x] Pass all 307 host tests.
+  [ ] Build the CUDA package and pass all 307 tests natively on PT.
+  [ ] With the mapper paused, verify near and far RGB/depth edges visually.
+  [ ] Recheck a labeled low obstacle against the fused map before motion.
+
 VARIABLE-OPACITY RGB/DEPTH OVERLAY (DEPLOYED 2026-11-23):
   [x] Add an OVERLAY mode and 0-100% opacity slider to the camera card.
   [x] Blend CUDA registered depth aligned to RGB, not native unregistered depth.

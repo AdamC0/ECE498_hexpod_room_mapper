@@ -2555,3 +2555,23 @@ All 306 host and robot-native tests pass at commit `fa0bd50`. Runtime and
 calibration-test hashes match. A safe restart preserved Hector and CUDA
 registration and left exactly one mapper `AUTO PAUSED` with command `stop`;
 no deployment motion was commanded.
+
+## Correct the shared registered-depth projection, not only its overlay - 2026-11-23
+
+The operator reported that the CUDA registered-depth overlay was displaced up
+and right relative to raw RGB. This is potentially geometric rather than
+cosmetic: the same registered image and RGB intrinsics feed YOLO depth lookup
+and low-obstacle projection into the fused planner. Shifting only the web
+render would conceal a planner/object association bias.
+
+A paused diagnostic capture synchronized raw RGB and CUDA registered depth to
+within 11.1 ms and retained the visible displacement. Chosen candidate: apply
+a bounded `pixel_offset_x=-12` and `pixel_offset_y=+10` to the RGB projection
+principal point inside the CUDA registration node, moving the published depth
+left and down. Output camera information remains the true RGB calibration;
+the corrected depth pixels are intended to land at those RGB coordinates.
+Native collision depth is independent and unchanged. The production launch
+exposes both offsets for later labeled calibration, and
+`tools/capture_rgb_registered_pair.py` provides repeatable synchronized input.
+All 307 host tests pass. Target build, robot-native tests, paused near/far edge
+inspection, and labeled fused-map alignment remain pending.

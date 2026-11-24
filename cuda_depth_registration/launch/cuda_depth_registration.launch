@@ -7,6 +7,8 @@
   <arg name="output_image" default="/camera/depth_registered_cuda/image_raw" />
   <arg name="output_camera_info" default="/camera/depth_registered_cuda/camera_info" />
   <arg name="calibration_service" default="/camera/get_camera_params" />
+  <arg name="pixel_offset_x" default="-12.0" />
+  <arg name="pixel_offset_y" default="10.0" />
 
   <node pkg="cuda_depth_registration" type="cuda_depth_registration_node"
         name="cuda_depth_registration" output="screen" required="true">
@@ -16,6 +18,8 @@
     <param name="output_image" value="$(arg output_image)" />
     <param name="output_camera_info" value="$(arg output_camera_info)" />
     <param name="calibration_service" value="$(arg calibration_service)" />
+    <param name="pixel_offset_x" value="$(arg pixel_offset_x)" />
+    <param name="pixel_offset_y" value="$(arg pixel_offset_y)" />
     <param name="max_depth_metres" value="8.0" />
     <param name="hole_fill_max_delta_mm" value="50" />
   </node>

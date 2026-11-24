@@ -29,6 +29,18 @@ class CudaDepthRegistrationTests(unittest.TestCase):
         self.assertEqual(args['output_camera_info'],
                          '/camera/depth_registered_cuda/camera_info')
 
+    def test_production_launch_applies_measured_pixel_correction(self):
+        root = ET.parse(
+            str(self.root / 'launch' / 'cuda_depth_registration.launch')).getroot()
+        args = {item.attrib['name']: item.attrib.get('default')
+                for item in root.findall('arg')}
+        self.assertEqual(args['pixel_offset_x'], '-12.0')
+        self.assertEqual(args['pixel_offset_y'], '10.0')
+        params = {item.attrib['name']: item.attrib.get('value')
+                  for item in root.find('node').findall('param')}
+        self.assertEqual(params['pixel_offset_x'], '$(arg pixel_offset_x)')
+        self.assertEqual(params['pixel_offset_y'], '$(arg pixel_offset_y)')
+
     def test_kernel_uses_z_buffer_and_factory_extrinsic_inverse(self):
         source = (self.root / 'src' / 'cuda_registration_kernel.cu').read_text(
             encoding='utf-8')
@@ -46,6 +58,8 @@ class CudaDepthRegistrationTests(unittest.TestCase):
         self.assertIn('output.header.frame_id = rgb_info.header.frame_id', source)
         self.assertIn('GetCameraParams', source)
         self.assertIn('service.response.r2l_t[index] * 0.001f', source)
+        self.assertIn('rgb_info.K[2]) + pixel_offset_x_', source)
+        self.assertIn('rgb_info.K[5]) + pixel_offset_y_', source)
 
     def test_benchmark_times_equivalent_cpu_and_cuda_outputs(self):
         source = (self.root / 'src' /
