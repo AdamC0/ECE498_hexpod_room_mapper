@@ -4,7 +4,7 @@
 
 Sustained invalid upper depth can now request a bounded zero-stride resurvey
 instead of remaining permanently faulted. The controller does not treat missing
-depth as clear: before every turn, live 360-degree LiDAR must clear the 0.35 m
+depth as clear: before every turn, live 360-degree LiDAR must clear the 0.22 m
 rotation envelope and every fused-planner cell intersecting that circle must be
 known free. Each turn stops, completes the normal settled scan/pose gate, and
 rechecks native depth. Valid depth returns to normal replanning; an unsafe
@@ -157,7 +157,7 @@ depth-stop validation remain pending.
 
 When the current map has no reachable route, autonomy no longer holds forever
 solely because the raw Hector frontier probe also fails. If live LiDAR and
-depth show the 0.35 m in-place rotation footprint is clear, the robot may make
+depth show the 0.22 m in-place rotation footprint is clear, the robot may make
 one of the existing eight bounded zero-stride resurvey turns, settle, and
 replan from new sensor evidence. An occupied rotation footprint still prohibits
 the turn, and no raw-only route is ever driven. All 279 host and robot-native
@@ -750,8 +750,9 @@ medium, charging, stale, and unavailable telemetry.
 - Active paths use continuous translation and turning without timed observation
   stops. Heading progress is checked during turns. Recovery retains bounded
   motion; stationary surveys at route endpoints require three scans over two seconds.
-- Routing models the robot as a 0.30 m radius circle. The planner adds a 0.13 m
-  leg-clearance margin, so mapped obstacles require 0.43 m center clearance.
+- Routing models the measured approximately 0.33 m full leg span as a 0.17 m
+  radius circle. The planner adds a 0.13 m leg-clearance margin, so mapped
+  obstacles require 0.30 m center clearance.
 - Paths use approximately 0.20 m waypoint spacing and a 0.12 m arrival
   tolerance to reduce corner cutting.
 - A blocked autonomous route may rotate toward an open side or reverse when

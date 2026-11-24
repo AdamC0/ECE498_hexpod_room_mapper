@@ -2487,3 +2487,20 @@ validated 0-100% browser opacity control. The standalone DEPTH view remains the
 native collision stream. The overlay is presentation-only and does not alter
 YOLO, collision sensing, planner occupancy, or RGB recording. All 306 host
 tests pass; robot-native and paused live validation remain pending.
+
+## Correct diameter-as-radius footprint calibration - 2026-11-23
+
+The operator clarified that the complete leg-to-leg span is approximately one
+third of a metre. The prior `body_radius = 0.30 m` interpretation therefore
+treated an approximate diameter as a radius and inflated mapped obstacles to
+0.43 m center clearance. That could make open space unreachable and could veto
+otherwise safe in-place resurvey turns.
+
+Chosen: model the measured span conservatively as a `0.17 m` physical radius
+and retain the existing `0.13 m` outside planner margin, producing `0.30 m`
+mapped center clearance. In-place turns use the physical radius plus their
+existing `0.05 m` sweep margin, or `0.22 m`. Keep the independently validated
+LiDAR emergency stop at `0.45 m` rather than deriving it from the corrected
+body radius. Native depth stop remains `0.60 m`. This calibration supersedes
+the 2026-10-12 and 2026-10-26 diameter-as-radius decisions; directly supervised
+motion validation remains required.

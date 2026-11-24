@@ -41,9 +41,9 @@ one mapper process exists.
   stale Hector-black cell downstream. It never writes into Hector.
   `visual_slam.launch` is non-production and must remain
   drive-disabled if used for research comparison. Never run both SLAM stacks.
-- `map_explore.py` plans through known free space using a 0.30 m radius and
-  0.13 m leg-clearance margin.
-- If no frontier route is reachable but the live 0.35 m circular rotation
+- `map_explore.py` models the approximately 0.33 m full leg span as a 0.17 m
+  radius and adds a 0.13 m outside planning margin.
+- If no frontier route is reachable but the live 0.22 m circular rotation
   footprint is clear, the mapper may make up to eight zero-stride resurvey
   turns with settled replanning. It never drives a raw-only route.
 - `room_mapper.py` handles continuous path gait commands, bounded recovery,
