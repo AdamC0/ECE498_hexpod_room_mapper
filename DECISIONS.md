@@ -2430,6 +2430,18 @@ Inspection also found that the reverse duration began when recovery was
 selected, before the normal 0.65 s stop/settle gate, so the 0.5 s interval could
 expire without any reverse gait. The duration now begins only when the back
 command actually starts. Operator status distinguishes short rear sweep,
-dropout veto, missing footprint proof, and other unavailable recovery. All 298
+dropout veto, missing footprint proof, and other unavailable recovery. All 299
 host tests pass. Robot-native, paused deployment, and physically observed
 motion validation remain pending.
+
+## Expose native depth as a dashboard view - 2026-11-23
+
+The operator requested a way to inspect the depth camera instead of RGB from
+the existing website, including a distance legend. Chosen: keep RGB/YOLO as the
+default and add a display-only DEPTH toggle backed by the same native stream
+used for immediate collision sensing. Render 0.2-4.0 m with nearest-neighbor
+scaling, near returns red, far returns blue, and invalid/no-return pixels black.
+Draw the metre scale into the JPEG so it remains aligned and visible on narrow
+clients. Do not switch object detection, registered planner geometry, or video
+recording away from their existing inputs. All 299 host tests pass; target and
+paused live validation remain pending.

@@ -1,5 +1,15 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Live native-depth dashboard view candidate - 2026-11-23
+
+The camera card now has RGB and DEPTH buttons. DEPTH serves a colorized view of
+the native collision stream (not the registered planner stream) with a fixed
+0.2-4.0 m on-image legend: near is red, far is blue, and invalid/no-return is
+black. RGB remains the default, retains YOLO boxes, and remains the only video
+recording source. Switching views changes display only and does not alter any
+sensor, safety, mapping, or recording input. All 299 host tests pass; target
+validation and paused deployment are pending.
+
 ## Bounded floor-bump retreat candidate - 2026-11-23
 
 Live inspection of a reported stuck case showed a real 0.33-0.34 m native-depth
@@ -14,7 +24,7 @@ no more than 5 degrees heading change, and the existing speed-scaled rear LiDAR
 sweep. Depth dropout remains an unconditional reverse veto. The reverse clock
 now starts when the back gait actually begins instead of expiring during the
 stop/settle interval. Status reports the actual veto when recovery is unsafe.
-All 298 host tests pass; robot-native tests, paused deployment, and directly
+All 299 host tests pass; robot-native tests, paused deployment, and directly
 supervised floor-bump escape motion remain pending.
 
 ## RoomMapper domain split - 2026-11-22

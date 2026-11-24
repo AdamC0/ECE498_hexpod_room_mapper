@@ -33,6 +33,8 @@ class FakeNode:
     def __init__(self):
         n = 10
         self.camera = None
+        self.depth = np.full((240, 320), 1.5, np.float32)
+        self.data_lock = threading.Lock()
         self.view = {}
         self.use_depth = False
         self.t_depth = 0.0
@@ -94,7 +96,9 @@ class WebServerTests(unittest.TestCase):
             body = response.read().decode()
             self.assertEqual(response.status, 200)
             self.assertIn('JetHexa room mapper', body)
-            self.assertIn("setTimeout(load,ms);load()", body)
+            self.assertIn("'/depth.jpg?t='", body)
+            self.assertIn("id='view-depth'", body)
+            self.assertIn("NATIVE DEPTH / METRES", body)
             self.assertIn("if(wasDriving)drivePulse('stop')", body)
             self.assertNotIn('driveStop();driveCommand=command', body)
             self.assertIn("data-tab='objects'", body)
@@ -126,7 +130,7 @@ class WebServerTests(unittest.TestCase):
     def test_status_jpeg_and_object_endpoints(self):
         with self.request('/status') as response:
             self.assertEqual(response.read(), b'test status')
-        for path in ('/cam.jpg', '/map.jpg'):
+        for path in ('/cam.jpg', '/depth.jpg', '/map.jpg'):
             with self.request(path) as response:
                 self.assertEqual(response.headers.get_content_type(), 'image/jpeg')
                 self.assertEqual(response.read()[:2], b'\xff\xd8')
@@ -142,6 +146,13 @@ class WebServerTests(unittest.TestCase):
         with self.request('/speed.json') as response:
             speed = json.loads(response.read().decode())
             self.assertEqual(speed['translation'], 100.0)
+
+    def test_depth_view_has_colour_scale_and_invalid_legend(self):
+        self.node.depth = np.array([[.2, 1.0], [2.0, 0.0]], np.float32)
+        image = map_web.draw_depth_camera(self.node)
+        self.assertEqual(image.shape, (480, 640, 3))
+        self.assertFalse(np.array_equal(image[100, 100], image[100, 400]))
+        self.assertTrue(np.array_equal(image[360, 400], np.zeros(3, np.uint8)))
 
     def test_controls_and_missing_route(self):
         for command, path in (('pause', '/pause'), ('cancel_route', '/cancel-route'),

@@ -1,5 +1,15 @@
 # JetHexa Room Mapper
 
+## Live depth-camera view
+
+The dashboard camera card can switch between the existing RGB/YOLO view and a
+colorized native collision-depth stream. The depth image uses nearest-neighbor
+display scaling so sensor pixels remain discrete, shows 0.2-4.0 m with near
+returns in red and far returns in blue, and labels invalid/no-return pixels in
+black. An on-image metre scale remains visible at every dashboard size. Video
+recording remains RGB plus YOLO annotations regardless of the selected live
+view.
+
 ## Bounded floor-bump retreat
 
 A forward floor-bump no longer leaves autonomy permanently trapped when it
@@ -13,7 +23,7 @@ gait command actually starts, after the normal stop/settle gate.
 
 The dashboard now distinguishes insufficient rear clearance, depth-dropout
 veto, and missing recent-footprint proof instead of claiming that a numerically
-clear rear path is too short. All 298 host tests pass. Robot-native and directly
+clear rear path is too short. All 299 host tests pass. Robot-native and directly
 supervised motion validation are pending.
 
 ## Controller architecture

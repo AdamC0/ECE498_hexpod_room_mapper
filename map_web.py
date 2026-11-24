@@ -136,6 +136,58 @@ def draw_camera(node):
     return draw_detections(img, fresh_detections(node), source_w, source_h)
 
 
+def draw_depth_camera(node, near=0.2, far=4.0):
+    """Render native collision depth with an on-image metre legend."""
+    lock = getattr(node, 'data_lock', None)
+    if lock is None:
+        frame = getattr(node, 'depth', None)
+        frame = None if frame is None else frame.copy()
+    else:
+        with lock:
+            frame = getattr(node, 'depth', None)
+            frame = None if frame is None else frame.copy()
+    if frame is None:
+        img = np.zeros((480, 640, 3), np.uint8)
+        cv2.putText(img, 'waiting for native depth...', (135, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)
+        return img
+
+    valid = np.isfinite(frame) & (frame > 0.0)
+    clipped = np.clip(np.where(valid, frame, far), near, far)
+    scaled = np.clip((far - clipped) * 255.0 / (far - near), 0, 255).astype(np.uint8)
+    color = cv2.applyColorMap(scaled, cv2.COLORMAP_JET)
+    color[~valid] = 0
+    img = cv2.resize(color, (640, 480), interpolation=cv2.INTER_NEAREST)
+
+    # Near is red and far is blue. Invalid/no-return pixels stay black.
+    y0, y1, x0, x1 = 70, 410, 568, 592
+    values = np.linspace(255, 0, y1 - y0, dtype=np.uint8)[:, None]
+    legend = cv2.applyColorMap(values, cv2.COLORMAP_JET)
+    legend = np.repeat(legend, x1 - x0, axis=1)
+    cv2.rectangle(img, (552, 42), (636, 438), (15, 15, 15), -1)
+    img[y0:y1, x0:x1] = legend
+    cv2.rectangle(img, (x0, y0), (x1, y1), (235, 235, 235), 1)
+    for distance in (near, 1.0, 2.0, 3.0, far):
+        fraction = (distance - near) / (far - near)
+        y = int(round(y0 + fraction * (y1 - y0)))
+        y = min(y1 - 1, max(y0, y))
+        cv2.line(img, (x0 - 4, y), (x1 + 4, y), (255, 255, 255), 1)
+        cv2.putText(img, ('%.1f' % distance), (596, min(430, y + 5)),
+                    cv2.FONT_HERSHEY_SIMPLEX, .36, (255, 255, 255), 1,
+                    cv2.LINE_AA)
+    cv2.putText(img, 'm', (604, 60), cv2.FONT_HERSHEY_SIMPLEX, .45,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.rectangle(img, (560, 416), (572, 428), (0, 0, 0), -1)
+    cv2.rectangle(img, (560, 416), (572, 428), (255, 255, 255), 1)
+    cv2.putText(img, 'invalid', (577, 427), cv2.FONT_HERSHEY_SIMPLEX, .32,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    status = ('native depth | %.1f-%.1f m | black = invalid' % (near, far))
+    cv2.rectangle(img, (0, 0), (430, 30), (15, 15, 15), -1)
+    cv2.putText(img, status, (10, 21), cv2.FONT_HERSHEY_SIMPLEX, .52,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    return img
+
+
 class YoloVideoRecorder(VideoRecorder):
     """Record the dashboard's RGB+YOLO-only frame renderer."""
 
@@ -306,6 +358,8 @@ def start(node, port=8000):
             path = urlparse(self.path).path
             if path == '/': self.reply(PAGE, 'text/html; charset=utf-8')
             elif path == '/cam.jpg': self.reply(jpeg(draw_camera(node)), 'image/jpeg')
+            elif path == '/depth.jpg':
+                self.reply(jpeg(draw_depth_camera(node)), 'image/jpeg')
             elif path == '/map.jpg':
                 values = parse_qs(urlparse(self.path).query)
                 try:
