@@ -2406,3 +2406,30 @@ and CUDA depth measured about 15.6/15.8 Hz. One Hector and one CUDA registrar
 were present, with no RTAB-Map. Deployed hashes match commit `f0abd25`, models
 and recordings remain, and no movement was commanded. No safety thresholds or
 motion policy changed.
+
+## Back out only over a just-traversed footprint after a floor bump - 2026-11-23
+
+The operator reported that floor-bump handling often left the robot stopped
+despite visible escape space. In the live example, the camera showed a chair's
+low horizontal base directly ahead and native depth consistently reported
+0.33-0.34 m, so the floor-bump detector was correct. Rear swept LiDAR clearance
+was about 4.53 m against a 0.10 m speed-scaled requirement. Recovery was denied
+only because the existing policy treated floor bump and complete depth dropout
+identically; the dashboard then misleadingly described the clear rear sweep as
+too short.
+
+Chosen: keep complete depth dropout as an unconditional reverse veto. For a
+floor bump only, permit the existing 0.5 s reverse when rear swept LiDAR is
+clear and the controller observed clear straight-forward motion within 1.5 s,
+the pose moved no more than 0.12 m from that proof, and heading changed no more
+than 5 degrees. This is a backtrack through body space occupied moments ago,
+not general permission to reverse using LiDAR alone. Crab travel, stale proof,
+turning, insufficient rear sweep, and dropout still hold position.
+
+Inspection also found that the reverse duration began when recovery was
+selected, before the normal 0.65 s stop/settle gate, so the 0.5 s interval could
+expire without any reverse gait. The duration now begins only when the back
+command actually starts. Operator status distinguishes short rear sweep,
+dropout veto, missing footprint proof, and other unavailable recovery. All 298
+host tests pass. Robot-native, paused deployment, and physically observed
+motion validation remain pending.

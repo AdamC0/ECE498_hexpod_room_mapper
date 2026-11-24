@@ -581,10 +581,56 @@ class MapperTests(unittest.TestCase):
         n.depth[55:95, 20:80] = 0.
         n.lidar['nearest'] = .29
         n.lidar['rear_path_clearance'] = 2.
+        n.recent_forward_clearance = (time.time(), n.pose)
         n.control_step()
         self.assertEqual(n.depth_source, 'depth dropout / too close')
         self.assertEqual(n.state, HOLD)
         self.assertIsNone(n.recovery_action)
+
+    def test_floor_bump_can_retreat_over_just_traversed_forward_footprint(self):
+        n = self.controller()
+        n.depth[60:80, 40:60] = .4
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = 2.
+        n.recent_forward_clearance = (time.time(), n.pose)
+        n.control_step()
+        self.assertEqual(n.depth_source, 'floor-bump')
+        self.assertEqual(n.state, AVOID)
+        self.assertEqual(n.recovery_action, 'back')
+        n.send.assert_called_with(('back',), interrupt_object=True)
+
+    def test_floor_bump_does_not_reverse_on_stale_forward_footprint(self):
+        n = self.controller()
+        n.depth[60:80, 40:60] = .4
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = 2.
+        n.recent_forward_clearance = (time.time() - 2., n.pose)
+        n.control_step()
+        self.assertEqual(n.state, HOLD)
+        self.assertIsNone(n.recovery_action)
+
+    def test_floor_bump_does_not_reverse_after_heading_changed(self):
+        n = self.controller()
+        n.depth[60:80, 40:60] = .4
+        n.lidar['nearest'] = .29
+        n.lidar['rear_path_clearance'] = 2.
+        n.recent_forward_clearance = (
+            time.time(), (n.pose[0], n.pose[1], n.pose[2] + math.radians(6.)))
+        n.control_step()
+        self.assertEqual(n.state, HOLD)
+        self.assertIsNone(n.recovery_action)
+
+    def test_reverse_duration_starts_when_motion_actually_starts(self):
+        n = self.controller()
+        n.state = AVOID
+        n.recovery_action = 'back'
+        n.recovery_start = time.time() - 10.
+        n.recovery_back_start = None
+        n.control_step()
+        self.assertEqual(n.state, AVOID)
+        self.assertEqual(n.recovery_action, 'back')
+        self.assertIn('waiting to begin', n.web_msg)
+        n.send.assert_called_with(('back',), interrupt_object=True)
 
     def test_manual_deadman_stops_expired_command(self):
         n = self.controller()

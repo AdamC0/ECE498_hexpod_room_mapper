@@ -1,5 +1,21 @@
 # JetHexa Room Mapper
 
+## Bounded floor-bump retreat
+
+A forward floor-bump no longer leaves autonomy permanently trapped when it
+appears immediately after verified straight-forward travel. The controller may
+back up for the existing 0.5 s recovery interval only when the current rear
+LiDAR swept path is clear and a fresh (at most 1.5 s old), pose-consistent
+forward-footprint proof shows that the robot just occupied the retreat space.
+Depth dropout still always prohibits autonomous reverse, and a floor bump
+without that proof still holds position. Reverse timing begins only when the
+gait command actually starts, after the normal stop/settle gate.
+
+The dashboard now distinguishes insufficient rear clearance, depth-dropout
+veto, and missing recent-footprint proof instead of claiming that a numerically
+clear rear path is too short. All 298 host tests pass. Robot-native and directly
+supervised motion validation are pending.
+
 ## Controller architecture
 
 `room_mapper.py` is now a 392-line composition root instead of a 3,000-line

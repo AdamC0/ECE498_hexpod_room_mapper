@@ -1,5 +1,22 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Bounded floor-bump retreat candidate - 2026-11-23
+
+Live inspection of a reported stuck case showed a real 0.33-0.34 m native-depth
+return from a chair's low horizontal base. The controller correctly classified
+it as a floor bump, and rear LiDAR reported about 4.53 m of swept clearance,
+but the prior policy categorically vetoed reverse for every floor bump. Its
+status then incorrectly said 4.53 m was below the 0.10 m requirement.
+
+The candidate permits only an immediate 0.5 s backtrack over a straight-forward
+footprint observed clear within 1.5 s, with no more than 0.12 m pose separation,
+no more than 5 degrees heading change, and the existing speed-scaled rear LiDAR
+sweep. Depth dropout remains an unconditional reverse veto. The reverse clock
+now starts when the back gait actually begins instead of expiring during the
+stop/settle interval. Status reports the actual veto when recovery is unsafe.
+All 298 host tests pass; robot-native tests, paused deployment, and directly
+supervised floor-bump escape motion remain pending.
+
 ## RoomMapper domain split - 2026-11-22
 
 The former 3,000-plus-line controller is now a 392-line composition root.

@@ -173,12 +173,16 @@ def initialize_mapper(self):
         "~reverse_clearance_margin", 0.02))
     self.reverse_after_turn_seconds = float(rospy.get_param(
         "~reverse_after_turn_seconds", 2.5))
+    self.recent_forward_clearance_max_age = float(rospy.get_param(
+        "~recent_forward_clearance_max_age", 1.5))
     if (not math.isfinite(self.reverse_seconds) or
             not 0.3 <= self.reverse_seconds <= 3.0 or
             not math.isfinite(self.reverse_clearance_margin) or
             not 0.0 <= self.reverse_clearance_margin <= 0.20 or
             not math.isfinite(self.reverse_after_turn_seconds) or
-            not 1.0 <= self.reverse_after_turn_seconds <= 10.0):
+            not 1.0 <= self.reverse_after_turn_seconds <= 10.0 or
+            not math.isfinite(self.recent_forward_clearance_max_age) or
+            not 0.5 <= self.recent_forward_clearance_max_age <= 3.0):
         raise ValueError("reverse timing is outside the supported range")
     # One gait cycle is 0.50 s.  A shorter burst can stop before the feet
     # complete a step, which previously produced commands with no travel.
@@ -547,6 +551,8 @@ def initialize_mapper(self):
     self.state_reason = "initializing"
     self.recovery_action = None
     self.recovery_start = 0.0
+    self.recovery_back_start = None
+    self.recent_forward_clearance = None
     self.last_yaw = None
     self.turned = 0.0
     self.avoid_dir = 1.0

@@ -85,6 +85,7 @@ from mapper_motion import (
     open_side as motion_open_side,
     call_reset_service as motion_call_reset_service,
     begin_recovery as motion_begin_recovery,
+    recent_forward_retreat_is_clear as motion_recent_forward_retreat_is_clear,
     start_look as motion_start_look,
     start_navigation as motion_start_navigation,
     plan as motion_plan,
@@ -171,6 +172,7 @@ class RoomMapper:
     open_side = motion_open_side
     call_reset_service = motion_call_reset_service
     begin_recovery = motion_begin_recovery
+    recent_forward_retreat_is_clear = motion_recent_forward_retreat_is_clear
     start_look = motion_start_look
     start_navigation = motion_start_navigation
     plan = motion_plan

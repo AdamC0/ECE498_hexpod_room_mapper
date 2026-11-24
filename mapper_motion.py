@@ -389,6 +389,7 @@ def begin_recovery(self, lidar, rotation_blocked, rear_clear, reason, now,
     self.avoid_dir = self.open_side(lidar, pose)
     self.avoid_forward_start = None
     self.recovery_start = now
+    self.recovery_back_start = None
     if not rotation_blocked:
         self.recovery_action = "spin"
         detail = "turning toward open side"
@@ -401,6 +402,29 @@ def begin_recovery(self, lidar, rotation_blocked, rear_clear, reason, now,
     self.set_state(AVOID, reason + "; " + detail)
     self.web_msg = "Blocked: %s; %s" % (reason, detail)
     return True
+
+def recent_forward_retreat_is_clear(self, now, pose, reverse_travel):
+    """Allow a short backtrack only over a just-observed forward footprint.
+
+    Native depth cannot see behind the robot. A floor bump may nevertheless
+    be escaped by reversing over space the body occupied immediately before
+    the stop, provided the current rear LiDAR sweep is also clear. This proof
+    is deliberately unavailable for depth dropout and expires before it can
+    become general blind-reverse permission.
+    """
+    proof = getattr(self, "recent_forward_clearance", None)
+    if proof is None or pose is None:
+        return False
+    proof_time, proof_pose = proof
+    max_age = getattr(self, "recent_forward_clearance_max_age", 1.5)
+    if now - proof_time < 0.0 or now - proof_time > max_age:
+        return False
+    distance = math.hypot(pose[0] - proof_pose[0], pose[1] - proof_pose[1])
+    heading = abs(math.atan2(math.sin(pose[2] - proof_pose[2]),
+                             math.cos(pose[2] - proof_pose[2])))
+    # The proof is refreshed during clear forward travel, so only normal
+    # between-callback motion should separate it from the detected bump.
+    return distance <= max(0.12, reverse_travel) and heading <= math.radians(5.0)
 
 def start_look(self, now):
     # A 360-degree LiDAR already surveys the room without rotating the body.
@@ -657,10 +681,18 @@ def control_step(self):
     reverse_travel = (getattr(self, "stride", 40.0) / 1000.0 * speed_scale *
                       self.reverse_seconds / max(getattr(self, "step_time", 0.5), 0.1))
     rear_clearance = reverse_travel + getattr(self, "reverse_clearance_margin", 0.02)
-    # Rearward travel has LiDAR coverage but no depth-camera view of the
-    # floor. Never reverse in response to a possible bump/dropout alarm.
+    if (not blocked and self.commanded_moving and self.last_cmd is not None and
+            self.last_cmd[0] == "forward"):
+        self.recent_forward_clearance = (now, tuple(pose))
+    recent_retreat_clear = (
+        self.depth_source == "floor-bump" and
+        self.recent_forward_retreat_is_clear(now, pose, reverse_travel))
+    # Rearward travel has LiDAR coverage but no rear-facing depth. A dropout
+    # always vetoes reverse. A floor bump permits only an immediate, bounded
+    # retreat over the forward footprint the body just occupied.
     rear_clear = (rear_path_clearance >= rear_clearance and
-                  self.depth_source not in ("floor-bump", "depth dropout / too close"))
+                  self.depth_source != "depth dropout / too close" and
+                  (self.depth_source != "floor-bump" or recent_retreat_clear))
     reason = ("depth %.2f m (%s)" % (depth_near, self.depth_source)
               if depth_blocked else "LiDAR fallback %.2f m" % front)
     self.view = {"front": front, "nearest": lidar["nearest"], "blocked": blocked,
@@ -686,28 +718,48 @@ def control_step(self):
                                  "obstacle remains", now, pose):
             pass
         elif now - self.state_start > self.hold_seconds:
-            self.web_msg = ("Blocked safely: rotation footprint occupied and rear swept "
-                            "travel %.2f m is below %.2f m required" %
-                            (rear_path_clearance, rear_clearance))
+            if rear_path_clearance < rear_clearance:
+                detail = "rear swept travel %.2f m is below %.2f m required" % (
+                    rear_path_clearance, rear_clearance)
+            elif self.depth_source == "depth dropout / too close":
+                detail = "depth dropout prohibits blind reverse"
+            elif self.depth_source == "floor-bump" and not recent_retreat_clear:
+                detail = "floor bump has no fresh forward-footprint retreat proof"
+            else:
+                detail = "no verified recovery route"
+            self.web_msg = "Blocked safely: rotation footprint occupied and " + detail
         return
     if self.state == AVOID:
         if self.recovery_action == "back":
             if not rear_clear:
                 self.send(("stop",))
                 self.set_state(HOLD, "rear clearance lost while reversing")
-            elif now - self.recovery_start < self.reverse_seconds:
+            elif getattr(self, "recovery_back_start", None) is None:
+                self.send(("back",), interrupt_object=True)
+                if (self.commanded_moving and self.last_cmd is not None and
+                        self.last_cmd[0] == "back"):
+                    self.recovery_back_start = now
+                    self.web_msg = (
+                        "Recovery: reversing briefly to create turning clearance")
+                else:
+                    self.web_msg = "Recovery: waiting to begin verified reverse"
+            elif now - self.recovery_back_start < self.reverse_seconds:
                 self.web_msg = "Recovery: reversing briefly to create turning clearance"
                 self.send(("back",), interrupt_object=True)
             else:
                 self.send(("stop",))
                 self.recovery_action = None
+                self.recovery_back_start = None
                 self.set_state(HOLD, "reverse complete; reassessing clearance")
             return
         if rotation_blocked:
             if rear_clear:
                 self.recovery_action = "back"
-                self.recovery_start = now
+                self.recovery_back_start = None
                 self.send(("back",), interrupt_object=True)
+                if (self.commanded_moving and self.last_cmd is not None and
+                        self.last_cmd[0] == "back"):
+                    self.recovery_back_start = now
                 self.web_msg = "Recovery: turn constrained; switching to reverse"
             else:
                 self.send(("stop",))
@@ -717,10 +769,13 @@ def control_step(self):
                 now - self.recovery_start >= getattr(
                     self, "reverse_after_turn_seconds", 2.5)):
             self.recovery_action = "back"
-            self.recovery_start = now
+            self.recovery_back_start = None
             self.web_msg = ("Recovery: front remained blocked after turning; "
                             "reversing to escape corner")
             self.send(("back",), interrupt_object=True)
+            if (self.commanded_moving and self.last_cmd is not None and
+                    self.last_cmd[0] == "back"):
+                self.recovery_back_start = now
             return
         if (blocked and self.commanded_moving and self.last_cmd is not None and
                 self.last_cmd[0] == "forward"):

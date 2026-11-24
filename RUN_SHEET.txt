@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-22)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-23)
 =====================================================
 
 ROBOT:
@@ -6,6 +6,22 @@ ROBOT:
   Project: /home/hiwonder/room_mapper
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
+
+BOUNDED FLOOR-BUMP RETREAT (CANDIDATE; MOTION VALIDATION PENDING):
+  [x] Confirm the reported live case is a real 0.33-0.34 m chair-base return,
+      not sparse lower-depth noise; rear swept LiDAR clearance was about 4.53 m.
+  [x] Permit a 0.5 s reverse only after fresh straight-forward clear travel,
+      matching pose/heading, and the existing speed-scaled rear LiDAR sweep.
+  [x] Keep depth dropout as an unconditional autonomous-reverse veto and hold
+      floor bumps that lack recent forward-footprint proof.
+  [x] Start reverse duration only when the back gait actually begins after settle.
+  [x] Report the real recovery veto instead of saying clear rear travel is too short.
+  [x] Pass all 298 host tests and compile production Python.
+  [ ] Pass all 298 tests natively on PT and deploy with AUTO PAUSED/command stop.
+  [ ] With direct supervision at 50% translation, approach a matte low obstacle
+      after straight-forward travel; confirm stop, one bounded retreat, and replan.
+  [ ] Confirm a stale/turned proof, insufficient rear sweep, and depth dropout
+      each hold position without issuing reverse.
 
 ROOM_MAPPER DOMAIN SPLIT (2026-11-22):
   [x] Reduce room_mapper.py to a small composition root and preserve its public API.
@@ -726,8 +742,9 @@ BLOCKED ROUTES:
   swept footprint is clear. If rotation is constrained, it uses exact rear
   swept-circle clearance rather than a broad radial sector. A 0.5 s reverse is
   allowed only when its speed-scaled travel plus 0.02 m remains outside the
-  0.45 m LiDAR envelope. It holds if neither route is safe; floor-bump and
-  depth-dropout alarms always prohibit autonomous reverse.
+  0.45 m LiDAR envelope. Depth dropout always prohibits autonomous reverse. A
+  floor bump permits only the bounded recent-forward-footprint retreat described
+  above; without a fresh pose-consistent proof it also prohibits reverse.
 
 FAULTS:
   insufficient valid depth in upper band:
