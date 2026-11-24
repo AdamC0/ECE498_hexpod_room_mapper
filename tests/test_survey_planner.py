@@ -16,7 +16,7 @@ class SurveyPlannerTests(unittest.TestCase):
         self.assertFalse(grid.rotation_footprint_clear(pose, .35))
 
     def test_default_clearance_adds_margin_to_measured_leg_radius(self):
-        self.assertAlmostEqual(ExploreMap().clearance, .33)
+        self.assertAlmostEqual(ExploreMap().clearance, .38)
 
     def test_goal_is_known_free_and_outside_arrival_tolerance(self):
         grid = ExploreMap(size_m=4., cell=.1)

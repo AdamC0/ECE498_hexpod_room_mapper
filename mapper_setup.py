@@ -86,9 +86,9 @@ def initialize_mapper(self):
     self.manual_deadman = float(rospy.get_param("~manual_deadman", 0.55))
     if not math.isfinite(self.manual_deadman) or not 0.3 <= self.manual_deadman <= 2.0:
         raise ValueError("manual_deadman must be between 0.3 and 2.0 seconds")
-    # The operator-estimated full leg-to-leg span is about 0.40 m, so model
-    # its physical radius as 0.20 m.  The planner adds map_margin outside it.
-    self.body_radius = float(rospy.get_param("~body_radius", 0.20))
+    # The operator-estimated full leg-to-leg span is about 0.50 m, so model
+    # its physical radius as 0.25 m.  The planner adds map_margin outside it.
+    self.body_radius = float(rospy.get_param("~body_radius", 0.25))
     if not math.isfinite(self.body_radius) or not 0.10 <= self.body_radius <= 0.50:
         raise ValueError("body_radius must be between 0.10 and 0.50 metres")
     # Keep the independently validated 0.45 m emergency envelope; it is not
