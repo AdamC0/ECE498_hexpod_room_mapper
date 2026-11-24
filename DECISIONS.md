@@ -2565,7 +2565,7 @@ and low-obstacle projection into the fused planner. Shifting only the web
 render would conceal a planner/object association bias.
 
 A paused diagnostic capture synchronized raw RGB and CUDA registered depth to
-within 11.1 ms and retained the visible displacement. Chosen candidate: apply
+within 11.1 ms and retained the visible displacement. Chosen: apply
 a bounded `pixel_offset_x=-12` and `pixel_offset_y=+10` to the RGB projection
 principal point inside the CUDA registration node, moving the published depth
 left and down. Output camera information remains the true RGB calibration;
@@ -2573,5 +2573,15 @@ the corrected depth pixels are intended to land at those RGB coordinates.
 Native collision depth is independent and unchanged. The production launch
 exposes both offsets for later labeled calibration, and
 `tools/capture_rgb_registered_pair.py` provides repeatable synchronized input.
-All 307 host tests pass. Target build, robot-native tests, paused near/far edge
-inspection, and labeled fused-map alignment remain pending.
+
+All 307 host and robot-native tests pass. The target CUDA package builds with
+the existing clock-skew/dependency warnings and deployed source hashes match.
+A corrected post-deployment capture paired RGB and registered depth within
+14.0 ms; paused inspection of the live overlay no longer showed the reported
+uniform up/right displacement. Restarting the already-stalled vendor camera
+graph required the documented reboot fallback after its nodelet manager had
+zero loaded nodelets. The clean boot restored RGB, native depth, and LiDAR and
+created a fresh Hector map. Exactly one mapper is `AUTO PAUSED` with command
+`stop`, CUDA registration is active with `-12/+10`, RTAB-Map is absent, and no
+motion was commanded. A labeled low obstacle must still be checked against the
+fused map before these offsets are treated as final calibration.

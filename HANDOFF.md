@@ -1,17 +1,27 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Registered-depth alignment candidate - 2026-11-23
+## Registered-depth alignment deployed; labeled map check pending - 2026-11-23
 
 The operator observed the CUDA registered overlay shifted up and right. This
 can affect more than display: the registered stream also supplies semantic
 depth lookup and low-obstacle planner projection. A diagnostic capture paired
 raw RGB and registered depth within 11.1 ms and still showed the displacement,
-so a display-only transform was rejected. The candidate applies `x=-12 px` and
-`y=+10 px` to the projection principal point before publishing the shared
-registered stream. Native collision depth is independent and unchanged. The
-offsets are bounded ROS launch parameters, and a reusable synchronized capture
-tool is under `tools/`. All 307 host tests pass; target build, robot-native
-tests, paused visual alignment, and labeled planner alignment remain pending.
+so a display-only transform was rejected. The deployed correction applies
+`x=-12 px` and `y=+10 px` to the projection principal point before publishing
+the shared registered stream. Native collision depth is independent and
+unchanged. The offsets are bounded ROS launch parameters, and a reusable
+synchronized capture tool is under `tools/`. All 307 host and robot-native
+tests pass, the target CUDA package builds with the existing
+clock-skew/dependency warnings, and
+runtime/source hashes match. A post-deployment capture paired corrected RGB
+and depth within 14.0 ms; the paused live overlay no longer showed the uniform
+up/right shift. The camera stack required the documented reboot fallback after
+its vendor nodelet manager lost all loaded nodelets during restart. The clean
+boot restored RGB, native depth, and LiDAR, and the safe launcher created a
+fresh Hector map. Exactly one mapper is `AUTO PAUSED` with command `stop`,
+Hector and CUDA registration are the only production mapping stack, and no
+motion was commanded. Labeled low-obstacle/fused-map alignment is still
+pending and the offsets remain calibration values, not a safety guarantee.
 
 ## Variable-opacity RGB/depth overlay deployed - 2026-11-23
 

@@ -1,6 +1,6 @@
 # JetHexa Room Mapper
 
-## Registered-depth pixel alignment candidate
+## Registered-depth pixel alignment
 
 The operator reported that registered depth appeared above and right of RGB.
 A paused timestamp-matched capture paired raw RGB and CUDA registered depth
@@ -9,8 +9,12 @@ independent refresh cadence as the sole cause. The CUDA registrar now exposes
 bounded projection offsets and the production launch moves the shared stream
 12 pixels left and 10 pixels down. This correction occurs before publication,
 so the dashboard overlay, YOLO depth association, and planner rays consume the
-same geometry; native collision depth remains unchanged. All 307 host tests
-pass. Robot build and paused live alignment validation are pending.
+same geometry; native collision depth remains unchanged. All 307 host and
+robot-native tests pass, the target CUDA package builds, and deployed source
+hashes match. A fresh paused capture paired the corrected streams within
+14.0 ms; the live overlay no longer showed the reported uniform up/right
+shift. A labeled low-obstacle/fused-map check remains pending before treating
+the offsets as final calibration.
 
 ## Sparse-depth recovery turns
 
