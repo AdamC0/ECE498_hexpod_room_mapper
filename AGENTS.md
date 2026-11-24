@@ -158,7 +158,10 @@ radius plus 0.13 m outside margin and a 0.22 m turn envelope; the independent
 0.45 m LiDAR emergency stop is unchanged. All 306 host and robot-native tests
 pass. Live 0%, 45%, and 100% overlay frames were verified. One mapper is
 `AUTO PAUSED`/stop with Hector and CUDA registration only, matching hashes, and
-no deployment motion. Directly supervised sparse-depth recovery remains pending.
+no deployment motion. A subsequent supervised run issued eight bounded turns
+and stopped when depth remained invalid; the operator physically confirmed
+rotation, while Hector x/y stayed within about 0.02 m. It is again `AUTO
+PAUSED`/stop. The occupied/unknown-footprint live veto check remains pending.
 
 Repository cleanup and operator motion diagnosis are deployed at commits
 `2415f9a` and `56f1f50`. Runtime modules remain at the root, tests are under

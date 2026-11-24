@@ -25,10 +25,13 @@ SPARSE-DEPTH RECOVERY TURNS (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Return to normal settled replanning when depth recovers; otherwise FAULT.
   [x] Pass all 306 host tests and compile production Python.
   [x] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
-  [ ] Under direct supervision, reproduce sparse depth with a visibly clear
+  [x] Under direct supervision, reproduce sparse depth with a visibly clear
       footprint; confirm bounded turns recover depth or stop after eight.
   [ ] Confirm an unknown/occupied fused cell or LiDAR return inside 0.22 m
       prevents the first turn and leaves command stop.
+  NOTE: The live run stopped after eight turns with depth still invalid. The
+  operator physically confirmed rotation; Hector x/y stayed within about 0.02 m.
+  Robot returned to AUTO PAUSED/command stop.
 
 LIVE DEPTH-CAMERA VIEW (DEPLOYED 2026-11-23):
   [x] Add RGB/DEPTH controls to the dashboard camera card; keep RGB default.

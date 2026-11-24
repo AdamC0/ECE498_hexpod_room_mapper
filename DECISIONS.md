@@ -2461,7 +2461,7 @@ invalid structured-light return.
 
 Chosen: allow at most eight zero-stride resurvey turns. Do not infer clearance
 from invalid depth. Before every burst, require the live 360-degree LiDAR
-nearest return outside the 0.35 m circular rotation footprint and require every
+nearest return outside the 0.22 m circular rotation footprint and require every
 fused-planner cell intersecting that circle to be known `FREE`. Unknown cells,
 raw Hector occupancy, and temporary or persistent registered-depth occupancy
 all veto motion. After each burst, stop, satisfy the existing stationary
@@ -2470,10 +2470,9 @@ the normal settled replan path; loss of footprint clearance or eight failed
 views enters `FAULT` with command stop. Translation is never allowed during
 this recovery.
 
-All 306 host tests pass, including known-free/unknown/occupied footprint,
-bounded-turn admission, unsafe hold, and recovered-depth regressions.
-Robot-native, paused deployment, and directly supervised motion validation
-remain pending.
+All 306 host and robot-native tests pass, including known-free/unknown/occupied
+footprint, bounded-turn admission, unsafe hold, and recovered-depth regressions.
+Commit `2150407` is deployed with matching hashes.
 
 ## Blend aligned registered depth over RGB with variable opacity - 2026-11-23
 
@@ -2485,8 +2484,9 @@ third `OVERLAY` display mode. Blend only valid registered pixels over RGB,
 retain RGB through invalid holes, keep the 0.2-4.0 m color legend, and accept a
 validated 0-100% browser opacity control. The standalone DEPTH view remains the
 native collision stream. The overlay is presentation-only and does not alter
-YOLO, collision sensing, planner occupancy, or RGB recording. All 306 host
-tests pass; robot-native and paused live validation remain pending.
+YOLO, collision sensing, planner occupancy, or RGB recording. All 306 host and
+robot-native tests pass; paused live 0%, 45%, and 100% frames verified the
+blend and legend.
 
 ## Correct diameter-as-radius footprint calibration - 2026-11-23
 
@@ -2502,8 +2502,8 @@ mapped center clearance. In-place turns use the physical radius plus their
 existing `0.05 m` sweep margin, or `0.22 m`. Keep the independently validated
 LiDAR emergency stop at `0.45 m` rather than deriving it from the corrected
 body radius. Native depth stop remains `0.60 m`. This calibration supersedes
-the 2026-10-12 and 2026-10-26 diameter-as-radius decisions; directly supervised
-motion validation remains required.
+the 2026-10-12 and 2026-10-26 diameter-as-radius decisions. Supervised turn
+admission is validated below; the occupied/unknown-footprint veto remains.
 
 The combined recovery, overlay, and corrected-footprint build passes all 306
 tests on the Windows host and natively on PT. Commit `2150407` is deployed with
@@ -2513,4 +2513,14 @@ RTAB-Map node was present. The RGB, native-depth, and registered overlay JPEGs
 were live. Overlay frames at 0%, 45%, and 100% showed the intended blend while
 retaining RGB through invalid holes and the on-image distance legend. No motion
 was commanded during deployment; supervised recovery-turn motion remains
+pending.
+
+With the operator directly supervising, resume reproduced the sparse-depth
+condition and admitted the guarded recovery. Controller status counted eight
+bounded turns with registered-depth coverage about 5.1-8.7%, then stopped as
+configured because no valid view was found. The operator physically confirmed
+that the robot rotated. Hector-reported x/y stayed within about 0.02 m; that is
+SLAM telemetry, not physical translation proof. The mapper was explicitly
+returned to `AUTO PAUSED` with command `stop` and remains depth-invalid in the
+current view. The separate occupied/unknown-footprint live veto check remains
 pending.

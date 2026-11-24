@@ -11,8 +11,10 @@ rechecks native depth. Valid depth returns to normal replanning; an unsafe
 footprint or eight unsuccessful views holds in `FAULT` without translation.
 
 All 306 host and robot-native tests pass. Commit `2150407` is deployed with
-matching runtime hashes and one `AUTO PAUSED`/stop mapper. Directly supervised
-recovery-turn validation remains pending.
+matching runtime hashes. A directly supervised sparse-depth run issued eight
+bounded resurvey turns and then stopped because depth remained invalid; the
+operator physically confirmed rotation, while SLAM held translation within
+about 0.02 m. The robot was returned to `AUTO PAUSED`/stop.
 
 ## Live depth-camera view
 

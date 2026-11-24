@@ -27,6 +27,14 @@ robot-native tests pass. Commit `2150407` is deployed with one mapper
 `AUTO PAUSED`/stop, Hector and CUDA registration only, and matching runtime
 hashes. Directly supervised motion remains pending.
 
+The subsequent directly supervised run entered sparse-depth recovery. Status
+reported eight bounded turns, registered-depth coverage remained about
+5.1-8.7%, and the controller stopped after the configured limit. The operator
+physically confirmed that the robot rotated. Hector-reported x/y stayed within
+about 0.02 m, which is telemetry rather than physical translation evidence.
+The robot was then returned to `AUTO PAUSED` with `Command: stop`; depth remains
+invalid in the present view.
+
 ## Live native-depth dashboard view deployed - 2026-11-23
 
 The camera card now has RGB and DEPTH buttons. DEPTH serves a colorized view of
