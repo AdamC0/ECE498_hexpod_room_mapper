@@ -16,6 +16,9 @@ LIVE DEPTH-CAMERA VIEW (DEPLOYED 2026-11-23):
   [x] Pass all 299 tests natively on PT and deploy with AUTO PAUSED/command stop.
   [x] Verify fresh RGB and colorized native-depth JPEGs, page controls, the live
       0.2-4.0 m legend, and invalid black regions. Recording remains RGB-only.
+  NOTE: Autonomy was externally resumed after paused deployment validation.
+  The agent re-paused it after a SLAM-reported translation; this was not a
+  physically observed test and did not exercise the floor-bump retreat.
 
 BOUNDED FLOOR-BUMP RETREAT (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Confirm the reported live case is a real 0.33-0.34 m chair-base return,

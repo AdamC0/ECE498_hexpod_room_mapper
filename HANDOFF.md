@@ -14,6 +14,14 @@ geometry, invalid black regions, and the 0.2-4.0 m legend. Runtime hashes match.
 One mapper is `AUTO PAUSED` with `Command: stop`, Hector and CUDA registration
 are the only production stack, and no motion was commanded.
 
+After that paused validation, autonomy was resumed externally while deployment
+documentation was being synchronized. Telemetry showed an ordinary clear-depth
+translation and a Hector pose change from about `(7.35, -2.43, -114.3 deg)` to
+`(7.39, -3.33, -102.7 deg)` before the agent noticed and issued PAUSE. The final
+state is again `AUTO PAUSED`/stop. This was not an agent-commanded or physically
+observed test and did not encounter a floor bump, so it is not validation of the
+new retreat behavior.
+
 ## Bounded floor-bump retreat deployed; motion check pending - 2026-11-23
 
 Live inspection of a reported stuck case showed a real 0.33-0.34 m native-depth
