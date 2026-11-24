@@ -2461,7 +2461,7 @@ invalid structured-light return.
 
 Chosen: allow at most eight zero-stride resurvey turns. Do not infer clearance
 from invalid depth. Before every burst, require the live 360-degree LiDAR
-nearest return outside the 0.22 m circular rotation footprint and require every
+nearest return outside the 0.25 m circular rotation footprint and require every
 fused-planner cell intersecting that circle to be known `FREE`. Unknown cells,
 raw Hector occupancy, and temporary or persistent registered-depth occupancy
 all veto motion. After each burst, stop, satisfy the existing stationary
@@ -2524,3 +2524,14 @@ SLAM telemetry, not physical translation proof. The mapper was explicitly
 returned to `AUTO PAUSED` with command `stop` and remains depth-invalid in the
 current view. The separate occupied/unknown-footprint live veto check remains
 pending.
+
+## Refine full leg-span estimate to 0.40 metres - 2026-11-23
+
+The operator refined the earlier approximate one-third-metre estimate: the
+complete leg-to-leg diameter is closer to `0.40 m`. Chosen: use a conservative
+`0.20 m` physical radius, retain the `0.13 m` outside planning margin for
+`0.33 m` mapped center clearance, and use the physical radius plus the existing
+`0.05 m` turn margin for a `0.25 m` circular rotation envelope. The independent
+`0.45 m` LiDAR emergency stop and `0.60 m` native-depth stop remain unchanged.
+This supersedes only the `0.17 m`/`0.22 m` calibration values above; the guarded
+recovery policy and its validation evidence are otherwise unchanged.

@@ -19,7 +19,7 @@ VARIABLE-OPACITY RGB/DEPTH OVERLAY (DEPLOYED 2026-11-23):
 
 SPARSE-DEPTH RECOVERY TURNS (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Permit only zero-stride turns; never translate while upper depth is invalid.
-  [x] Require live 0.22 m LiDAR clearance and a completely known-free fused-map
+  [x] Require live 0.25 m LiDAR clearance and a completely known-free fused-map
       rotation circle before every turn; unknown or occupied cells hold.
   [x] Stop, settle, and recheck native depth after every burst; cap at eight turns.
   [x] Return to normal settled replanning when depth recovers; otherwise FAULT.
@@ -27,7 +27,7 @@ SPARSE-DEPTH RECOVERY TURNS (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
   [x] Under direct supervision, reproduce sparse depth with a visibly clear
       footprint; confirm bounded turns recover depth or stop after eight.
-  [ ] Confirm an unknown/occupied fused cell or LiDAR return inside 0.22 m
+  [ ] Confirm an unknown/occupied fused cell or LiDAR return inside 0.25 m
       prevents the first turn and leaves command stop.
   NOTE: The live run stopped after eight turns with depth still invalid. The
   operator physically confirmed rotation; Hector x/y stayed within about 0.02 m.

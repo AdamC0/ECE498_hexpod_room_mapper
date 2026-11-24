@@ -19,7 +19,7 @@ The operator reported a clear physical area while autonomy remained stopped on
 LiDAR clearance and only about 8% registered-depth coverage. The candidate may
 make up to eight zero-stride resurvey turns, settling and rechecking native
 depth after every burst. Missing depth is never labeled clear: each turn needs
-the live LiDAR nearest range outside the 0.22 m circular rotation envelope and
+the live LiDAR nearest range outside the 0.25 m circular rotation envelope and
 the complete intersecting footprint to be `FREE` in the fused planner map.
 Unknown, Hector-occupied, temporary-depth, or persistent-depth cells prohibit
 the turn. Translation remains stopped throughout recovery. All 306 host and
@@ -1342,8 +1342,8 @@ endpoint reported a 50-200% range. Exactly one mapper process was present.
 
 ## Important current calibration
 
-- measured full leg span approximately `0.33 m`; `body_radius = 0.17 m`
-- planner outside margin `0.13 m`; total mapped clearance `0.30 m`
+- estimated full leg span approximately `0.40 m`; `body_radius = 0.20 m`
+- planner outside margin `0.13 m`; total mapped clearance `0.33 m`
 - `waypoint_tolerance = 0.12 m`; thinned waypoint spacing about `0.20 m`
 - independent `lidar_stop = 0.45 m`
 - `depth_stop = 0.60 m`

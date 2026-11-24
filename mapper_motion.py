@@ -362,7 +362,7 @@ def open_side(self, lidar, pose=None):
     depth = getattr(self, "depth_sectors", {})
     left = min(lidar["left"], depth.get("left", float("inf")))
     right = min(lidar["right"], depth.get("right", float("inf")))
-    rotation_clearance = getattr(self, "body_radius", 0.17) + 0.05
+    rotation_clearance = getattr(self, "body_radius", 0.20) + 0.05
     if preferred == 1.0 and left >= rotation_clearance:
         return preferred
     if preferred == -1.0 and right >= rotation_clearance:
@@ -428,7 +428,7 @@ def recent_forward_retreat_is_clear(self, now, pose, reverse_travel):
 
 def depth_recovery_rotation_is_clear(self, lidar, pose):
     """Require live LiDAR and fused known-free evidence for a sparse-depth turn."""
-    radius = getattr(self, "body_radius", 0.17) + 0.05
+    radius = getattr(self, "body_radius", 0.20) + 0.05
     if (getattr(self, "spin_stride", 0.0) != 0.0 or pose is None or
             lidar.get("nearest", 0.0) < radius):
         return False

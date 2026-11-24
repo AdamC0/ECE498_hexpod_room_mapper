@@ -41,9 +41,9 @@ one mapper process exists.
   stale Hector-black cell downstream. It never writes into Hector.
   `visual_slam.launch` is non-production and must remain
   drive-disabled if used for research comparison. Never run both SLAM stacks.
-- `map_explore.py` models the approximately 0.33 m full leg span as a 0.17 m
+- `map_explore.py` models the approximately 0.40 m full leg span as a 0.20 m
   radius and adds a 0.13 m outside planning margin.
-- If no frontier route is reachable but the live 0.22 m circular rotation
+- If no frontier route is reachable but the live 0.25 m circular rotation
   footprint is clear, the mapper may make up to eight zero-stride resurvey
   turns with settled replanning. It never drives a raw-only route.
 - `room_mapper.py` handles continuous path gait commands, bounded recovery,
@@ -153,8 +153,8 @@ recharged; the latest value is recorded below.
 
 Sparse-depth resurvey, the RGB/registered-depth overlay, and corrected physical
 footprint calibration are deployed at commit `2150407`. The operator clarified
-that the complete leg span is about 0.33 m, so planning now uses a 0.17 m body
-radius plus 0.13 m outside margin and a 0.22 m turn envelope; the independent
+that the complete leg span is about 0.40 m, so planning now uses a 0.20 m body
+radius plus 0.13 m outside margin and a 0.25 m turn envelope; the independent
 0.45 m LiDAR emergency stop is unchanged. All 306 host and robot-native tests
 pass. Live 0%, 45%, and 100% overlay frames were verified. One mapper is
 `AUTO PAUSED`/stop with Hector and CUDA registration only, matching hashes, and
