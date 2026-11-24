@@ -151,6 +151,15 @@ recharged; the latest value is recorded below.
 
 ## Latest validation
 
+Sparse-depth resurvey, the RGB/registered-depth overlay, and corrected physical
+footprint calibration are deployed at commit `2150407`. The operator clarified
+that the complete leg span is about 0.33 m, so planning now uses a 0.17 m body
+radius plus 0.13 m outside margin and a 0.22 m turn envelope; the independent
+0.45 m LiDAR emergency stop is unchanged. All 306 host and robot-native tests
+pass. Live 0%, 45%, and 100% overlay frames were verified. One mapper is
+`AUTO PAUSED`/stop with Hector and CUDA registration only, matching hashes, and
+no deployment motion. Directly supervised sparse-depth recovery remains pending.
+
 Repository cleanup and operator motion diagnosis are deployed at commits
 `2415f9a` and `56f1f50`. Runtime modules remain at the root, tests are under
 `tests/`, offline utilities under `tools/`, and historical plans/images under

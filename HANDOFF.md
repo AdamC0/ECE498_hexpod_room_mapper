@@ -1,6 +1,6 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Variable-opacity RGB/depth overlay candidate - 2026-11-23
+## Variable-opacity RGB/depth overlay deployed - 2026-11-23
 
 The camera card adds an `OVERLAY` view and 0-100% opacity slider. Unlike the
 standalone native-depth diagnostic, the overlay uses the CUDA registered-depth
@@ -8,10 +8,11 @@ image already aligned to RGB, avoiding a misleading pixelwise blend of the
 native depth optical frame. Only valid registered pixels are blended; RGB stays
 visible through holes, and the 0.2-4.0 m legend remains on-image. This is
 display-only: YOLO, collision depth, fused planning, and RGB recording inputs
-are unchanged. All 306 host tests pass; target and paused live validation are
-pending.
+are unchanged. All 306 host and robot-native tests pass. Live 0%, 45%, and 100%
+frames showed the intended opacity change, retained RGB through invalid holes,
+and kept the legend visible. Runtime hashes match the workstation.
 
-## Sparse-depth recovery-turn candidate - 2026-11-23
+## Sparse-depth recovery turn deployed; motion check pending - 2026-11-23
 
 The operator reported a clear physical area while autonomy remained stopped on
 `insufficient valid depth in upper band`; live status showed 3.00 m forward
@@ -21,9 +22,10 @@ depth after every burst. Missing depth is never labeled clear: each turn needs
 the live LiDAR nearest range outside the 0.22 m circular rotation envelope and
 the complete intersecting footprint to be `FREE` in the fused planner map.
 Unknown, Hector-occupied, temporary-depth, or persistent-depth cells prohibit
-the turn. Translation remains stopped throughout recovery. All 306 host tests
-pass; robot-native, paused deployment, and directly supervised motion remain
-pending.
+the turn. Translation remains stopped throughout recovery. All 306 host and
+robot-native tests pass. Commit `2150407` is deployed with one mapper
+`AUTO PAUSED`/stop, Hector and CUDA registration only, and matching runtime
+hashes. Directly supervised motion remains pending.
 
 ## Live native-depth dashboard view deployed - 2026-11-23
 

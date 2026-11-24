@@ -2504,3 +2504,13 @@ LiDAR emergency stop at `0.45 m` rather than deriving it from the corrected
 body radius. Native depth stop remains `0.60 m`. This calibration supersedes
 the 2026-10-12 and 2026-10-26 diameter-as-radius decisions; directly supervised
 motion validation remains required.
+
+The combined recovery, overlay, and corrected-footprint build passes all 306
+tests on the Windows host and natively on PT. Commit `2150407` is deployed with
+matching runtime/test hashes. A safe restart preserved Hector and the CUDA
+registrar and left exactly one mapper `AUTO PAUSED` with command `stop`; no
+RTAB-Map node was present. The RGB, native-depth, and registered overlay JPEGs
+were live. Overlay frames at 0%, 45%, and 100% showed the intended blend while
+retaining RGB through invalid holes and the on-image distance legend. No motion
+was commanded during deployment; supervised recovery-turn motion remains
+pending.

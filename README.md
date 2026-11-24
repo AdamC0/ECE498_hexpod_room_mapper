@@ -10,8 +10,9 @@ known free. Each turn stops, completes the normal settled scan/pose gate, and
 rechecks native depth. Valid depth returns to normal replanning; an unsafe
 footprint or eight unsuccessful views holds in `FAULT` without translation.
 
-All 306 host tests pass. Robot-native, paused deployment, and directly
-supervised recovery-turn validation are pending.
+All 306 host and robot-native tests pass. Commit `2150407` is deployed with
+matching runtime hashes and one `AUTO PAUSED`/stop mapper. Directly supervised
+recovery-turn validation remains pending.
 
 ## Live depth-camera view
 
@@ -27,7 +28,8 @@ with one `AUTO PAUSED` mapper and no commanded motion.
 An `OVERLAY` mode blends geometrically RGB-aligned CUDA registered depth over
 the live RGB image. A 0-100% opacity slider changes only the web rendering; the
 aligned depth legend remains visible, and object detection, collision sensing,
-planner geometry, and RGB video recording keep their existing inputs.
+planner geometry, and RGB video recording keep their existing inputs. Live 0%,
+45%, and 100% frames were verified on the paused deployment.
 
 ## Bounded floor-bump retreat
 

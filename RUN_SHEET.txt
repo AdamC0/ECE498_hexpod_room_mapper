@@ -7,23 +7,24 @@ ROBOT:
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
 
-VARIABLE-OPACITY RGB/DEPTH OVERLAY (CANDIDATE):
+VARIABLE-OPACITY RGB/DEPTH OVERLAY (DEPLOYED 2026-11-23):
   [x] Add an OVERLAY mode and 0-100% opacity slider to the camera card.
   [x] Blend CUDA registered depth aligned to RGB, not native unregistered depth.
   [x] Blend only valid pixels; retain RGB through holes and keep the metre legend.
   [x] Keep the feature display-only and retain RGB-only video recording.
   [x] Pass all 306 host tests.
-  [ ] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
-  [ ] Verify 0%, intermediate, and 100% live opacity and alignment on object edges.
+  [x] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
+  [x] Verify 0%, 45%, and 100% live opacity, RGB through invalid holes, and the
+      aligned registered-depth response on current floor/furniture geometry.
 
-SPARSE-DEPTH RECOVERY TURNS (CANDIDATE; MOTION VALIDATION PENDING):
+SPARSE-DEPTH RECOVERY TURNS (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Permit only zero-stride turns; never translate while upper depth is invalid.
   [x] Require live 0.22 m LiDAR clearance and a completely known-free fused-map
       rotation circle before every turn; unknown or occupied cells hold.
   [x] Stop, settle, and recheck native depth after every burst; cap at eight turns.
   [x] Return to normal settled replanning when depth recovers; otherwise FAULT.
   [x] Pass all 306 host tests and compile production Python.
-  [ ] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
+  [x] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
   [ ] Under direct supervision, reproduce sparse depth with a visibly clear
       footprint; confirm bounded turns recover depth or stop after eight.
   [ ] Confirm an unknown/occupied fused cell or LiDAR return inside 0.22 m
