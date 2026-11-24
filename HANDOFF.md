@@ -23,7 +23,7 @@ the live LiDAR nearest range outside the 0.30 m circular rotation envelope and
 the complete intersecting footprint to be `FREE` in the fused planner map.
 Unknown, Hector-occupied, temporary-depth, or persistent-depth cells prohibit
 the turn. Translation remains stopped throughout recovery. All 306 host and
-robot-native tests pass. Commit `ce5168b` is deployed with one mapper
+robot-native tests pass. Commit `fa0bd50` is deployed with one mapper
 `AUTO PAUSED`/stop, Hector and CUDA registration only, and matching runtime
 hashes. Directly supervised motion remains pending.
 

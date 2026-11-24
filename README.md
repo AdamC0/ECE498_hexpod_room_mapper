@@ -10,7 +10,7 @@ known free. Each turn stops, completes the normal settled scan/pose gate, and
 rechecks native depth. Valid depth returns to normal replanning; an unsafe
 footprint or eight unsuccessful views holds in `FAULT` without translation.
 
-All 306 host and robot-native tests pass. Commit `ce5168b` is deployed with
+All 306 host and robot-native tests pass. Commit `fa0bd50` is deployed with
 matching runtime hashes. A directly supervised sparse-depth run issued eight
 bounded resurvey turns and then stopped because depth remained invalid; the
 operator physically confirmed rotation, while SLAM held translation within

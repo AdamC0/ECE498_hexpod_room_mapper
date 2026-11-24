@@ -2472,7 +2472,7 @@ this recovery.
 
 All 306 host and robot-native tests pass, including known-free/unknown/occupied
 footprint, bounded-turn admission, unsafe hold, and recovered-depth regressions.
-Commit `ce5168b` is deployed with matching hashes.
+Commit `fa0bd50` is deployed with matching hashes.
 
 ## Blend aligned registered depth over RGB with variable opacity - 2026-11-23
 
@@ -2506,7 +2506,7 @@ the 2026-10-12 and 2026-10-26 diameter-as-radius decisions. Supervised turn
 admission is validated below; the occupied/unknown-footprint veto remains.
 
 The combined recovery, overlay, and corrected-footprint build passes all 306
-tests on the Windows host and natively on PT. Commit `ce5168b` is deployed with
+tests on the Windows host and natively on PT. Commit `fa0bd50` is deployed with
 matching runtime/test hashes. A safe restart preserved Hector and the CUDA
 registrar and left exactly one mapper `AUTO PAUSED` with command `stop`; no
 RTAB-Map node was present. The RGB, native-depth, and registered overlay JPEGs
@@ -2550,3 +2550,8 @@ the existing `0.05 m` turn margin for a `0.30 m` circular rotation envelope.
 The independent `0.45 m` LiDAR emergency stop and `0.60 m` native-depth stop
 remain unchanged. This supersedes the preceding `0.20 m`/`0.25 m` calibration
 values without changing the guarded recovery policy.
+
+All 306 host and robot-native tests pass at commit `fa0bd50`. Runtime and
+calibration-test hashes match. A safe restart preserved Hector and CUDA
+registration and left exactly one mapper `AUTO PAUSED` with command `stop`;
+no deployment motion was commanded.

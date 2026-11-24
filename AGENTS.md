@@ -152,7 +152,7 @@ recharged; the latest value is recorded below.
 ## Latest validation
 
 Sparse-depth resurvey, the RGB/registered-depth overlay, and corrected physical
-footprint calibration are deployed at commit `ce5168b`. The operator clarified
+footprint calibration are deployed at commit `fa0bd50`. The operator clarified
 that the complete leg span is about 0.50 m, so planning now uses a 0.25 m body
 radius plus 0.13 m outside margin and a 0.30 m turn envelope; the independent
 0.45 m LiDAR emergency stop is unchanged. All 306 host and robot-native tests
