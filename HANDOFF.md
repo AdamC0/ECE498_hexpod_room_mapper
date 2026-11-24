@@ -1,16 +1,20 @@
 # JetHexa Room Mapper - Agent Handoff
 
-## Live native-depth dashboard view candidate - 2026-11-23
+## Live native-depth dashboard view deployed - 2026-11-23
 
 The camera card now has RGB and DEPTH buttons. DEPTH serves a colorized view of
 the native collision stream (not the registered planner stream) with a fixed
 0.2-4.0 m on-image legend: near is red, far is blue, and invalid/no-return is
 black. RGB remains the default, retains YOLO boxes, and remains the only video
 recording source. Switching views changes display only and does not alter any
-sensor, safety, mapping, or recording input. All 299 host tests pass; target
-validation and paused deployment are pending.
+sensor, safety, mapping, or recording input. All 299 host and robot-native tests
+pass. Commit `39e8260` is deployed; the live page exposes both controls, RGB
+and depth JPEGs are fresh, and the depth rendering visibly showed current
+geometry, invalid black regions, and the 0.2-4.0 m legend. Runtime hashes match.
+One mapper is `AUTO PAUSED` with `Command: stop`, Hector and CUDA registration
+are the only production stack, and no motion was commanded.
 
-## Bounded floor-bump retreat candidate - 2026-11-23
+## Bounded floor-bump retreat deployed; motion check pending - 2026-11-23
 
 Live inspection of a reported stuck case showed a real 0.33-0.34 m native-depth
 return from a chair's low horizontal base. The controller correctly classified
@@ -24,8 +28,13 @@ no more than 5 degrees heading change, and the existing speed-scaled rear LiDAR
 sweep. Depth dropout remains an unconditional reverse veto. The reverse clock
 now starts when the back gait actually begins instead of expiring during the
 stop/settle interval. Status reports the actual veto when recovery is unsafe.
-All 299 host tests pass; robot-native tests, paused deployment, and directly
-supervised floor-bump escape motion remain pending.
+All 299 host and robot-native tests pass. Commit `213ca8b` is deployed with
+matching runtime hashes. The safe launcher preserved Hector and CUDA
+registration and started exactly one mapper `AUTO PAUSED` with `Command: stop`;
+no motion was commanded. Directly supervised floor-bump escape motion remains
+pending. The restarted mapper currently reports upper-only native depth because
+the present view could not learn enough floor rows, so that paused observation
+does not validate the floor-bump motion path.
 
 ## RoomMapper domain split - 2026-11-22
 

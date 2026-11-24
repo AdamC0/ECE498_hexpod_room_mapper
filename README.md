@@ -8,7 +8,8 @@ display scaling so sensor pixels remain discrete, shows 0.2-4.0 m with near
 returns in red and far returns in blue, and labels invalid/no-return pixels in
 black. An on-image metre scale remains visible at every dashboard size. Video
 recording remains RGB plus YOLO annotations regardless of the selected live
-view.
+view. Commit `39e8260` is deployed; the live RGB and depth JPEGs were verified
+with one `AUTO PAUSED` mapper and no commanded motion.
 
 ## Bounded floor-bump retreat
 
@@ -23,8 +24,9 @@ gait command actually starts, after the normal stop/settle gate.
 
 The dashboard now distinguishes insufficient rear clearance, depth-dropout
 veto, and missing recent-footprint proof instead of claiming that a numerically
-clear rear path is too short. All 299 host tests pass. Robot-native and directly
-supervised motion validation are pending.
+clear rear path is too short. All 299 host and robot-native tests pass. Commit
+`213ca8b` is deployed paused with matching runtime hashes. Directly supervised
+motion validation is pending.
 
 ## Controller architecture
 

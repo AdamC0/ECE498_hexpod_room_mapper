@@ -7,17 +7,17 @@ ROBOT:
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
 
-LIVE DEPTH-CAMERA VIEW (CANDIDATE):
+LIVE DEPTH-CAMERA VIEW (DEPLOYED 2026-11-23):
   [x] Add RGB/DEPTH controls to the dashboard camera card; keep RGB default.
   [x] Render native collision depth from 0.2-4.0 m with an on-image metre
       legend: red is near, blue is far, and black is invalid/no-return.
   [x] Keep depth viewing display-only; RGB + YOLO remains the recording source.
   [x] Pass all 299 host tests.
-  [ ] Pass all 299 tests natively on PT and deploy with AUTO PAUSED/command stop.
-  [ ] Open both live modes and verify fresh RGB, colorized native depth, legend,
-      invalid regions, responsive switching, and unchanged recording behavior.
+  [x] Pass all 299 tests natively on PT and deploy with AUTO PAUSED/command stop.
+  [x] Verify fresh RGB and colorized native-depth JPEGs, page controls, the live
+      0.2-4.0 m legend, and invalid black regions. Recording remains RGB-only.
 
-BOUNDED FLOOR-BUMP RETREAT (CANDIDATE; MOTION VALIDATION PENDING):
+BOUNDED FLOOR-BUMP RETREAT (DEPLOYED; MOTION VALIDATION PENDING):
   [x] Confirm the reported live case is a real 0.33-0.34 m chair-base return,
       not sparse lower-depth noise; rear swept LiDAR clearance was about 4.53 m.
   [x] Permit a 0.5 s reverse only after fresh straight-forward clear travel,
@@ -27,7 +27,7 @@ BOUNDED FLOOR-BUMP RETREAT (CANDIDATE; MOTION VALIDATION PENDING):
   [x] Start reverse duration only when the back gait actually begins after settle.
   [x] Report the real recovery veto instead of saying clear rear travel is too short.
   [x] Pass all 299 host tests and compile production Python.
-  [ ] Pass all 299 tests natively on PT and deploy with AUTO PAUSED/command stop.
+  [x] Pass all 299 tests natively on PT and deploy with AUTO PAUSED/command stop.
   [ ] With direct supervision at 50% translation, approach a matte low obstacle
       after straight-forward travel; confirm stop, one bounded retreat, and replan.
   [ ] Confirm a stale/turned proof, insufficient rear sweep, and depth dropout

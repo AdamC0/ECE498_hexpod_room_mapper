@@ -2431,8 +2431,10 @@ selected, before the normal 0.65 s stop/settle gate, so the 0.5 s interval could
 expire without any reverse gait. The duration now begins only when the back
 command actually starts. Operator status distinguishes short rear sweep,
 dropout veto, missing footprint proof, and other unavailable recovery. All 299
-host tests pass. Robot-native, paused deployment, and physically observed
-motion validation remain pending.
+host and robot-native tests pass. Commit `213ca8b` is deployed with matching
+runtime hashes. The safe launcher preserved Hector and CUDA registration and
+left one mapper `AUTO PAUSED` with `Command: stop`; no motion was commanded.
+Physically observed floor-bump recovery remains pending direct supervision.
 
 ## Expose native depth as a dashboard view - 2026-11-23
 
@@ -2443,5 +2445,8 @@ used for immediate collision sensing. Render 0.2-4.0 m with nearest-neighbor
 scaling, near returns red, far returns blue, and invalid/no-return pixels black.
 Draw the metre scale into the JPEG so it remains aligned and visible on narrow
 clients. Do not switch object detection, registered planner geometry, or video
-recording away from their existing inputs. All 299 host tests pass; target and
-paused live validation remain pending.
+recording away from their existing inputs. All 299 host and robot-native tests
+pass. Commit `39e8260` is deployed with matching hashes. Live RGB and depth
+JPEGs were fresh, and the depth image visibly included current colorized
+geometry, invalid black regions, and the metre legend. One mapper remains
+`AUTO PAUSED` with command `stop`; no motion was commanded.
