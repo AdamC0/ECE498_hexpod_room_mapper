@@ -505,6 +505,10 @@ def initialize_mapper(self):
         "~frontier_resurvey_max_turns", 8))
     if not 1 <= self.frontier_resurvey_max_turns <= 12:
         raise ValueError("frontier_resurvey_max_turns must be between 1 and 12")
+    self.depth_recovery_max_turns = int(rospy.get_param(
+        "~depth_recovery_max_turns", 8))
+    if not 1 <= self.depth_recovery_max_turns <= 12:
+        raise ValueError("depth_recovery_max_turns must be between 1 and 12")
     if self.use_map and self.reset_map:
         try:
             self.call_reset_service()
@@ -570,6 +574,7 @@ def initialize_mapper(self):
     self.spin_stall_start_yaw = None
     self.frontier_blocked_by_fused = False
     self.frontier_resurvey_attempts = 0
+    self.depth_recovery_attempts = 0
     self.settle_until = time.time() + self.scan_settle
     self.survey.reset(self.settle_until)
     self.web_map_center = None

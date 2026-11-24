@@ -34,6 +34,7 @@ class FakeNode:
         n = 10
         self.camera = None
         self.depth = np.full((240, 320), 1.5, np.float32)
+        self.registered_depth = np.full((480, 640), 1.5, np.float32)
         self.data_lock = threading.Lock()
         self.view = {}
         self.use_depth = False
@@ -98,7 +99,10 @@ class WebServerTests(unittest.TestCase):
             self.assertIn('JetHexa room mapper', body)
             self.assertIn("'/depth.jpg?t='", body)
             self.assertIn("id='view-depth'", body)
+            self.assertIn("id='view-overlay'", body)
+            self.assertIn("id='overlay-opacity'", body)
             self.assertIn("NATIVE DEPTH / METRES", body)
+            self.assertIn("RGB + ALIGNED DEPTH", body)
             self.assertIn("if(wasDriving)drivePulse('stop')", body)
             self.assertNotIn('driveStop();driveCommand=command', body)
             self.assertIn("data-tab='objects'", body)
@@ -130,7 +134,7 @@ class WebServerTests(unittest.TestCase):
     def test_status_jpeg_and_object_endpoints(self):
         with self.request('/status') as response:
             self.assertEqual(response.read(), b'test status')
-        for path in ('/cam.jpg', '/depth.jpg', '/map.jpg'):
+        for path in ('/cam.jpg', '/depth.jpg', '/overlay.jpg?opacity=.35', '/map.jpg'):
             with self.request(path) as response:
                 self.assertEqual(response.headers.get_content_type(), 'image/jpeg')
                 self.assertEqual(response.read()[:2], b'\xff\xd8')
@@ -153,6 +157,15 @@ class WebServerTests(unittest.TestCase):
         self.assertEqual(image.shape, (480, 640, 3))
         self.assertFalse(np.array_equal(image[100, 100], image[100, 400]))
         self.assertTrue(np.array_equal(image[360, 400], np.zeros(3, np.uint8)))
+
+    def test_registered_depth_overlay_validates_variable_opacity(self):
+        self.node.camera = np.full((480, 640, 3), 80, np.uint8)
+        self.node.registered_depth = np.full((480, 640), 1.0, np.float32)
+        low = map_web.draw_depth_overlay(self.node, .20)
+        high = map_web.draw_depth_overlay(self.node, .80)
+        self.assertFalse(np.array_equal(low[200, 200], high[200, 200]))
+        with self.assertRaises(ValueError):
+            map_web.draw_depth_overlay(self.node, 1.1)
 
     def test_controls_and_missing_route(self):
         for command, path in (('pause', '/pause'), ('cancel_route', '/cancel-route'),

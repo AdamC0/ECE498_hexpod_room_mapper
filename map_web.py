@@ -159,6 +159,11 @@ def draw_depth_camera(node, near=0.2, far=4.0):
     color[~valid] = 0
     img = cv2.resize(color, (640, 480), interpolation=cv2.INTER_NEAREST)
 
+    return draw_depth_legend(img, near, far, 'native depth')
+
+
+def draw_depth_legend(img, near, far, title):
+    """Draw the shared depth colour scale into a 640x480 image."""
     # Near is red and far is blue. Invalid/no-return pixels stay black.
     y0, y1, x0, x1 = 70, 410, 568, 592
     values = np.linspace(255, 0, y1 - y0, dtype=np.uint8)[:, None]
@@ -181,11 +186,49 @@ def draw_depth_camera(node, near=0.2, far=4.0):
     cv2.rectangle(img, (560, 416), (572, 428), (255, 255, 255), 1)
     cv2.putText(img, 'invalid', (577, 427), cv2.FONT_HERSHEY_SIMPLEX, .32,
                 (255, 255, 255), 1, cv2.LINE_AA)
-    status = ('native depth | %.1f-%.1f m | black = invalid' % (near, far))
+    status = ('%s | %.1f-%.1f m | black = invalid' % (title, near, far))
     cv2.rectangle(img, (0, 0), (430, 30), (15, 15, 15), -1)
     cv2.putText(img, status, (10, 21), cv2.FONT_HERSHEY_SIMPLEX, .52,
                 (255, 255, 255), 1, cv2.LINE_AA)
     return img
+
+
+def draw_depth_overlay(node, opacity=0.45, near=0.2, far=4.0):
+    """Blend RGB-aligned CUDA registered depth over the live RGB image."""
+    opacity = float(opacity)
+    if not 0.0 <= opacity <= 1.0 or not math.isfinite(opacity):
+        raise ValueError('Depth overlay opacity must be between zero and one')
+    rgb, _, _ = camera_image(node)
+    lock = getattr(node, 'data_lock', None)
+    if lock is None:
+        depth = getattr(node, 'registered_depth', None)
+        depth = None if depth is None else depth.copy()
+    else:
+        with lock:
+            depth = getattr(node, 'registered_depth', None)
+            depth = None if depth is None else depth.copy()
+    if rgb is None:
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        cv2.putText(rgb, 'waiting for RGB...', (190, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 255, 255), 2)
+    if depth is None:
+        cv2.putText(rgb, 'waiting for aligned depth...', (145, 280),
+                    cv2.FONT_HERSHEY_SIMPLEX, .7, (0, 210, 255), 2)
+        return draw_depth_legend(rgb, near, far, 'registered overlay')
+
+    valid = np.isfinite(depth) & (depth > 0.0)
+    clipped = np.clip(np.where(valid, depth, far), near, far)
+    scaled = np.clip((far - clipped) * 255.0 / (far - near), 0, 255).astype(np.uint8)
+    color = cv2.applyColorMap(scaled, cv2.COLORMAP_JET)
+    color = cv2.resize(color, (640, 480), interpolation=cv2.INTER_NEAREST)
+    valid = cv2.resize(valid.astype(np.uint8), (640, 480),
+                       interpolation=cv2.INTER_NEAREST).astype(bool)
+    blended = cv2.addWeighted(rgb, 1.0 - opacity, color, opacity, 0.0)
+    rgb[valid] = blended[valid]
+    cv2.putText(rgb, 'depth opacity %d%%' % int(round(opacity * 100.0)),
+                (10, 48), cv2.FONT_HERSHEY_SIMPLEX, .52,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    return draw_depth_legend(rgb, near, far, 'registered overlay')
 
 
 class YoloVideoRecorder(VideoRecorder):
@@ -360,6 +403,15 @@ def start(node, port=8000):
             elif path == '/cam.jpg': self.reply(jpeg(draw_camera(node)), 'image/jpeg')
             elif path == '/depth.jpg':
                 self.reply(jpeg(draw_depth_camera(node)), 'image/jpeg')
+            elif path == '/overlay.jpg':
+                try:
+                    opacity = float(parse_qs(urlparse(self.path).query).get(
+                        'opacity', ['0.45'])[0])
+                    image = draw_depth_overlay(node, opacity)
+                except (TypeError, ValueError):
+                    self.reply('Opacity must be between 0 and 1', status=400)
+                    return
+                self.reply(jpeg(image), 'image/jpeg')
             elif path == '/map.jpg':
                 values = parse_qs(urlparse(self.path).query)
                 try:

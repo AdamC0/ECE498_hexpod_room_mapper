@@ -2450,3 +2450,40 @@ pass. Commit `39e8260` is deployed with matching hashes. Live RGB and depth
 JPEGs were fresh, and the depth image visibly included current colorized
 geometry, invalid black regions, and the metre legend. One mapper remains
 `AUTO PAUSED` with command `stop`; no motion was commanded.
+
+## Use verified zero-stride turns to seek valid depth - 2026-11-23
+
+After an operator-supervised resume, autonomy failed closed on sustained
+`insufficient valid depth in upper band` although the operator reported ample
+physical room and status showed 3.00 m forward LiDAR clearance. Remaining
+stopped is conservative but cannot change the camera viewpoint that caused the
+invalid structured-light return.
+
+Chosen: allow at most eight zero-stride resurvey turns. Do not infer clearance
+from invalid depth. Before every burst, require the live 360-degree LiDAR
+nearest return outside the 0.35 m circular rotation footprint and require every
+fused-planner cell intersecting that circle to be known `FREE`. Unknown cells,
+raw Hector occupancy, and temporary or persistent registered-depth occupancy
+all veto motion. After each burst, stop, satisfy the existing stationary
+scan/pose gate, and re-evaluate native depth. Recovered depth returns through
+the normal settled replan path; loss of footprint clearance or eight failed
+views enters `FAULT` with command stop. Translation is never allowed during
+this recovery.
+
+All 306 host tests pass, including known-free/unknown/occupied footprint,
+bounded-turn admission, unsafe hold, and recovered-depth regressions.
+Robot-native, paused deployment, and directly supervised motion validation
+remain pending.
+
+## Blend aligned registered depth over RGB with variable opacity - 2026-11-23
+
+The operator requested a depth-map overlay on the RGB dashboard view with
+variable opacity. Directly blending the native collision image would be
+geometrically wrong because it retains the depth optical frame. Chosen: use the
+CUDA registered-depth stream, which is projected into the raw RGB frame, for a
+third `OVERLAY` display mode. Blend only valid registered pixels over RGB,
+retain RGB through invalid holes, keep the 0.2-4.0 m color legend, and accept a
+validated 0-100% browser opacity control. The standalone DEPTH view remains the
+native collision stream. The overlay is presentation-only and does not alter
+YOLO, collision sensing, planner occupancy, or RGB recording. All 306 host
+tests pass; robot-native and paused live validation remain pending.

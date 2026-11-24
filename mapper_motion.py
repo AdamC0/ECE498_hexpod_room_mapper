@@ -426,6 +426,68 @@ def recent_forward_retreat_is_clear(self, now, pose, reverse_travel):
     # between-callback motion should separate it from the detected bump.
     return distance <= max(0.12, reverse_travel) and heading <= math.radians(5.0)
 
+def depth_recovery_rotation_is_clear(self, lidar, pose):
+    """Require live LiDAR and fused known-free evidence for a sparse-depth turn."""
+    radius = getattr(self, "body_radius", 0.30) + 0.05
+    if (getattr(self, "spin_stride", 0.0) != 0.0 or pose is None or
+            lidar.get("nearest", 0.0) < radius):
+        return False
+    check = getattr(self.explorer, "rotation_footprint_clear", None)
+    if not callable(check):
+        return False
+    with self.map_lock:
+        return bool(check(pose, radius))
+
+def handle_sparse_depth_recovery(self, lidar, pose, now):
+    """Collect bounded new depth views without translating on unknown depth."""
+    clear = self.depth_recovery_rotation_is_clear(lidar, pose)
+    max_turns = getattr(self, "depth_recovery_max_turns", 8)
+    attempts = getattr(self, "depth_recovery_attempts", 0)
+
+    if self.phase == "depth_recovery_turn":
+        if not clear:
+            self.send(("stop",))
+            self.set_state(FAULT, "sparse depth; rotation footprint is not verified clear")
+            self.web_msg = "Depth recovery stopped: rotation footprint is not verified clear"
+            return
+        was_moving = self.commanded_moving
+        self.send(("spin", self.avoid_dir), interrupt_object=True)
+        if was_moving and not self.commanded_moving:
+            self.phase, self.phase_start = "depth_recovery_settle", now
+            self.web_msg = "Depth recovery turn complete; settling before depth recheck"
+        else:
+            self.web_msg = "Depth recovery: zero-stride resurvey turn %d/%d" % (
+                attempts, max_turns)
+        return
+
+    if self.phase != "depth_recovery_settle":
+        self.send(("stop",))
+        self.phase, self.phase_start = "depth_recovery_settle", now
+        self.set_state(SEARCH, "sparse depth; preparing bounded resurvey")
+        self.web_msg = "Depth invalid; settling before a verified resurvey turn"
+        return
+
+    self.send(("stop",))
+    if not self.survey.ready(now):
+        self.web_msg = "Depth invalid; waiting for settled LiDAR/map evidence"
+        return
+    if attempts >= max_turns:
+        self.set_state(FAULT, "%d depth resurvey turns did not recover valid depth" % max_turns)
+        self.web_msg = "%d bounded depth resurvey turns found no valid view; holding" % max_turns
+        return
+    if not clear:
+        self.set_state(FAULT, "sparse depth; rotation footprint is not verified clear")
+        self.web_msg = "Depth invalid; rotation footprint is not verified clear; holding"
+        return
+
+    self.depth_recovery_attempts = attempts + 1
+    self.avoid_dir = self.open_side(lidar, pose)
+    self.phase, self.phase_start = "depth_recovery_turn", now
+    self.set_state(SEARCH, "bounded turn to recover valid depth")
+    self.web_msg = "Depth recovery: zero-stride resurvey turn %d/%d" % (
+        self.depth_recovery_attempts, max_turns)
+    self.send(("spin", self.avoid_dir), interrupt_object=True)
+
 def start_look(self, now):
     # A 360-degree LiDAR already surveys the room without rotating the body.
     self.phase, self.phase_start, self.turned, self.last_yaw = "survey", now, 0.0, None
@@ -637,9 +699,20 @@ def control_step(self):
     # React to a newly close depth return immediately; use the history only
     # to avoid clearing an established obstacle on one noisy frame.
     depth_near = min(depth_near, float(np.median(self.depth_history)))
+    if (self.use_depth and
+            self.depth_health == "insufficient valid depth in upper band"):
+        self.handle_sparse_depth_recovery(lidar, pose, now)
+        return
     if self.use_depth and not self.depth_health.startswith("ready"):
         self.send(("stop",))
         self.set_state(FAULT, self.depth_health)
+        return
+    if self.phase in ("depth_recovery_turn", "depth_recovery_settle"):
+        self.send(("stop",))
+        self.depth_recovery_attempts = 0
+        self.set_state(SEARCH, "depth recovered after bounded resurvey")
+        self.web_msg = "Depth recovered; settling and replanning"
+        self.start_look(now)
         return
     if self.state == FAULT:
         self.set_state(SEARCH, "sensors recovered")

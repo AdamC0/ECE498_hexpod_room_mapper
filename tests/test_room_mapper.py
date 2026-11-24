@@ -287,6 +287,77 @@ class MapperTests(unittest.TestCase):
             self.assertGreater(n.depth_ahead(empty), .6)
             self.assertEqual(n.depth_health, 'insufficient valid depth in upper band')
 
+    def test_sparse_depth_starts_bounded_turn_when_fused_footprint_is_clear(self):
+        n = self.controller()
+        n.depth[:] = 0.
+        n.floor_profile[:] = np.nan
+        n.floor_unavailable = True
+        n.depth_recovery_attempts, n.depth_recovery_max_turns = 0, 8
+        n.explorer.rotation_footprint_clear = Mock(return_value=True)
+        n.map_lock = threading.Lock()
+        n.survey = SimpleNamespace(ready=Mock(return_value=True))
+        n.control_step()
+        self.assertEqual(n.phase, 'depth_recovery_settle')
+        n.control_step()
+        self.assertEqual(n.phase, 'depth_recovery_turn')
+        self.assertEqual(n.depth_recovery_attempts, 1)
+        n.send.assert_called_with(('spin', n.avoid_dir), interrupt_object=True)
+
+    def test_sparse_depth_holds_when_fused_footprint_is_not_known_free(self):
+        n = self.controller()
+        n.depth[:] = 0.
+        n.floor_profile[:] = np.nan
+        n.floor_unavailable = True
+        n.depth_recovery_attempts, n.depth_recovery_max_turns = 0, 8
+        n.explorer.rotation_footprint_clear = Mock(return_value=False)
+        n.map_lock = threading.Lock()
+        n.survey = SimpleNamespace(ready=Mock(return_value=True))
+        n.phase = 'depth_recovery_settle'
+        n.control_step()
+        self.assertEqual(n.state, FAULT)
+        n.send.assert_called_with(('stop',))
+
+    def test_sparse_depth_holds_when_live_lidar_rotation_circle_is_occupied(self):
+        n = self.controller()
+        n.depth[:] = 0.
+        n.floor_profile[:] = np.nan
+        n.floor_unavailable = True
+        n.depth_recovery_attempts, n.depth_recovery_max_turns = 0, 8
+        n.body_radius = .30
+        n.lidar['nearest'] = .34
+        n.explorer.rotation_footprint_clear = Mock(return_value=True)
+        n.map_lock = threading.Lock()
+        n.survey = SimpleNamespace(ready=Mock(return_value=True))
+        n.phase = 'depth_recovery_settle'
+        n.control_step()
+        self.assertEqual(n.state, FAULT)
+        n.send.assert_called_with(('stop',))
+
+    def test_sparse_depth_stops_after_bounded_resurvey_attempts(self):
+        n = self.controller()
+        n.depth[:] = 0.
+        n.floor_profile[:] = np.nan
+        n.floor_unavailable = True
+        n.depth_recovery_attempts = n.depth_recovery_max_turns = 8
+        n.explorer.rotation_footprint_clear = Mock(return_value=True)
+        n.map_lock = threading.Lock()
+        n.survey = SimpleNamespace(ready=Mock(return_value=True))
+        n.phase = 'depth_recovery_settle'
+        n.control_step()
+        self.assertEqual(n.state, FAULT)
+        self.assertIn('8 depth resurvey turns', n.state_reason)
+
+    def test_valid_depth_stops_resurvey_and_returns_to_normal_survey(self):
+        n = self.controller()
+        n.depth_recovery_attempts = 2
+        n.phase = 'depth_recovery_turn'
+        n.commanded_moving, n.last_cmd = True, ('spin', 1.)
+        n.start_look = Mock()
+        n.control_step()
+        n.send.assert_called_with(('stop',))
+        self.assertEqual(n.depth_recovery_attempts, 0)
+        n.start_look.assert_called_once()
+
     def test_sparse_but_sufficient_upper_depth_remains_usable(self):
         n = self.node
         n.floor_profile = np.full(240, np.nan, np.float32)

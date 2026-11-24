@@ -7,6 +7,28 @@ ROBOT:
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
 
+VARIABLE-OPACITY RGB/DEPTH OVERLAY (CANDIDATE):
+  [x] Add an OVERLAY mode and 0-100% opacity slider to the camera card.
+  [x] Blend CUDA registered depth aligned to RGB, not native unregistered depth.
+  [x] Blend only valid pixels; retain RGB through holes and keep the metre legend.
+  [x] Keep the feature display-only and retain RGB-only video recording.
+  [x] Pass all 306 host tests.
+  [ ] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
+  [ ] Verify 0%, intermediate, and 100% live opacity and alignment on object edges.
+
+SPARSE-DEPTH RECOVERY TURNS (CANDIDATE; MOTION VALIDATION PENDING):
+  [x] Permit only zero-stride turns; never translate while upper depth is invalid.
+  [x] Require live 0.35 m LiDAR clearance and a completely known-free fused-map
+      rotation circle before every turn; unknown or occupied cells hold.
+  [x] Stop, settle, and recheck native depth after every burst; cap at eight turns.
+  [x] Return to normal settled replanning when depth recovers; otherwise FAULT.
+  [x] Pass all 306 host tests and compile production Python.
+  [ ] Pass all 306 tests natively on PT and deploy AUTO PAUSED/command stop.
+  [ ] Under direct supervision, reproduce sparse depth with a visibly clear
+      footprint; confirm bounded turns recover depth or stop after eight.
+  [ ] Confirm an unknown/occupied fused cell or LiDAR return inside 0.35 m
+      prevents the first turn and leaves command stop.
+
 LIVE DEPTH-CAMERA VIEW (DEPLOYED 2026-11-23):
   [x] Add RGB/DEPTH controls to the dashboard camera card; keep RGB default.
   [x] Render native collision depth from 0.2-4.0 m with an on-image metre

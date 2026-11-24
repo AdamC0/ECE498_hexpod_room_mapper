@@ -1,5 +1,18 @@
 # JetHexa Room Mapper
 
+## Sparse-depth recovery turns
+
+Sustained invalid upper depth can now request a bounded zero-stride resurvey
+instead of remaining permanently faulted. The controller does not treat missing
+depth as clear: before every turn, live 360-degree LiDAR must clear the 0.35 m
+rotation envelope and every fused-planner cell intersecting that circle must be
+known free. Each turn stops, completes the normal settled scan/pose gate, and
+rechecks native depth. Valid depth returns to normal replanning; an unsafe
+footprint or eight unsuccessful views holds in `FAULT` without translation.
+
+All 306 host tests pass. Robot-native, paused deployment, and directly
+supervised recovery-turn validation are pending.
+
 ## Live depth-camera view
 
 The dashboard camera card can switch between the existing RGB/YOLO view and a
@@ -10,6 +23,11 @@ black. An on-image metre scale remains visible at every dashboard size. Video
 recording remains RGB plus YOLO annotations regardless of the selected live
 view. Commit `39e8260` is deployed; the live RGB and depth JPEGs were verified
 with one `AUTO PAUSED` mapper and no commanded motion.
+
+An `OVERLAY` mode blends geometrically RGB-aligned CUDA registered depth over
+the live RGB image. A 0-100% opacity slider changes only the web rendering; the
+aligned depth legend remains visible, and object detection, collision sensing,
+planner geometry, and RGB video recording keep their existing inputs.
 
 ## Bounded floor-bump retreat
 

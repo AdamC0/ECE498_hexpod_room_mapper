@@ -422,6 +422,30 @@ class ExploreMap:
         ok = (self.state == FREE) & (distance > self.clearance)
         return ok
 
+    def rotation_footprint_clear(self, pose, radius):
+        """Require the complete circular turn footprint to be known free."""
+        if pose is None or len(pose) < 2:
+            return False
+        radius = float(radius)
+        if not math.isfinite(radius) or radius <= 0.0:
+            raise ValueError('Rotation footprint radius must be positive')
+        r0, c0 = self.to_cell(float(pose[0]), float(pose[1]))
+        if not self.inside(r0, c0):
+            return False
+        # Include every grid square that can intersect the circle, not only
+        # cells whose centers fall inside it. Unknown space is not clear.
+        reach = radius + self.cell * math.sqrt(2.0) / 2.0
+        k = int(math.ceil(reach / self.cell))
+        for r in range(r0 - k, r0 + k + 1):
+            for c in range(c0 - k, c0 + k + 1):
+                if not self.inside(r, c):
+                    return False
+                x, y = self.to_world(r, c)
+                if (math.hypot(x - float(pose[0]), y - float(pose[1])) <= reach and
+                        self.state[r, c] != FREE):
+                    return False
+        return True
+
     def path_prefix_clear(self, pose, path, horizon=0.80):
         """Return whether the immediate planned path remains safe in this map.
 

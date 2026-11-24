@@ -5,6 +5,16 @@ from map_explore import ExploreMap, FREE, OCCUPIED, UNKNOWN
 
 
 class SurveyPlannerTests(unittest.TestCase):
+    def test_rotation_footprint_requires_complete_known_free_circle(self):
+        grid = ExploreMap(size_m=4., cell=.1)
+        pose = (.05, .05, 0.)
+        grid.state[15:26, 15:26] = FREE
+        self.assertTrue(grid.rotation_footprint_clear(pose, .35))
+        grid.state[20, 23] = UNKNOWN
+        self.assertFalse(grid.rotation_footprint_clear(pose, .35))
+        grid.state[20, 23] = OCCUPIED
+        self.assertFalse(grid.rotation_footprint_clear(pose, .35))
+
     def test_default_clearance_adds_leg_margin_to_thirty_centimetre_footprint(self):
         self.assertAlmostEqual(ExploreMap().clearance, .43)
 
