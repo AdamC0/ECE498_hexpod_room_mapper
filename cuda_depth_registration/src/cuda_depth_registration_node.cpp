@@ -33,8 +33,10 @@ class RegistrationNode {
     private_node_.param<std::string>("calibration_service", calibration_service_,
                                      "/camera/get_camera_params");
     private_node_.param("max_depth_metres", max_depth_metres_, 8.0f);
-    private_node_.param("pixel_offset_x", pixel_offset_x_, -12.0f);
-    private_node_.param("pixel_offset_y", pixel_offset_y_, 10.0f);
+    private_node_.param("pixel_scale_x", pixel_scale_x_, 1.05f);
+    private_node_.param("pixel_scale_y", pixel_scale_y_, 1.05f);
+    private_node_.param("pixel_offset_x", pixel_offset_x_, 0.0f);
+    private_node_.param("pixel_offset_y", pixel_offset_y_, 0.0f);
     int hole_fill_delta = 50;
     private_node_.param("hole_fill_max_delta_mm", hole_fill_delta, 50);
     if (max_depth_metres_ <= 0.0f || max_depth_metres_ > 20.0f) {
@@ -45,6 +47,10 @@ class RegistrationNode {
     }
     if (std::abs(pixel_offset_x_) > 80.0f || std::abs(pixel_offset_y_) > 80.0f) {
       throw std::runtime_error("pixel offsets must be within 80 pixels");
+    }
+    if (pixel_scale_x_ < 0.8f || pixel_scale_x_ > 1.2f ||
+        pixel_scale_y_ < 0.8f || pixel_scale_y_ > 1.2f) {
+      throw std::runtime_error("pixel scales must be within [0.8, 1.2]");
     }
     hole_fill_max_delta_mm_ = static_cast<unsigned int>(hole_fill_delta);
 
@@ -60,7 +66,8 @@ class RegistrationNode {
     calibration_client_ = node_.serviceClient<astra_camera::GetCameraParams>(
         calibration_service_, true);
     ROS_INFO_STREAM("CUDA depth registration trial: " << input_image_ << " -> "
-                    << output_image_ << " (pixel correction x="
+                    << output_image_ << " (pixel scale x=" << pixel_scale_x_
+                    << ", y=" << pixel_scale_y_ << "; residual offset x="
                     << pixel_offset_x_ << ", y=" << pixel_offset_y_ << ")");
   }
 
@@ -136,11 +143,12 @@ class RegistrationNode {
     calibration_.depth_fy = static_cast<float>(depth_info.K[4]);
     calibration_.depth_cx = static_cast<float>(depth_info.K[2]);
     calibration_.depth_cy = static_cast<float>(depth_info.K[5]);
-    calibration_.rgb_fx = static_cast<float>(rgb_info.K[0]);
-    calibration_.rgb_fy = static_cast<float>(rgb_info.K[4]);
-    // A timestamp-matched live overlay showed the projected depth consistently
-    // above and right of raw RGB. Correct the shared registered stream here so
-    // the dashboard, object-depth lookup, and planner rays use one geometry.
+    // The observed error points toward the image centre: lower-left geometry is
+    // high/right while lower-right geometry is high/left. Expand projected
+    // coordinates about the true RGB principal point instead of translating
+    // every pixel in one direction. Optional offsets are residual terms only.
+    calibration_.rgb_fx = static_cast<float>(rgb_info.K[0]) * pixel_scale_x_;
+    calibration_.rgb_fy = static_cast<float>(rgb_info.K[4]) * pixel_scale_y_;
     calibration_.rgb_cx = static_cast<float>(rgb_info.K[2]) + pixel_offset_x_;
     calibration_.rgb_cy = static_cast<float>(rgb_info.K[5]) + pixel_offset_y_;
     std::fill(calibration_.rgb_distortion, calibration_.rgb_distortion + 5, 0.0f);
@@ -198,8 +206,10 @@ class RegistrationNode {
   std::string output_info_topic_;
   std::string calibration_service_;
   float max_depth_metres_ = 8.0f;
-  float pixel_offset_x_ = -12.0f;
-  float pixel_offset_y_ = 10.0f;
+  float pixel_scale_x_ = 1.05f;
+  float pixel_scale_y_ = 1.05f;
+  float pixel_offset_x_ = 0.0f;
+  float pixel_offset_y_ = 0.0f;
   unsigned int hole_fill_max_delta_mm_ = 50;
   std::mutex info_mutex_;
   sensor_msgs::CameraInfo depth_info_;

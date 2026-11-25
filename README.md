@@ -1,6 +1,23 @@
 # JetHexa Room Mapper
 
+## Registered-depth centre-scale candidate
+
+The latest operator evidence shows a position-dependent inward error rather
+than a uniform offset: lower-left depth is high/right and lower-right depth is
+high/left. The CUDA registrar now expands projected pixels about the true RGB
+optical centre with provisional `pixel_scale_x=1.05` and
+`pixel_scale_y=1.05`; the former `-12/+10` translation defaults are zeroed.
+This shared correction affects the dashboard overlay, semantic depth lookup,
+and fused planner geometry while leaving native collision depth unchanged.
+The robot is unavailable, so treat 1.05 as a host-tested starting value. Before
+motion, fit it from timestamp-matched stationary edges across both sides and
+multiple depths, then validate a labeled low obstacle against the fused map.
+Use `tools/fit_registered_depth_alignment.py` to fit x/y scale and any residual
+offset from those measured pixel pairs and report the fit RMSE.
+
 ## Registered-depth pixel alignment
+
+This section records the superseded uniform-shift attempt.
 
 The operator reported that registered depth appeared above and right of RGB.
 A paused timestamp-matched capture paired raw RGB and CUDA registered depth

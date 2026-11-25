@@ -2585,3 +2585,32 @@ created a fresh Hector map. Exactly one mapper is `AUTO PAUSED` with command
 `stop`, CUDA registration is active with `-12/+10`, RTAB-Map is absent, and no
 motion was commanded. A labeled low obstacle must still be checked against the
 fused map before these offsets are treated as final calibration.
+
+## Expand registered depth about the RGB optical centre - 2026-11-25
+
+The operator clarified that the remaining CUDA registered-depth error is not a
+uniform translation. Geometry in the lower-left is displaced up/right, while
+geometry in the lower-right is displaced up/left. Both errors point toward the
+image centre, so another constant principal-point shift cannot align the frame.
+
+Chosen repository candidate: restore the residual pixel offsets to zero and
+scale projected RGB coordinates about the true RGB principal point by adjusting
+the projection focal lengths. Production candidate defaults are
+`pixel_scale_x=1.05` and `pixel_scale_y=1.05`, bounded to `[0.8, 1.2]`. The 5%
+initial value is provisional: at representative lower-frame coordinates it
+produces about the same 10-12 pixel correction magnitude as the earlier
+observation, but sends the two horizontal sides in opposite outward directions.
+Bounded pixel offsets remain available only to fit any later measured residual
+translation. Published camera information remains the unmodified RGB
+calibration because corrected depth pixels target that RGB pixel grid.
+
+The correction remains in the shared registered stream, so the dashboard,
+semantic depth lookup, and fused planner receive identical geometry. Native
+collision depth is unchanged. Synthetic host coverage verifies that the optical
+centre remains fixed, lower-left pixels move left/down, and lower-right pixels
+move right/down. An offline least-squares fitter derives x/y scale, residual
+offset, and fit RMSE from measured pixel correspondences; synthetic points
+recover known calibration exactly. The robot is unavailable, so target
+compilation, native tests, timestamp-matched edge fitting, labeled planner
+alignment, and all motion checks remain pending. Do not describe 1.05 as a
+completed calibration until those paused checks fit and validate it.

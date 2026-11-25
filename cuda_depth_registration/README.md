@@ -15,12 +15,35 @@ native depth timestamp, uses the RGB optical frame, and is published as
 `16UC1` millimetres with matching RGB camera information.
 One-pixel projection holes are filled only when at least two four-neighbours
 agree within 50 mm; the nearer value wins to avoid weakening foreground depth.
-The production launch also applies the measured raw-RGB alignment correction
-(`pixel_offset_x=-12`, `pixel_offset_y=+10`) inside registration. This moves the
-published depth left and down; because the correction is applied before
-publication, the overlay, object-depth association, and planner projection all
-consume the same corrected geometry. Override these launch arguments only from
-a timestamp-matched, stationary RGB/depth calibration check.
+The production launch applies a provisional raw-RGB alignment correction inside
+registration. The observed error points inward toward the image centre, so the
+projection uses `pixel_scale_x=1.05` and `pixel_scale_y=1.05` to expand about
+the true RGB principal point. The former constant `-12/+10` pixel translation
+cannot correct opposite horizontal errors on the two sides and is now zero by
+default. Bounded offsets remain available only for a measured residual
+translation. Because correction occurs before publication, the overlay,
+object-depth association, and planner projection consume the same geometry.
+Fit the final scales and any residual offsets from timestamp-matched stationary
+RGB/depth correspondences before supervised motion validation.
+
+Record at least four corresponding edge pixels spanning both sides and the
+upper/lower image in JSON, using the RGB `CameraInfo` principal point:
+
+```json
+{
+  "principal_point": [319.5, 239.5],
+  "matches": [
+    {"depth": [80, 400], "rgb": [68, 410]},
+    {"depth": [560, 400], "rgb": [572, 410]},
+    {"depth": [80, 80], "rgb": [68, 70]},
+    {"depth": [560, 80], "rgb": [572, 70]}
+  ]
+}
+```
+
+Run `python tools/fit_registered_depth_alignment.py matches.json`. The result
+provides launch values and an RMSE; validate the fit on separate edges and at
+more than one object distance before accepting it.
 
 ## Target build
 

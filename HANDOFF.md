@@ -1,5 +1,26 @@
 # JetHexa Room Mapper - Agent Handoff
 
+## Registered-depth centre-scale candidate; robot validation pending - 2026-11-25
+
+The operator clarified that the CUDA overlay contracts toward the image centre:
+lower-left geometry is high/right and lower-right geometry is high/left. This
+supersedes the uniform-shift diagnosis below. The repository candidate replaces
+the `-12/+10` production translation with a 1.05 x/y focal scale about the true
+RGB principal point and zero residual offsets. Scale parameters are bounded to
+0.8-1.2; offsets remain bounded and available only for a later measured residual.
+The approximate 5% start value matches the old correction magnitude near typical
+lower-frame points while correctly reversing horizontal direction across the
+centre. It is not final calibration evidence.
+
+The shared registered stream is corrected before the overlay, semantic lookup,
+and fused planner consume it. Native collision depth remains unchanged. Host
+tests include the opposing-corner geometry regression and exact recovery of a
+synthetic scale/offset fit. `tools/fit_registered_depth_alignment.py` converts
+measured pixel pairs into bounded launch values and reports fit RMSE. The robot
+is unavailable, so CUDA compilation, robot-native tests, paused synchronized
+near/centre/far edge fitting, labeled low-obstacle planner alignment, and
+supervised motion are pending. Keep autonomy paused for all calibration work.
+
 ## Registered-depth alignment deployed; labeled map check pending - 2026-11-23
 
 The operator observed the CUDA registered overlay shifted up and right. This

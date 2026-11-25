@@ -1,4 +1,4 @@
-JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-23)
+JETHEXA ROOM MAPPER - CURRENT RUN SHEET (2026-11-25)
 =====================================================
 
 ROBOT:
@@ -6,6 +6,28 @@ ROBOT:
   Project: /home/hiwonder/room_mapper
   Web: http://192.168.137.223:8000
   Never store the SSH password in project files.
+
+REGISTERED-DEPTH CENTRE-SCALE CORRECTION (CANDIDATE; ROBOT UNAVAILABLE):
+  [x] Classify the reported opposing-corner displacement as an inward scale
+      error rather than a uniform principal-point translation.
+  [x] Replace production -12/+10 translation defaults with a provisional 1.05
+      x/y focal scale about the true RGB optical centre and zero offsets.
+  [x] Bound scale to 0.8-1.2 and retain bounded offsets only for a measured
+      residual translation.
+  [x] Keep the shared registered stream correction upstream of overlay,
+      semantic depth lookup, and fused planning; keep native collision depth
+      unchanged.
+  [x] Add synthetic regression coverage: centre fixed, lower-left moves
+      left/down, and lower-right moves right/down.
+  [x] Add an offline correspondence fitter for x/y scale, residual offset,
+      and fit RMSE; synthetic points recover known calibration exactly.
+  [ ] Build the CUDA package and run the full suite natively on PT while stopped.
+  [ ] AUTO PAUSED, capture synchronized RGB/depth with matte edges near the
+      left, centre, and right at more than one distance. Fit x/y scales first;
+      use offsets only if a consistent residual translation remains.
+  [ ] Confirm alignment at centre and all four quadrants, including foreground
+      z-buffer edges and invalid holes. Do not accept a single-object fit.
+  [ ] Recheck a labeled low obstacle against fused-map cells before any motion.
 
 REGISTERED-DEPTH PIXEL ALIGNMENT (DEPLOYED; LABELED MAP CHECK PENDING):
   [x] Capture timestamp-matched RGB/CUDA depth while paused (11.1 ms delta).
